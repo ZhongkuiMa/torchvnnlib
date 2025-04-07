@@ -31,7 +31,7 @@ With **torchvnnlib**, handling VNN-LIB benchmarks becomes effortless, allowing y
 
 ### Example
 
-#### VNN-LIB Specification:
+#### VNN-LIB Specification
 
 ```lisp
 ; ACAS Xu property 6
@@ -61,35 +61,36 @@ With **torchvnnlib**, handling VNN-LIB benchmarks becomes effortless, allowing y
 ))
 ```
 
-#### Converted PyTorch Representation:
+#### Converted PyTorch Representation
+
+There are two main components in the converted PyTorch representation:
+
+- **inputs**: A list of tensors representing the input bounds. each tensor has a shape of `(n, 2)`, where `n` is the number of input variables. Each row represents a variable's lower and upper bounds.
+- **outputs**: A list of tensors representing the output constraints. All the tensors are "or" clauses. Each tensor represents a set of constraints, which are "and" clauses. The tensor has a shape of `(m, n+1)`, where `m` is the number of "and" clauses and `n` is the number of output variables.
 
 ```python
 {
     "inputs": [
         torch.tensor([
-            [
-                [-0.129289109, 0.700434925],
-                [0.11140846, 0.499999896],
-                [-0.499999896, -0.499204121],
-                [-0.5, 0.5],
-                [-0.5, 0.5]
-            ],
-            [
-                [-0.129289109, 0.700434925],
-                [-0.499999896, -0.11140846],
-                [-0.499999896, -0.499204121],
-                [-0.5, 0.5],
-                [-0.5, 0.5]
-            ]
+            [-0.129289109, 0.700434925],
+            [0.11140846, 0.499999896],
+            [-0.499999896, -0.499204121],
+            [-0.5, 0.5],
+            [-0.5, 0.5]
+        ]),
+        torch.tensor([
+            [-0.129289109, 0.700434925],
+            [-0.499999896, -0.11140846],
+            [-0.499999896, -0.499204121],
+            [-0.5, 0.5],
+            [-0.5, 0.5]
         ])
     ],
     "outputs": [
-        torch.tensor([
-            [[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]],
-            [[1.0, 0.0, 1.0, 0.0, 0.0, 0.0]],
-            [[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]],
-            [[1.0, 0.0, 0.0, 0.0, 1.0, 0.0]]
-        ])
+        torch.tensor([[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]]),
+        torch.tensor([[1.0, 0.0, 1.0, 0.0, 0.0, 0.0]]),
+        torch.tensor([[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]]),
+        torch.tensor([[1.0, 0.0, 0.0, 0.0, 1.0, 0.0]])
     ],
 }
 ```

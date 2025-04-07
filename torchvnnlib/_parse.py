@@ -244,7 +244,7 @@ def _check_input_bounds(input_bounds_groups: list[list[float]]):
                 raise ValueError(f"Invalid bound: [{lower}, {upper}]")
 
 
-def load_vnnlib(file_path: str) -> tuple[Tensor, Tensor]:
+def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
     """
     Parse the .vnnlib file and return the input bounds and output constraints.
 
@@ -310,7 +310,9 @@ def load_vnnlib(file_path: str) -> tuple[Tensor, Tensor]:
     if not output_constrs_groups[0]:
         output_constrs_groups.pop(0)
 
-    input_bounds_groups = torch.tensor(input_bounds_groups)
-    output_constrs_groups = torch.tensor(output_constrs_groups)
+    input_bounds_groups = [torch.tensor(t) for t in input_bounds_groups]
+    output_constrs_groups = [torch.tensor(t) for t in output_constrs_groups]
 
-    return input_bounds_groups, output_constrs_groups
+    result = {"inputs": input_bounds_groups, "outputs": output_constrs_groups}
+
+    return result
