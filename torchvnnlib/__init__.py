@@ -1,1 +1,1 @@
-from .torchvnnlib import TorchVNNLIB
+from ._torchvnnlib import TorchVNNLIB
