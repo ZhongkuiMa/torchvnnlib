@@ -99,8 +99,8 @@ There are two main components in the converted PyTorch representation:
 
 You need the following dependencies to run **torchvnnlib**:
 
-- Python 3.10+
-- PyTorch
+- Python 3.10+ (We are using Python 3.12)
+- PyTorch (We are using PyTorch 2.5.1. No special functions are used, so 2.x should be fine.)
 
 ## Usage
 
