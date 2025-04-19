@@ -1,6 +1,8 @@
-# torchvnnlib: Convert VNN-LIB to PyTorch Tensors
+# TorchVNNLIB: Convert VNN-LIB to PyTorch Tensors
 
 [**VNN-LIB**](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [**VNN-COMP (International Verification of Neural Networks Competition)**](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide. However, `.vnnlib` files can be inefficient to load, and cumbersome to integrate into modern tensor-based computation frameworks.
+
+> A good protocol should not sacrifice high efficiency IO operations. In other word, our tool is just a converter, haha...🫡🫡🫡
 
 **torchvnnlib**—a blazing-fast, lightweight library designed to seamlessly convert `.vnnlib` specifications into PyTorch tensors. Whether you're verifying safety properties, robustness constraints, or any other neural network property, **torchvnnlib** accelerates your workflow, making benchmark handling effortless and computation-ready.
 
