@@ -137,3 +137,9 @@ Loaded TinyImageNet_resnet_medium_prop_idx_57_sidx_9858_eps_0.0039.pth (0.0005s)
 ```
 
 By storing constraints as `.pth` files, subsequent loading becomes near-instantaneous, giving your verification pipeline **unmatched efficiency**!
+
+## 🤝 Contributing
+
+We warmly welcome contributions from everyone! Whether it's fixing bugs 🐞, adding features ✨, improving documentation 📚, or just sharing ideas 💡—your input is appreciated!
+
+📌 NOTE: Direct pushes to the `main` branch are restricted. Make sure to fork the repository and submit a Pull Request for any changes!
