@@ -244,7 +244,7 @@ def _check_input_bounds(input_bounds_groups: list[list[float]]):
                 raise ValueError(f"Invalid bound: [{lower}, {upper}]")
 
 
-def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
+def load_vnnlib(file_path: str, verbose: bool = False) -> dict[str, list[Tensor]]:
     """
     Parse the .vnnlib file and return the input bounds and output constraints.
 
@@ -258,6 +258,7 @@ def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
     accept the form of Ax + b >= 0.
 
     :param file_path: The path to the .vnnlib file.
+    :param verbose: If True, print the parsing process.
 
     :return: A tuple of two numpy arrays. The first array contains the input bounds
         and the second array contains the output constraints.
@@ -275,7 +276,6 @@ def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
     variable_counter = {"X": 0, "Y": 0}
 
     # Suppose all declare-const statements are before all assert statements.
-
     statement = None
     while line := next(lines, None):
         statement = _parse_one_statement(line, lines)
@@ -285,6 +285,11 @@ def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
 
     for key in variable_counter:
         variable_counter[key] += 1
+
+    if verbose:
+        print(
+            f'Get {variable_counter["X"]} inputs and {variable_counter["Y"]} outputs.'
+        )
 
     # Here, we set the first element of the list as an empty list to store the simple
     # assert statements.
@@ -314,5 +319,10 @@ def load_vnnlib(file_path: str) -> dict[str, list[Tensor]]:
     output_constrs_groups = [torch.tensor(t) for t in output_constrs_groups]
 
     result = {"inputs": input_bounds_groups, "outputs": output_constrs_groups}
+
+    if verbose:
+        print("Get constraints (name, shape):")
+        for k, v in result.items():
+            print(f"\t{len(v)} {k}: {[tuple(e.shape) for e in v]}")
 
     return result

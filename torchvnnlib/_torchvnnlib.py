@@ -14,7 +14,8 @@ class TorchVNNLIB:
             print(f"Torch vnnlib {vnnlib_path}...")
             t = time.perf_counter()
 
-        result = load_vnnlib(vnnlib_path)
+        result = load_vnnlib(vnnlib_path, verbose=self.verbose)
+
         if target_path is None:
             target_path = vnnlib_path.replace(".vnnlib", ".pth")
         torch.save(result, target_path)
