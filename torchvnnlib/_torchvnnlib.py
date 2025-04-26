@@ -28,8 +28,8 @@ class TorchVNNLIB:
         expr = optimize(expr)
         expr = flatten(expr)
 
-        if self.verbose:
-            print_ast(expr)
+        # if self.verbose:
+        #     print_ast(expr)
 
         and_properties = convert_to_tensor(expr)
 

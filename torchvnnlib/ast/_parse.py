@@ -2,7 +2,6 @@ __docformat__ = "restructuredtext"
 __all__ = ["parse"]
 
 import re
-import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
