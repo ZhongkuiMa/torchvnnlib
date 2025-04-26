@@ -32,7 +32,11 @@ def _get_n_inputs_outputs(input_bounds: And, output_constrs: Or) -> tuple[int, i
 def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
     intput_bounds = [[None] * 2 for _ in range(n_inputs)]
     for sub_expr in expr:
-        if not (isinstance(sub_expr, Leq) or isinstance(sub_expr, Geq)):
+        if not (
+            isinstance(sub_expr, Leq)
+            or isinstance(sub_expr, Geq)
+            or isinstance(sub_expr, Eq)
+        ):
             raise ValueError(f"Invalid input bound expression: {sub_expr}")
         idx = int(sub_expr.left.name[2:])  # noqa
         value = float(sub_expr.right.value)  # noqa
@@ -40,6 +44,11 @@ def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
             intput_bounds[idx][1] = value  # noqa
         elif isinstance(sub_expr, Geq):
             intput_bounds[idx][0] = value  # noqa
+        elif isinstance(sub_expr, Eq):
+            intput_bounds[idx][0] = value
+            intput_bounds[idx][1] = value
+        else:
+            raise RuntimeError(f"Invalid {sub_expr} to obtain input bounds.")
 
     for i in range(n_inputs):
         for j in range(2):
