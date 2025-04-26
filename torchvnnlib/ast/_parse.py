@@ -2,60 +2,58 @@ __docformat__ = "restructuredtext"
 __all__ = ["parse"]
 
 import re
+import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 from ._expr import *
 
+number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
 
-def _parse_expr_list(tokens_list: list[list[str]]) -> list[Expr]:
-    """
-    Parse all tokens (a complete expression str) in each line and transform them into
-    Expr objects.
 
-    :param tokens_list: A list of lists of tokens, where each inner list represents a
-        line of tokens.
-    :return: A list of Expr objects.
-    """
+class Parser:
+    __slots__ = ("tokens",)  # to save memory
 
-    def _parse_expr(tokens: list[str]) -> Expr | list[str]:
-        """
-        Parse a single expression from a list of tokens.
+    def __init__(self, tokens: deque[str]):
+        self.tokens = tokens
 
-        :param tokens: A list of tokens.
-        :return: An Expr object.
-        """
+    def parse_expr(self) -> Expr:
+        tokens = self.tokens
 
-        # We have removed the first two tokens which are `(` and `assert`
-        # and the last token `)`.
-        tok = tokens.pop(0)
+        tok = tokens.popleft()
+
         if tok == "(":
-            op = tokens.pop(0)
+            op = tokens.popleft()
+
             if op == "assert":
-                inner = _parse_expr(tokens)
-                assert tokens.pop(0) == ")"
-                return inner
+                expr = self.parse_expr()
+                assert tokens.popleft() == ")"
+                return expr
+
             elif op in {"and", "or", "+"}:
                 args = []
                 while tokens[0] != ")":
-                    args.append(_parse_expr(tokens))
-                tokens.pop(0)
+                    args.append(self.parse_expr())
+                tokens.popleft()  # pop ')'
                 if op == "and":
                     return And(args)
                 elif op == "or":
                     return Or(args)
-                elif op == "+":
+                else:  # "+"
                     return Add(args)
-                raise ValueError(f"Unknown logical operator: {op}")
-            elif op in ["<=", ">=", "-", "*", "/"]:
-                has_nested_expr = False
+
+            elif op in {"<=", ">=", "-", "*", "/"}:
                 if tokens[0] == "(":
-                    # This is a nested expression
-                    tokens.pop(0)
-                    has_nested_expr = True
-                a = _parse_expr(tokens)
-                b = _parse_expr(tokens)
-                if has_nested_expr:
-                    tokens.pop(0)
-                tokens.pop(0)
+                    tokens.popleft()  # pop nested '('
+                    a = self.parse_expr()
+                    b = self.parse_expr()
+                    tokens.popleft()  # pop nested ')'
+                else:
+                    a = self.parse_expr()
+                    b = self.parse_expr()
+
+                tokens.popleft()  # pop ')'
+
                 if op == "<=":
                     return Leq(a, b)
                 elif op == ">=":
@@ -64,28 +62,31 @@ def _parse_expr_list(tokens_list: list[list[str]]) -> list[Expr]:
                     return Sub(a, b)
                 elif op == "*":
                     return Mul(a, b)
-                elif op == "/":
+                else:  # "/"
                     return Div(a, b)
-                raise ValueError(f"Unknown arithmetic operator: {op}")
+
             else:
-                # There maybe some redundant parentheses in the expression
                 raise ValueError(f"Unknown operator: {op}")
-        elif re.match(r"^-?\d+(\.\d+)?$", tok):
-            # Handle numbers (both integers and floats)
-            return Cst(float(tok))
+
         else:
-            return Var(tok)
+            try:
+                # Handle numbers faster than regex
+                return Cst(float(tok))
+            except ValueError:
+                return Var(tok)
 
-    exprs = []
-    for tokens in tokens_list:
-        # The first operator is assert and we need extract the inner expression
-        # Note that we have make all expressions in a single line
-        if tokens[0] == "(" and tokens[1] == "assert":
-            tokens = tokens[2:-1]
 
-        expr = _parse_expr(tokens)
-        exprs.append(expr)
+def _parse_single_expr(tokens: list[str]) -> Expr:
+    if tokens[0] == "(" and tokens[1] == "assert":
+        tokens = tokens[2:-1]  # Remove surrounding (assert ...)
+    # NOTE: The deque is really quicker than list, thousands of times
+    parser = Parser(deque(tokens))
+    return parser.parse_expr()
 
+
+def _parse_expr_list(tokens_list: list[list[str]]) -> list[Expr]:
+    with ThreadPoolExecutor() as executor:
+        exprs = list(executor.map(_parse_single_expr, tokens_list))
     return exprs
 
 
@@ -109,7 +110,6 @@ def parse(tokens_list: list[list[str]]) -> Expr:
         line of tokens.
     :return: An expression object representing the parsed VNNLIB file.
     """
-
     exprs_list = _parse_expr_list(tokens_list)
     expr = _merge_all_exprs_as_and(exprs_list)
 

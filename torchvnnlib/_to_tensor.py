@@ -45,8 +45,8 @@ def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
         elif isinstance(sub_expr, Geq):
             intput_bounds[idx][0] = value  # noqa
         elif isinstance(sub_expr, Eq):
-            intput_bounds[idx][0] = value
-            intput_bounds[idx][1] = value
+            intput_bounds[idx][0] = value  # noqa
+            intput_bounds[idx][1] = value  # noqa
         else:
             raise RuntimeError(f"Invalid {sub_expr} to obtain input bounds.")
 
