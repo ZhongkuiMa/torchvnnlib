@@ -23,7 +23,7 @@ def tokenize(lines: list[str]) -> list[list[str]]:
     # We need to match the longest possible token first.
     token_pattern = re.compile(
         r"""
-            \s*                             # optional whitespace
+            \s*                               # optional whitespace
             (
                 -?\d+\.\d+                 |  # float
                 -?\d+                      |  # integer

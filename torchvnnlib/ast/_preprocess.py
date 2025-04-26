@@ -39,7 +39,7 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
     If a line ends with a left parenthesis `(`, it indicates that the expression
     continues on the next line. This function will merge all such lines into a single
     expression.
-    The number of parantheses will be counted to determine if the expression is
+    The number of parentheses will be counted to determine if the expression is
     complete or not.
 
     :param lines: A list of lines from a VNNLIB file.

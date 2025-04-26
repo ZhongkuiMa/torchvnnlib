@@ -8,7 +8,6 @@ from copy import deepcopy
 from typing import Callable
 
 from ._expr import *
-from ._print import print_ast
 
 
 def _else_recursion(expr: Expr, func: Callable) -> Expr:
@@ -185,5 +184,5 @@ def optimize(expr: Expr) -> Expr:
     # expr = flatten_and_or(expr)
     # expr = fuse_and_and(expr)
     expr = sort_vars_in_expr(expr)
-    print_ast(expr)
+
     return expr

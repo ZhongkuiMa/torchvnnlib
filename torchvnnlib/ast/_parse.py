@@ -105,7 +105,8 @@ def parse(tokens_list: list[list[str]]) -> Expr:
     """
     Parses a VNNLIB file and returns a list of tokens.
 
-    :param file_path: The path to the VNNLIB file.
+    :param tokens_list: A list of lists of tokens, where each inner list represents a
+        line of tokens.
     :return: An expression object representing the parsed VNNLIB file.
     """
 

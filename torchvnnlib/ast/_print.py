@@ -1,67 +1,56 @@
 __docformat__ = ["restructuredtext"]
-from ._expr import *
-
 __all__ = ["print_ast"]
+
+from ._expr import *
 
 
 def print_ast(expr: Expr, indent: int = 0):
     prefix = "  " * indent
+
+    def print_binary_op(op_symbol, left, right):
+        print(f"{prefix}({op_symbol} ", end="")
+        print_ast(left, indent + 1)
+        print(" ", end="")
+        print_ast(right, indent + 1)
+        print(")", end="")
+
+    def print_nary_op(op_symbol, args):
+        print(f"({op_symbol} ", end="")
+        for arg in args:
+            print_ast(arg, indent + 1)
+            print(" ", end="")
+        print(")", end="")
+
+    def print_logical_op(op_symbol, args):
+        print(f"{prefix}({op_symbol} ")
+        for arg in args:
+            print_ast(arg, indent + 1)
+        print(f"{prefix})")
+
     if isinstance(expr, Cst):
-        # If there is a \n in front of print, remove it
         print(f"{expr.value}", end="")
     elif isinstance(expr, Var):
         print(f"{expr.name}", end="")
     elif isinstance(expr, Eq):
-        print(f"{prefix}(= ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")")
+        print_binary_op("=", expr.left, expr.right)
+        print()
     elif isinstance(expr, Leq):
-        print(f"{prefix}(<= ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")")
+        print_binary_op("<=", expr.left, expr.right)
+        print()
     elif isinstance(expr, Geq):
-        print(f"{prefix}(>= ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")")
+        print_binary_op(">=", expr.left, expr.right)
+        print()
     elif isinstance(expr, Add):
-        print(f"(+ ", end="")
-        for arg in expr.args:
-            print_ast(arg, indent + 1)
-            print(" ", end="")
-        print(f")", end="")
+        print_nary_op("+", expr.args)
     elif isinstance(expr, Sub):
-        print(f"(- ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")", end="")
+        print_binary_op("-", expr.left, expr.right)
     elif isinstance(expr, Mul):
-        print(f"(* ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")", end="")
+        print_binary_op("*", expr.left, expr.right)
     elif isinstance(expr, Div):
-        print(f"(/ ", end="")
-        print_ast(expr.left, indent + 1)
-        print(" ", end="")
-        print_ast(expr.right, indent + 1)
-        print(f")", end="")
+        print_binary_op("/", expr.left, expr.right)
     elif isinstance(expr, And):
-        print(f"{prefix}(and ")
-        for arg in expr.args:
-            print_ast(arg, indent + 1)
-        print(f"{prefix})")
+        print_logical_op("and", expr.args)
     elif isinstance(expr, Or):
-        print(f"{prefix}(or ")
-        for arg in expr.args:
-            print_ast(arg, indent + 1)
-        print(f"{prefix})")
+        print_logical_op("or", expr.args)
     else:
         raise RuntimeError(f"Unknown expr: {expr}")
