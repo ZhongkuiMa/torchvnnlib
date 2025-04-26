@@ -57,7 +57,9 @@ VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format.
 ...
 ```
 
-- `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables). Note that we need a closed input bounds for the input variables, i.e., the lower bound and upper bound of the input variables. The following example shows the two types of constraints:
+- `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables). Note that we use
+  $$ b + Ax \geq 0, $$
+  where $b$ is a constant, $A$ is a matrix and $x$ is a vector of the variables, as the unifed format to represent a linear constraint. Note that we need a closed input bounds for the input variables, i.e., the lower bound and upper bound of the input variables. The following example shows the two types of constraints:
 
 ```lisp
 (assert (<= X_0 0.5))
@@ -147,7 +149,7 @@ We can omit the declaration statements because the neural network needs all inpu
 *Loading a single file with too many properties will be slow and inefficient because we can only verify one property (for one specific input) at a time.*
 The current case sometimes needs us remain all inputs and outputs in the same file, and this is not what we expect. We will unify all the properties in the same format as below:
 
-```
+```lisp
 (and
     (or 
         (and ...input_constraints... ...output_constraints...)
