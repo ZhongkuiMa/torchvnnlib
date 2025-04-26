@@ -38,6 +38,21 @@ You can find example usage in the `test` folder.
 
 By storing constraints as `.pth` files, subsequent loading becomes near-instantaneous, giving your verification pipeline **unmatched efficiency**!
 
+### Test Examples of VNNCOMP'24
+
+You need to get the repo of [vnncomp2024](https://github.com/ChristopherBrix/vnncomp2024_benchmarks). This repo does not contain the benchmarks folder because it is about 20GB. The testing examples are in the `test_vnncomp` folder. Then you make sure the following folder structure:
+
+```
+torchvnnlib/
+│   ├── torchvnnlib/
+│   ├── README.md
+│   └── test_vnncomp/
+└── ...
+vnncomp2024/
+│   ├── benchmarks/
+└── ...
+```
+
 ## Documentation
 
 ### Involved Operations
@@ -97,13 +112,13 @@ Commonly, we use plus and minus operations to declare the linear constraints. Th
 
 In the typical cases, a VNN-LIB file contains the following parts:
 
-- Declaration statements for input and output variables. It treats all the input and output variables as real constants.
-- Assertion statements for input scalar bounds and output linear constraints. The input bounds are closed bounds and limites the lower and upper bounds of the input variables. The output constraints are linear constraints, which only involve the output variables and constants (in a few times, they will involve input variables).
+- `declare-constant`: Declaration statements for input and output variables. It treats all the input and output variables as real constants.
+- `assert`: Assertion statements for input scalar bounds and output linear constraints. The input bounds are closed bounds and limites the lower and upper bounds of the input variables. The output constraints are linear constraints, which only involve the output variables and constants (in a few times, they will involve input variables).
 
 So we know, there are many assertion statements defining the input and output constraints. Currently, we only consider the following types of constraints:
 
-- Input constraints: `<=`, `>=`, or `or` for input variables to declare the input bounds. It only involves one input variable and one constant.
-- Output constraints: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now.
+- **Input constraints**: `<=`, `>=`, or `or` for input variables to declare the *input bounds*. It only involves one input variable and one constant.
+- **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now.
 
 ### Common VNN-LIB Files for Neural Network Verification
 
