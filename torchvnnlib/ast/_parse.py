@@ -9,78 +9,71 @@ from ._expr import *
 
 number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
 
+NARY_OPS_MAP = {
+    "and": And,
+    "or": Or,
+    "+": Add,
+}
+BINARY_OPS_MAP = {
+    "<=": Leq,
+    ">=": Geq,
+    "-": Sub,
+    "*": Mul,
+    "/": Div,
+}
 
-class Parser:
-    __slots__ = ("tokens",)  # to save memory
 
-    def __init__(self, tokens: deque[str]):
-        self.tokens = tokens
+def parse_expr(tokens: deque[str]) -> Expr:
+    # NOTE: The deque is really quicker than list by popleft(), thousands of times
 
-    def parse_expr(self) -> Expr:
-        tokens = self.tokens
+    tok = tokens.popleft()
 
-        tok = tokens.popleft()
+    if tok == "(":
+        op = tokens.popleft()
 
-        if tok == "(":
-            op = tokens.popleft()
+        if op == "assert":
+            expr = parse_expr(tokens)
+            assert tokens.popleft() == ")"
+            return expr
 
-            if op == "assert":
-                expr = self.parse_expr()
-                assert tokens.popleft() == ")"
-                return expr
+        elif op in NARY_OPS_MAP.keys():
+            args = []
+            while tokens[0] != ")":
+                args.append(parse_expr(tokens))
+            tokens.popleft()  # pop ')'
 
-            elif op in {"and", "or", "+"}:
-                args = []
-                while tokens[0] != ")":
-                    args.append(self.parse_expr())
-                tokens.popleft()  # pop ')'
-                if op == "and":
-                    return And(args)
-                elif op == "or":
-                    return Or(args)
-                else:  # "+"
-                    return Add(args)
+            return NARY_OPS_MAP[op](args)
 
-            elif op in {"<=", ">=", "-", "*", "/"}:
-                if tokens[0] == "(":
-                    tokens.popleft()  # pop nested '('
-                    a = self.parse_expr()
-                    b = self.parse_expr()
-                    tokens.popleft()  # pop nested ')'
-                else:
-                    a = self.parse_expr()
-                    b = self.parse_expr()
-
-                tokens.popleft()  # pop ')'
-
-                if op == "<=":
-                    return Leq(a, b)
-                elif op == ">=":
-                    return Geq(a, b)
-                elif op == "-":
-                    return Sub(a, b)
-                elif op == "*":
-                    return Mul(a, b)
-                else:  # "/"
-                    return Div(a, b)
-
+        elif op in BINARY_OPS_MAP.keys():
+            if tokens[0] == "(":
+                tokens.popleft()  # pop nested '('
+                a = parse_expr(tokens)
+                b = parse_expr(tokens)
+                tokens.popleft()  # pop nested ')'
             else:
-                raise ValueError(f"Unknown operator: {op}")
+                a = parse_expr(tokens)
+                b = parse_expr(tokens)
+
+            tokens.popleft()  # pop ')'
+
+            return BINARY_OPS_MAP[op](a, b)
 
         else:
-            try:
-                # Handle numbers faster than regex
-                return Cst(float(tok))
-            except ValueError:
-                return Var(tok)
+            raise ValueError(f"Unknown operator: {op}")
+
+    else:
+        try:
+            # Handle numbers faster than regex
+            return Cst(float(tok))
+        except ValueError:
+            return Var(tok)
 
 
 def _parse_single_expr(tokens: list[str]) -> Expr:
     if tokens[0] == "(" and tokens[1] == "assert":
         tokens = tokens[2:-1]  # Remove surrounding (assert ...)
-    # NOTE: The deque is really quicker than list, thousands of times
-    parser = Parser(deque(tokens))
-    return parser.parse_expr()
+
+    return parse_expr(deque(tokens))
 
 
 def _parse_expr_list(tokens_list: list[list[str]]) -> list[Expr]:

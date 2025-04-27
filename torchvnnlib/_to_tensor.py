@@ -165,6 +165,7 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
         elif isinstance(sub_expr, Geq):
             constr = _convert_linear_constr(left, right, y_dim, x_dim)
             constr = -constr
+            constr.masked_fill_(constr == 0.0, 0.0)  # Remove negative zero
         else:
             raise ValueError(f"Invalid output constraint expression: {sub_expr}")
 
