@@ -127,19 +127,21 @@ def _convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> T
 
     if isinstance(left, Var):
         idx = int(left.name[2:])
-        constr[idx + 1] = -1
+        constr[idx + 1] += -1
     elif isinstance(left, Cst):
-        constr[0] = -left.value  # noqa
+        constr[0] += -left.value  # noqa
     else:
         raise NotImplementedError(f"Now only support Var and Cst for left: {left}")
 
     if isinstance(right, Var):
         idx = int(right.name[2:])
-        constr[idx + 1] = 1
+        constr[idx + 1] += 1
     elif isinstance(right, Cst):
         constr[0] += right.value
     elif _is_asmd(right):
-        constr = torch.zeros(y_dim + x_dim + 1, dtype=torch.float64)
+        extended_constr = torch.zeros(y_dim + x_dim + 1, dtype=torch.float64)
+        extended_constr[: y_dim + 1] = constr
+        constr = extended_constr
         constr = _convert_linear_poly(constr, right, y_dim, x_dim)
     else:
         raise NotImplementedError(f"Now only support Var and Cst for right: {right}")
@@ -157,8 +159,6 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
     for i, sub_expr in enumerate(expr):
         left = sub_expr.left  # noqa
         right = sub_expr.right  # noqa
-        assert isinstance(left, Cst)
-        left = Cst(-left.value)
 
         if isinstance(sub_expr, Leq):
             constr = _convert_linear_constr(left, right, y_dim, x_dim)

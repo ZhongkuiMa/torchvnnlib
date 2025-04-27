@@ -22,6 +22,6 @@ def test_example3():
 
 
 if __name__ == "__main__":
-    # test_example1()
-    # test_example2()
+    test_example1()
+    test_example2()
     test_example3()

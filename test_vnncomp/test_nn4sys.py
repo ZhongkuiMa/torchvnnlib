@@ -1,5 +1,3 @@
-import time
-
 from torchvnnlib import TorchVNNLIB
 
 if __name__ == "__main__":

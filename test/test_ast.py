@@ -11,7 +11,7 @@ def parse_vnnlib_file(path: str):
 
 
 if __name__ == "__main__":
-    file_path = "../../data/example.vnnlib"
+    file_path = "../data/example.vnnlib"
     # file_path = (
     #     "../../../vnncomp2024_benchmarks/benchmarks/nn4sys_2023/vnnlib/"
     #     "cardinality_0_1_2048.vnnlib"
