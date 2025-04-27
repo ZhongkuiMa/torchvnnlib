@@ -70,11 +70,13 @@ vnncomp2024/
 └── ...
 ```
 
-## Documentation 📚
+---
 
-### Involved Operations
+# Documentation 📚
 
-#### Declaration Statement
+## Involved Operations
+
+### Declaration Statement
 
 VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format. But for neural network verification, we only need to consider a small set of operations. Overall, there are two types of operations: `declear-constant` and `assert`.
 
@@ -89,7 +91,7 @@ VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format.
 ...
 ```
 
-#### Assertion Statement
+### Assertion Statement
 
 - `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables). Note that we use
   $$ b + Ax \geq 0, $$
@@ -101,7 +103,7 @@ VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format.
 (assert (<= Y_0 Y_1))
 ```
 
-#### Comparison Operations
+### Comparison Operations
 
 Commonly, we let the LHS be single variable and the RHS be a more compliacted expression.
 
@@ -111,14 +113,14 @@ Commonly, we let the LHS be single variable and the RHS be a more compliacted ex
 
 - `=` is used to declare the equal to constraint. It is a binary operation similar to `<=` and `>=`.
 
-#### Logical Operations
+### Logical Operations
 
 Commonly, we use `and` and `or` operations to declare the logical constraints.
 
 - `and` is used to declare the and operation. It is a N-ary operation, i.e., it can take multiple inputs. The inputs are the constraints that we want to combine.
 - `or` is used to declare the or operation. It is a N-ary operation similar to `and`.
 
-#### Arithmetic Operations
+### Arithmetic Operations
 
 Commonly, we use plus and minus operations to declare the linear constraints. The multiplication operation is used for coefficients and the division operation is seldomly used.
 
@@ -127,7 +129,7 @@ Commonly, we use plus and minus operations to declare the linear constraints. Th
 - `*` is used to declare the multiplication operation. It is a binary operation similar to `-`.
 - `/` is used to declare the division operation. It is a binary operation similar to `-`.
 
-### Cases for Neural Network Verification 🧪
+## Cases for Neural Network Verification 🧪
 
 In the typical cases, a VNN-LIB file contains the following parts:
 
@@ -139,7 +141,7 @@ So we know, there are many assertion statements defining the input and output co
 - **Input constraints**: `<=`, `>=`, or `or` for input variables to declare the *input bounds*. It only involves one input variable and one constant.
 - **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now.
 
-#### Common VNN-LIB Files for Neural Network Verification
+### Common VNN-LIB Files for Neural Network Verification
 
 A VNN-LIB file is a text file with the `.vnnlib` extension. The declaration statements are only for declaring the input and output variables. There may be many assertion statements for the input and output constraints but the logic is that all such assertion statements in the same VNN-LIB file are combined by `and` operation, i.e., they are expected to be true at the same time. Now we introduce the common VNN-LIB files for neural network verification (refer to VNN-COMP). We only consider the abstract logic rather than the concrete text format (omitting the declaration statements).
 
@@ -324,7 +326,9 @@ We will have two files and each containing following PyTorch tensors.
 }
 ```
 
-## Contributing 🤝
+---
+
+# Contributing 🤝
 
 We warmly welcome contributions from everyone! Whether it's fixing bugs 🐞, adding features ✨, improving documentation 📚, or just sharing ideas 💡—your input is appreciated!
 
