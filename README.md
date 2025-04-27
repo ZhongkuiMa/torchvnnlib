@@ -19,28 +19,28 @@ With **torchvnnlib**, handling VNN-LIB benchmarks becomes effortless, allowing y
 Unlock a new level of efficiency and precision in neural network verification with our powerful toolset! Here's what makes us stand out:
 
 - 📜 **One Format to Rule Them All。**
-Say goodbye to messy constraints! We standardize VNN-LIB files into a unified, streamlined format — setting the foundation for faster, smarter verification workflows. Not just a converter — a true game-changer.
+  Say goodbye to messy constraints! We standardize VNN-LIB files into a unified, streamlined format — setting the foundation for faster, smarter verification workflows. Not just a converter — a true game-changer.
 
 - **🧠 Built for Ultimate Verification Efficiency。**
-Smart transformations mean a single input can verify multiple properties — dramatically reducing computation and speeding up your verification process.
+  Smart transformations mean a single input can verify multiple properties — dramatically reducing computation and speeding up your verification process.
 
 - **🔍 Developer-Friendly AST。**
-Our lightweight Abstract Syntax Tree (AST) makes constraint manipulation a breeze. Customize, extend, and innovate with ease.
+  Our lightweight Abstract Syntax Tree (AST) makes constraint manipulation a breeze. Customize, extend, and innovate with ease.
 
 - **🔄 Fully Automated Parsing。**
-No more manual handling! Instantly read .vnnlib files and extract constraints in a click.
+  No more manual handling! Instantly read .vnnlib files and extract constraints in a click.
 
 - **🧩 PyTorch Native。**
-Constraints are output as PyTorch tensors (saved in .pth format) — ready to harness the full power of GPUs without extra conversions.
+  Constraints are output as PyTorch tensors (saved in .pth format) — ready to harness the full power of GPUs without extra conversions.
 
 - **🚀 Lightning-Fast Loading。**
-Save processed constraints as .pth files and enjoy near-instant startup times for large-scale data.
+  Save processed constraints as .pth files and enjoy near-instant startup times for large-scale data.
 
 - **⚡ Seamless Integration。**
-Designed to plug and play with your PyTorch-based verification pipelines — no headaches, just results.
+  Designed to plug and play with your PyTorch-based verification pipelines — no headaches, just results.
 
 - **🛠️ Minimal Setup, Maximum Impact。**
-Lightweight, dependency-minimal, and blazing fast — because your time and resources deserve the best.
+  Lightweight, dependency-minimal, and blazing fast — because your time and resources deserve the best.
 
 ## Installation 🚀
 
@@ -179,7 +179,7 @@ So, there will be at most three levels of folders, and *we do not want more*. If
 
 ### Formatting Properties
 
-We will use a dictionary to store the properties, i.e., two tensors of input bounds and output constraints. The input bounds is a tensor of shape $(n,2)$, where $n$ is the number of input variables and $2$ is the lower and upper bounds of the input variables. The output constraints is a tensor of shape $(k, l, 1+m)$, where $a$ is the number of OR clauses, $b$ is the number of AND clauses (number of output constriants), and $m$ is the number of output variables. The first dimension of an output constraints is the constant term and the output constraint has a form of $b + Ax \geq 0$, where $b$ is the constant term, $A$ is the coefficient matrix and $x$ is the variables. If the output constriants involve input variables, it will have a shape of $(k, l, 1+m+n)$, where the input variable will follow after the output variables.
+We will use a dictionary to store the properties, i.e., two tensors of input bounds and output constraints. The input bounds is a tensor `Tensor` of shape $(n,2)$, where $n$ is the number of input variables and $2$ is the lower and upper bounds of the input variables. The output constraints is a list of tensors `list[Tensor]` of shape $(l, 1+m)$, where each component of the list is the number of OR clauses (this accepts different length tensors), $l$ is the number of AND clauses (number of output constraints), and $m$ is the number of output variables. The first dimension of an output constraints is the constant term and the output constraint has a form of $b + Ax \geq 0$, where $b$ is the constant term, $A$ is the coefficient matrix and $x$ is the variables. If the output constraints involve input variables, it will have a shape of $(k, l, 1+m+n)$, where the input variable will follow after the output variables.
 
 ## Examples 🌟
 
@@ -235,7 +235,10 @@ We will have the following PyTorch tensors.
 ```python
 {
     "input": torch.tensor([[-0.5, 0.5]]),
-    "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]),
+    "output": [
+        torch.tensor([[0.0, -1.0, 1.0]]),
+        torch.tensor([[0.5, -1.0, 0.0]])
+    ],
 }
 
 ```
@@ -270,14 +273,20 @@ We will have two files and each containing following PyTorch tensors.
 ```python
 {
     "input": torch.tensor([[-0.5, 0.3]]),
-    "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]),
+    "output": [
+        torch.tensor([[0.0, -1.0, 1.0]]),
+        torch.tensor([[0.5, -1.0, 0.0]])
+    ],
 }
 ```
 
 ```python
 {
     "input": torch.tensor([[-0.3, 0.5]]),
-    "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]),
+    "output": [
+        torch.tensor([[0.0, -1.0, 1.0]]),
+        torch.tensor([[0.5, -1.0, 0.0]])
+    ],
 }
 ```
 
