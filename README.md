@@ -25,20 +25,20 @@ With **torchvnnlib**, handling VNN-LIB benchmarks becomes effortless, allowing y
 - ⚡ **Seamless Integration** – Works smoothly with PyTorch-based verification tools.
 - 🛠️ **Minimal Dependencies, Maximum Efficiency** – Designed for speed and ease of use.
 
-## Installation
+## Installation 🚀
 
 You need the following dependencies to run **torchvnnlib**:
 
-- Python 3.10+ (We are using Python 3.12)
-- PyTorch (We are using PyTorch 2.5.1. No special functions are used, so 2.x should be fine.)
+- 🐍 Python 3.10+ (We are using Python 3.12)
+- 🔥 PyTorch (We are using PyTorch 2.5.1. No special functions are used, so 2.x should be fine.)
 
-## Usage
+## Usage 🚀
 
 You can find example usage in the `test` folder.
 
-By storing constraints as `.pth` files, subsequent loading becomes near-instantaneous, giving your verification pipeline **unmatched efficiency**!
+By storing constraints as `.pth` files, subsequent loading becomes near-instantaneous, giving your verification pipeline **unmatched efficiency**! ⚡
 
-### Test Examples of VNNCOMP'24
+### Test Examples of VNNCOMP'24 🧪
 
 You need to get the repo of [vnncomp2024](https://github.com/ChristopherBrix/vnncomp2024_benchmarks). This repo does not contain the benchmarks folder because it is about 20GB. The testing examples are in the `test_vnncomp` folder. Then you make sure the following folder structure:
 
@@ -53,11 +53,11 @@ vnncomp2024/
 └── ...
 ```
 
-## Documentation
+## Documentation 📚
 
 ### Involved Operations
 
-#### Declaration Statements
+#### Declaration Statement
 
 VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format. But for neural network verification, we only need to consider a small set of operations. Overall, there are two types of operations: `declear-constant` and `assert`.
 
@@ -71,6 +71,8 @@ VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format.
 (declare-const Y_1 Real)
 ...
 ```
+
+#### Assertion Statement
 
 - `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables). Note that we use
   $$ b + Ax \geq 0, $$
@@ -124,59 +126,177 @@ So we know, there are many assertion statements defining the input and output co
 
 A VNN-LIB file is a text file with the `.vnnlib` extension. The declaration statements are only for declaring the input and output variables. There may be many assertion statements for the input and output constraints but the logic is that all such assertion statements in the same VNN-LIB file are combined by `and` operation, i.e., they are expected to be true at the same time. Now we introduce the common VNN-LIB files for neural network verification (refer to VNN-COMP). We only consider the abstract logic rather than the concrete text format (omitting the declaration statements).
 
-- Type1:
-
-```lisp
-(and ...input_constraints... ...output_constraints...)
-```
-
-- Type2:
-
-```lisp
-(and ...input_constraints... (or ...output_constraints...))
-```
-
-- Type3:
-
-```lisp
-(and (or ...input_constraints...) ...output_constraints...)
-```
-
-- Type4:
-
-```lisp
-(and (or ...input_constraints...) (or ...output_constraints...))
-```
-
-- Type5:
-
-```lisp
-(or (and ...input_constraints... ...output_constraints...))
-```
+- Type1: `(and ...input_constraints... ...output_constraints...)`
+- Type2: `(and ...input_constraints... (or ...output_constraints...))`
+- Type3: `(and (or ...input_constraints...) ...output_constraints...)`
+- Type4: `(and (or ...input_constraints...) (or ...output_constraints...))`
+- Type5: `(or (and ...input_constraints... ...output_constraints...))`
 
 These types of VNN-LIB files are the most common ones in the neural network verification.
 
 This too aims to transfer to all these types of VNN-LIB files to one standardized format, i.e., the **Type1 and Type2 formats**. The reason is that the neural network verifier is hard to calculate, and we expect the same inputs can be used for multiple output properties. Even though the current VNN-LIB files are created by considering such a logic but not all (at least for the VNN-COMP).
 
-## Workflow
+## Workflow 🔄
 
-We can omit the declaration statements because the neural network needs all inputs and outputs are constrained, and we can infer the number of variables from the constraints. Next, we will convert all the content in a VNN-LIB file to an AST (Abstract Syntax Tree) because it is a totally "and" statement regarding the whole file. This is a good data structure for us to perform more processing including optimization. Then we will *flatten* the AST to an "and" list of "or" groups of each single property. This will be a recursive structure of folders and files. Here, we consider that we do not want a single file contain too much data or too many properties.
+### Parsing VNN-LIB Files
+
+We can omit the declaration statements because the neural network needs all inputs and outputs are constrained, and we can infer the number of variables from the constraints. Next, we will convert all the content in a VNN-LIB file to an AST (Abstract Syntax Tree) because it is a totally "and" statement regarding the whole file. This is a good data structure for us to perform more processing including optimization.
+
+### Flattening Properties
+
+Then we will *flatten* the AST to an "and" list of "or" groups of each single property. This will be a recursive structure of folders and files. Here, we consider that we do not want a single file contain too much data or too many properties.
 *Loading a single file with too many properties will be slow and inefficient because we can only verify one property (for one specific input) at a time.*
 The current case sometimes needs us remain all inputs and outputs in the same file, and this is not what we expect. We will unify all the properties in the same format as below:
 
 ```lisp
 (and
     (or 
-        (and ...input_constraints... ...output_constraints...)
+        (and ...input_constraints... (or ...output_constraints...))
         (and ...input_constraints... ...output_constraints...)
         ...
     )
 )
 ```
 
-So, there will be at most four levels of folders, and *we do not want more*. If we more, you should consider to design the properties in a better way.
+So, there will be at most three levels of folders, and *we do not want more*. If more, you should consider to design the properties in a better way.
 
-## 🤝 Contributing
+### Formatting Properties
+
+We will use a dictionary to store the properties, i.e., two tensors of input bounds and output constraints. The input bounds is a tensor of shape $(n,2)$, where $n$ is the number of input variables and $2$ is the lower and upper bounds of the input variables. The output constraints is a tensor of shape $(k, l, m+1)$, where $a$ is the number of OR clauses, $b$ is the number of AND clauses (number of output constriants), and $m$ is the number of output variables. The first dimension of an output constraints is the constant term and the output constraint has a form of $b + Ax \geq 0$, where $b$ is the constant term, $A$ is the coefficient matrix and $x$ is the variables. If the output constriants involve input variables, it will have a shape of $(k, l, 1+m+n)$, where the input variable will follow after the output variables.
+
+## Examples 🌟
+
+### Example of Type1
+
+If we have the following VNN-LIB file.
+
+```lisp
+(declare-const X_0 Real)
+
+(declare-const Y_0 Real)
+(declare-const Y_1 Real)
+
+(assert (<= X_0 0.5))
+(assert (>= X_0 -0.5))
+
+(assert (<= Y_0 Y_1))
+```
+
+We will have the following PyTorch tensors.
+
+```python
+{
+  "input": torch.tensor([[-0.5, 0.5]]),
+  "output": torch.tensor([[[0.0, -1.0, 1.0]]]), 
+}
+
+```
+
+### Example of Type2
+
+If we have the following VNN-LIB file.
+
+```lisp
+(declare-const X_0 Real)
+
+(declare-const Y_0 Real)
+(declare-const Y_1 Real)
+
+(assert (<= X_0 0.5))
+(assert (>= X_0 -0.5))
+
+(assert 
+    (or 
+        (and (<= Y_0 Y_1))
+        (and (<= Y_0 0.5))
+    )
+)
+```
+
+We will have the following PyTorch tensors.
+
+```python
+{
+  "input": torch.tensor([[-0.5, 0.5]]),
+  "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]), 
+}
+
+```
+
+### Example of Type4
+
+If we have the following VNN-LIB file.
+
+```lisp
+(declare-const X_0 Real)
+
+(declare-const Y_0 Real)
+(declare-const Y_1 Real)
+
+(assert 
+    (or
+        (and (<= X_0 0.3) (>= X_0 -0.5))
+        (and (<= X_0 0.5) (>= X_0 -0.3))
+    )
+)
+
+(assert 
+    (or 
+        (and (<= Y_0 Y_1))
+        (and (<= Y_0 0.5))
+    )
+)
+```
+
+We will have two files and each containing following PyTorch tensors.
+
+```python
+{
+  "input": torch.tensor([[-0.5, 0.3]]),
+  "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]), 
+}
+```
+```python
+{
+  "input": torch.tensor([[-0.3, 0.5]]),
+  "output": torch.tensor([[[0.0, -1.0, 1.0], [0.5, -1.0, 0.0]]]), 
+}
+```
+
+### Example of Type5
+
+If we have the following VNN-LIB file.
+
+```lisp
+(declare-const X_0 Real)
+
+(declare-const Y_0 Real)
+(declare-const Y_1 Real)
+
+(assert
+    (or
+        (and (<= X_0 0.3) (>= X_0 -0.5) (<= Y_0 Y_1))
+        (and (<= X_0 0.5) (>= X_0 -0.3) (<= Y_0 0.5))
+    )
+) 
+```
+
+We will have two files and each containing following PyTorch tensors.
+
+```python
+{
+  "input": torch.tensor([[-0.5, 0.3]]),
+  "output": torch.tensor([[[0.0, -1.0, 1.0]]]), 
+}
+```
+```python
+{
+    "input": torch.tensor([[-0.3, 0.5]]),
+    "output": torch.tensor([[[0.5, -1.0, 0.0]]]), 
+}
+```
+
+## Contributing 🤝
 
 We warmly welcome contributions from everyone! Whether it's fixing bugs 🐞, adding features ✨, improving documentation 📚, or just sharing ideas 💡—your input is appreciated!
 
