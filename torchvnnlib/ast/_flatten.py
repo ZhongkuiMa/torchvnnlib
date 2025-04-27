@@ -111,9 +111,19 @@ def _flatten_and_expr(expr: And) -> Expr:
             input_expr_list.append(sub_expr)
 
     if direct_output_exprs:
-        output_expr_list = [Or([And(direct_output_exprs)])]
+        if not isinstance(direct_output_exprs[0], And):
+            output_expr = And(direct_output_exprs)
+        else:
+            output_expr = direct_output_exprs[0]
+        output_expr_list = [Or([output_expr])]
     else:
-        output_expr_list = [Or([And([e]) for e in or_output_exprs.args])]
+        new_or_output_exprs = []
+        for output_expr in or_output_exprs.args:
+            if not isinstance(output_expr, And):
+                output_expr = And([output_expr])
+            new_or_output_exprs.append(output_expr)
+        or_output_exprs = new_or_output_exprs
+        output_expr_list = [Or(or_output_exprs)]
 
     all_or_comb = []
     for input_expr, output_expr in itertools.product(input_expr_list, output_expr_list):

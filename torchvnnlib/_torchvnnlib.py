@@ -41,7 +41,7 @@ class TorchVNNLIB:
                 print(f"Convert {i+1}/{len(and_properties)} OR groups...")
 
             # Create a folder for each OR group
-            or_folder_path = os.path.join(target_folder_path, f"or_{i}")
+            or_folder_path = os.path.join(target_folder_path, f"or_group_{i}")
             if not os.path.exists(or_folder_path):
                 os.makedirs(or_folder_path)
 
@@ -53,7 +53,7 @@ class TorchVNNLIB:
                 input_bounds, output_constrs = and_property
                 data = {"input": input_bounds, "output": output_constrs}
                 # Save the data to a file
-                file_name = f"property_{j}.pth"
+                file_name = f"sub_prop_{j}.pth"
                 file_path = os.path.join(or_folder_path, file_name)
                 torch.save(data, file_path)
 
