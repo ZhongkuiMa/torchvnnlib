@@ -93,9 +93,13 @@ VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format.
 
 ### Assertion Statement
 
-- `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables). Note that we use
-  $$ b + Ax \geq 0, $$
-  where $b$ is a constant, $A$ is a matrix and $x$ is a vector of the variables, as the unifed format to represent a linear constraint. Note that we need a closed input bounds for the input variables, i.e., the lower bound and upper bound of the input variables. The following example shows the two types of constraints:
+- `assert` is used to declare the constraints. There are two types of constraints: bound and linear constraints. For input variables, we only need and support bound constraints now, i.e., an inequality constraint with only one input variable and one constant. For output variables, we only need and support linear constraints now, i.e., a linear constraint with multiple output variables and constants (sometimes, it involves input variables).
+
+Note that we use the following constraint format:
+$$
+b + Ax \geq 0 ,
+$$
+where $b$ is a constant, $A$ is a matrix and $x$ is a vector of the variables, as the unifed format to represent a linear constraint. Note that we need a closed input bounds for the input variables, i.e., the lower bound and upper bound of the input variables. The following example shows the two types of constraints:
 
 ```lisp
 (assert (<= X_0 0.5))
