@@ -70,7 +70,7 @@ def _check_and_expr(expr: Expr):
         raise ValueError(f"Missing output constraints expression: {expr}")
 
 
-def _flatten_and_expr(expr: And) -> Expr:
+def _flatten_and_expr(expr: And) -> Or:
     _check_and_expr(expr)
 
     # Collect direct input bound expressions
@@ -149,7 +149,7 @@ def flatten(expr: Expr) -> And:
 
     We aim to convert the above expressions to a list of expressions,
     Each such expression has the form of:
-    (and (and ...input constraints...) (or ...output constraints...))
+    (and (and ...input constraints...) (or (and ...output constraints...) ...))
     """
 
     if isinstance(expr, And):
@@ -161,5 +161,6 @@ def flatten(expr: Expr) -> And:
     and_expr: And
     for and_expr in expr.args:
         or_expr = _flatten_and_expr(and_expr)
-        or_expr_list.append(or_expr)
-    return And(or_expr_list)
+        or_expr_list.append(or_expr.args[0])
+    or_expr = Or(or_expr_list)
+    return And([or_expr])

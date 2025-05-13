@@ -209,7 +209,7 @@ def _convert_one_property(expr: And) -> tuple[Tensor, list[Tensor]]:
     return input_bounds, output_constrs
 
 
-def convert_to_tensor(expr: And) -> list[list[tuple[Tensor, Tensor]]]:
+def convert_to_tensor(expr: And) -> list[list[tuple[Tensor, list[Tensor]]]]:
     """
     Now we should get an Expr.
     The first level is And.
