@@ -1,12 +1,15 @@
 # TorchVNNLIB: Convert VNN-LIB to PyTorch Tensors
 
-[**VNN-LIB**](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [**VNN-COMP (International Verification of Neural Networks Competition)**](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide. However, `.vnnlib` files can be inefficient to load, and cumbersome to integrate into modern tensor-based computation frameworks. We need a better way to handle these files and take it as the input and output of the verification tools.
+[VNN-LIB](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [VNN-COMP (International Verification of Neural Networks Competition)](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide.
+It is [Lisp-style](https://lisp-lang.org/style-guide/) and is consistent with the [SMT-LIB](https://smt-lib.org/) format. The VNN-LIB format is a text file with the `.vnnlib` extension. It contains a set of constraints that define the properties of the neural network.
+
+However, `.vnnlib` files can be inefficient to load, and cumbersome to integrate into modern tensor-based computation frameworks. We need a better way to handle these files and take it as the input and output of the verification tools.
 
 **torchvnnlib**—a blazing-fast, AST-based, lightweight library designed to seamlessly convert `.vnnlib` specifications into PyTorch tensors. Whether you're verifying safety properties, robustness constraints, or any other neural network property, **torchvnnlib** accelerates your workflow, making benchmark handling effortless and computation-ready.
 
 ## Why Choose torchvnnlib? 🔥
 
-PyTorch is the backbone of many modern verification tools. But raw `.vnnlib` files present significant hurdles:
+[PyTorch](https://pytorch.org/) is the backbone of many modern verification tools. But raw `.vnnlib` files present significant hurdles:
 
 - **Slow to parse** – `.vnnlib` files aren't designed for high-speed processing.
 - **Inefficient for tensor operations** – Traditional representations lack the optimized structure required for tensor operation with GPU acceleration.
@@ -18,28 +21,28 @@ With **torchvnnlib**, handling VNN-LIB benchmarks becomes effortless, allowing y
 
 Unlock a new level of efficiency and precision in neural network verification with our powerful toolset! Here's what makes us stand out:
 
-- 📜 **One Format to Rule Them All。**
+- 📜 **One Format to Rule Them All.**
   Say goodbye to messy constraints! We standardize VNN-LIB files into a unified, streamlined format — setting the foundation for faster, smarter verification workflows. Not just a converter — a true game-changer.
 
-- **🧠 Built for Ultimate Verification Efficiency。**
+- **🧠 Built for Ultimate Verification Efficiency.**
   Smart transformations mean a single input can verify multiple properties — dramatically reducing computation and speeding up your verification process.
 
-- **🔍 Developer-Friendly AST。**
+- **🔍 Developer-Friendly AST.**
   Our lightweight Abstract Syntax Tree (AST) makes constraint manipulation a breeze. Customize, extend, and innovate with ease.
 
-- **🔄 Fully Automated Parsing。**
+- **🔄 Fully Automated Parsing.**
   No more manual handling! Instantly read .vnnlib files and extract constraints in a click.
 
-- **🧩 PyTorch Native。**
-  Constraints are output as PyTorch tensors (saved in .pth format) — ready to harness the full power of GPUs without extra conversions.
+- **🧩 PyTorch Native.**
+  Constraints are output as PyTorch tensors (saved in `.pth` format) — ready to harness the full power of GPUs without extra conversions.
 
-- **🚀 Lightning-Fast Loading。**
-  Save processed constraints as .pth files and enjoy near-instant startup times for large-scale data.
+- **🚀 Lightning-Fast Loading.**
+  Save processed constraints as `.pth` files and enjoy near-instant startup times for large-scale data.
 
-- **⚡ Seamless Integration。**
+- **⚡ Seamless Integration.**
   Designed to plug and play with your PyTorch-based verification pipelines — no headaches, just results.
 
-- **🛠️ Minimal Setup, Maximum Impact。**
+- **🛠️ Minimal Setup, Maximum Impact.**
   Lightweight, dependency-minimal, and blazing fast — because your time and resources deserve the best.
 
 ## Installation 🚀
@@ -78,7 +81,7 @@ vnncomp2024/
 
 ### Declaration Statement
 
-VNN-LIB format is a Lisp-style format and is consistent with the SMT-LIB format. But for neural network verification, we only need to consider a small set of operations. Overall, there are two types of operations: `declear-constant` and `assert`.
+VNN-LIB format is a [Lisp-style](https://lisp-lang.org/style-guide/) format and is consistent with the [SMT-LIB](https://smt-lib.org/) format. But for neural network verification, we only need to consider a small set of operations. Overall, there are two types of operations: `declear-constant` and `assert`.
 
 - `declare-constant` is used to declare the input and output variables. We take the input and output variables both as constants in neural network verification. There are some fixed formats: all the input variables are named as $X_i$, and the output variables are named as $Y_i$ , where $i$ is the index of the variable. They are both real numbers. So you will see the following format in the VNN-LIB file:
 
