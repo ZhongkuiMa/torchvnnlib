@@ -4,6 +4,7 @@
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-orange.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 [VNN-LIB](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [VNN-COMP (International Verification of Neural Networks Competition)](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide.
 It is [Lisp-style](https://lisp-lang.org/style-guide/) and is consistent with the [SMT-LIB](https://smt-lib.org/) format. The VNN-LIB format is a text file with the `.vnnlib` extension. It contains a set of constraints that define the properties of the neural network.
