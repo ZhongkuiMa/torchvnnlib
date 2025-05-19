@@ -6,10 +6,9 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-[VNN-LIB](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [VNN-COMP (International Verification of Neural Networks Competition)](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide.
-It is [Lisp-style](https://lisp-lang.org/style-guide/) and is consistent with the [SMT-LIB](https://smt-lib.org/) format. The VNN-LIB format is a text file with the `.vnnlib` extension. It contains a set of constraints that define the properties of the neural network.
-
-However, `.vnnlib` files can be inefficient to load, and cumbersome to integrate into modern tensor-based computation frameworks. We need a better way to handle these files and take it as the input and output of the verification tools.
+> [VNN-LIB](https://www.vnnlib.org/) is the global standard for neural network verification benchmarks. It powers [VNN-COMP (International Verification of Neural Networks Competition)](https://www.aiverification.org/2025/) and is widely adopted by researchers worldwide.
+> It is [Lisp-style](https://lisp-lang.org/style-guide/) and is consistent with the [SMT-LIB](https://smt-lib.org/) format. The VNN-LIB format is a text file with the `.vnnlib` extension. It contains a set of constraints that define the properties of the neural network.
+> However, `.vnnlib` files can be inefficient to load, and cumbersome to integrate into modern tensor-based computation frameworks. We need a better way to handle these files and take it as the input and output of the verification tools.
 
 **torchvnnlib**—a blazing-fast, AST-based, lightweight library designed to seamlessly convert `.vnnlib` specifications into PyTorch tensors. Whether you're verifying safety properties, robustness constraints, or any other neural network property, **torchvnnlib** accelerates your workflow, making benchmark handling effortless and computation-ready.
 
