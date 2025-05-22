@@ -19,7 +19,7 @@ class TorchVNNLIB:
         with open(vnnlib_path, "r") as f:
             lines = f.readlines()
 
-        lines = pre_process_vnnlib(lines)
+        lines, n_inputs, n_outputs = pre_process_vnnlib(lines)
         tokens_list = tokenize(lines)
         expr = parse(tokens_list)
         expr = optimize(expr)
@@ -28,7 +28,7 @@ class TorchVNNLIB:
         # if self.verbose:
         #     print_ast(expr)
 
-        and_properties = convert_to_tensor(expr)
+        and_properties = convert_to_tensor(expr, n_inputs, n_outputs)
 
         # Create a folder to save this vnnlib property
         if target_folder_path is None:

@@ -1,32 +1,10 @@
 __docformat__ = "restructuredtext"
 __all__ = ["convert_to_tensor"]
 
-import re
-
 import torch
 from torch import Tensor
 
 from .ast import *
-
-
-def _get_n_inputs_outputs(input_bounds: And, output_constrs: Or) -> tuple[int, int]:
-    """
-    Find all string matches for "X_????" and "Y_????"
-    where "?" is an integer
-    The largest number is the number of inputs or outputs
-    """
-
-    # Find all matches for "X_????" and "Y_????"
-    matches = re.findall(r"X_(\d+)", repr(input_bounds))
-    if not matches:
-        raise ValueError(f"Not found input bound expression: {input_bounds}")
-    n_inputs = max(int(match) for match in matches)
-    matches = re.findall(r"Y_(\d+)", repr(output_constrs))
-    if not matches:
-        raise ValueError(f"Not found output constraint expression: {output_constrs}")
-    n_outputs = max(int(match) for match in matches)
-
-    return n_inputs + 1, n_outputs + 1
 
 
 def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
@@ -189,7 +167,9 @@ def _convert_output_constrs(expr: Or, n_outputs: int, n_inputs: int) -> list[Ten
     return or_output_constrs
 
 
-def _convert_one_property(expr: And) -> tuple[Tensor, list[Tensor]]:
+def _convert_one_property(
+    expr: And, n_inputs: int, n_outputs: int
+) -> tuple[Tensor, list[Tensor]]:
     """
     Convert one property to a pair of input and output constraints.
     The input constraints are input bounds and the output constraints are constraints
@@ -201,15 +181,15 @@ def _convert_one_property(expr: And) -> tuple[Tensor, list[Tensor]]:
     input_bounds_expr = expr.args[0]  # noqa
     output_constrs_expr = expr.args[1]  # noqa
 
-    n_inputs, n_outputs = _get_n_inputs_outputs(input_bounds_expr, output_constrs_expr)
-
     input_bounds = _convert_input_bounds(input_bounds_expr, n_inputs)
     output_constrs = _convert_output_constrs(output_constrs_expr, n_outputs, n_inputs)
 
     return input_bounds, output_constrs
 
 
-def convert_to_tensor(expr: And) -> list[list[tuple[Tensor, list[Tensor]]]]:
+def convert_to_tensor(
+    expr: And, n_inputs: int, n_outputs: int
+) -> list[list[tuple[Tensor, list[Tensor]]]]:
     """
     Now we should get an Expr.
     The first level is And.
@@ -233,7 +213,9 @@ def convert_to_tensor(expr: And) -> list[list[tuple[Tensor, list[Tensor]]]]:
         for and_expr in or_expr.args:
             if not isinstance(and_expr, And):
                 raise ValueError(f"Invalid expression: {and_expr}")
-            input_bounds, output_constrs = _convert_one_property(and_expr)
+            input_bounds, output_constrs = _convert_one_property(
+                and_expr, n_inputs, n_outputs
+            )
             or_groups.append((input_bounds, output_constrs))
         and_properties.append(or_groups)
 

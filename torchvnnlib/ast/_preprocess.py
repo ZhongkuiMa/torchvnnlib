@@ -18,7 +18,7 @@ def _remove_comments(lines: list[str]) -> list[str]:
     return new_lines
 
 
-def _remove_declare_clauses(lines: list[str]) -> list[str]:
+def _remove_declare_clauses(lines: list[str]) -> tuple[list[str], int, int]:
     """
     Removes all lines that declare variables in the VNNLIB file.
     These lines start with `declare-const` and are not needed for parsing expressions.
@@ -27,10 +27,19 @@ def _remove_declare_clauses(lines: list[str]) -> list[str]:
     :return: A list of lines without the declare clauses.
     """
     new_lines = []
+    n_inputs = 0
+    n_outputs = 0
     for line in lines:
         if "declare-const" not in line:
             new_lines.append(line)
-    return new_lines
+        elif "X" in line:
+            # Count the number of inputs
+            n_inputs += 1
+        elif "Y" in line:
+            # Count the number of outputs
+            n_outputs += 1
+
+    return new_lines, n_inputs, n_outputs
 
 
 def _merge_multi_line_expr(lines: list[str]) -> list[str]:
@@ -68,7 +77,7 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
     return new_lines
 
 
-def pre_process_vnnlib(lines: list[str]) -> list[str]:
+def pre_process_vnnlib(lines: list[str]) -> tuple[list[str], int, int]:
     """
     Pre-processes the lines of a VNNLIB file by removing comments, declare clauses,
     and merging multi-line expressions.
@@ -77,7 +86,7 @@ def pre_process_vnnlib(lines: list[str]) -> list[str]:
     :return: A list of pre-processed lines.
     """
     lines = _remove_comments(lines)
-    lines = _remove_declare_clauses(lines)
+    lines, n_inputs, n_outputs = _remove_declare_clauses(lines)
     lines = _merge_multi_line_expr(lines)
 
-    return lines
+    return lines, n_inputs, n_outputs
