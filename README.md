@@ -188,7 +188,7 @@ In the typical cases, a VNN-LIB file contains the following parts:
 So we know, there are many assertion statements defining the input and output constraints. Currently, we only consider the following types of constraints:
 
 - **Input constraints**: `<=`, `>=`, or `or` for input variables to declare the *input bounds*. It only involves one input variable and one constant. In the .vnnlib file, the assert about input constraints means that this **input constraints hold**. 
-- **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now. In the .vnnlib file, the assert about output constraints means that this **output constraints should NOT hold**.
+- **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now. In the .vnnlib file, the assert about output constraints means that this **output constraints should hold**.
 
 #### Common VNN-LIB Files for Neural Network Verification
 
