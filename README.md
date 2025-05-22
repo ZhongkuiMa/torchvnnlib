@@ -12,6 +12,8 @@
 
 **torchvnnlib**—a blazing-fast, AST-based, lightweight library designed to seamlessly convert `.vnnlib` specifications into PyTorch tensors. Whether you're verifying safety properties, robustness constraints, or any other neural network property, **torchvnnlib** accelerates your workflow, making benchmark handling effortless and computation-ready.
 
+> ⚠️ This repo is still under fast development and there maybe some bugs.
+
 ## 📋 Table of Contents
 - [Why Choose torchvnnlib?](#why-choose-torchvnnlib-)
 - [Key Features](#key-features-)
@@ -185,8 +187,8 @@ In the typical cases, a VNN-LIB file contains the following parts:
 
 So we know, there are many assertion statements defining the input and output constraints. Currently, we only consider the following types of constraints:
 
-- **Input constraints**: `<=`, `>=`, or `or` for input variables to declare the *input bounds*. It only involves one input variable and one constant.
-- **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now.
+- **Input constraints**: `<=`, `>=`, or `or` for input variables to declare the *input bounds*. It only involves one input variable and one constant. In the .vnnlib file, the assert about input constraints means that this **input constraints hold**. 
+- **Output constraints**: `<=`, `>=` for output variables. It may involve multiple output variables and constants (in a few times, they will involve input variables). We only consider the linear constraints now. In the .vnnlib file, the assert about output constraints means that this **output constraints should NOT hold**.
 
 #### Common VNN-LIB Files for Neural Network Verification
 
