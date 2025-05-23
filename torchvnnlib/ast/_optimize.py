@@ -98,7 +98,7 @@ def _get_priority(var: Var) -> int | float:
     number = match.group(1)
     if not number:
         raise ValueError(f"Invalid variable repr: {var.__repr__()}")
-    if int(number) > 1000000:
+    if int(number) > 100000000:
         warnings.warn(
             "The number in the variable name is greater than 10000. This will result "
             "in incorrect sorting when printing.",
