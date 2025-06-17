@@ -259,7 +259,7 @@ We will have the following PyTorch tensors:
 ```python
 {
     "input": torch.tensor([[-0.5, 0.5]]),
-    "output": torch.tensor([[[0.0, -1.0, 1.0]]]),
+    "output": [torch.tensor([[[0.0, -1.0, 1.0]]])],
 }
 ```
 
@@ -367,13 +367,13 @@ We will have two files and each containing following PyTorch tensors:
 # File 1
 {
     "input": torch.tensor([[-0.5, 0.3]]),
-    "output": torch.tensor([[[0.0, -1.0, 1.0]]]),
+    "output": [torch.tensor([[[0.0, -1.0, 1.0]]])],
 }
 
 # File 2
 {
     "input": torch.tensor([[-0.3, 0.5]]),
-    "output": torch.tensor([[[0.5, -1.0, 0.0]]]),
+    "output": [torch.tensor([[[0.5, -1.0, 0.0]]])],
 }
 ```
 
