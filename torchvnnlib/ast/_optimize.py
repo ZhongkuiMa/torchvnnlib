@@ -28,7 +28,7 @@ def remove_single_and_or(expr: Expr) -> Expr:
     """
 
     if isinstance(expr, And) or isinstance(expr, Or):
-        if len(expr.args) == 1:
+        if len(expr.args) == 1 and "Y" not in expr.args[0].__repr__():
             return expr.args[0]
         else:
             for i in range(len(expr.args)):

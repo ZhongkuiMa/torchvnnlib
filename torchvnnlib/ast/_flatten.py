@@ -60,7 +60,7 @@ def _check_and_expr(expr: Expr):
                 else:
                     _check_bound_or_constr_expr(sub_sub_expr)
         elif isinstance(sub_expr, And):
-            raise ValueError(f"Nested And expression: {expr}")
+            raise ValueError(f"Nested And expression: {expr}\n{sub_expr}")
         else:
             _check_bound_or_constr_expr(sub_expr)
 
