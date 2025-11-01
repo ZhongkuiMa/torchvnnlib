@@ -1,11 +1,12 @@
 __docformat__ = ["restructuredtext"]
-__all__ = ["pre_process_vnnlib"]
+__all__ = ["preprocess_vnnlib"]
 
 import re
 
 
 def _remove_comments(lines: list[str]) -> list[str]:
     new_lines = []
+
     for line in lines:
         # Remove comments starting with `;`
         line = re.sub(r";.*", "", line)
@@ -29,6 +30,7 @@ def _remove_declare_clauses(lines: list[str]) -> tuple[list[str], int, int]:
     new_lines = []
     n_inputs = 0
     n_outputs = 0
+
     for line in lines:
         if "declare-const" not in line:
             new_lines.append(line)
@@ -77,7 +79,21 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
     return new_lines
 
 
-def pre_process_vnnlib(lines: list[str]) -> tuple[list[str], int, int]:
+def _check_illegal_lines(lines: list[str]) -> None:
+    """
+    Checks for illegal lines in the VNNLIB file.
+    Illegal lines are those that do not match the expected format of VNNLIB expressions.
+
+    :param lines: A list of lines from a VNNLIB file.
+    :raises ValueError: If an illegal line is found.
+    """
+    for line in lines:
+        # Check if the line has a form as "(assert <expr>)"
+        if not re.match(r"^\(assert\s+.*\)$", line):
+            raise ValueError(f"Illegal line found in VNNLIB file: {line}")
+
+
+def preprocess_vnnlib(lines: list[str]) -> tuple[list[str], int, int]:
     """
     Pre-processes the lines of a VNNLIB file by removing comments, declare clauses,
     and merging multi-line expressions.
@@ -88,5 +104,6 @@ def pre_process_vnnlib(lines: list[str]) -> tuple[list[str], int, int]:
     lines = _remove_comments(lines)
     lines, n_inputs, n_outputs = _remove_declare_clauses(lines)
     lines = _merge_multi_line_expr(lines)
+    _check_illegal_lines(lines)
 
     return lines, n_inputs, n_outputs

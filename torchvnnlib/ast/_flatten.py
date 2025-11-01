@@ -136,7 +136,7 @@ def _flatten_and_expr(expr: And) -> Or:
 
 def flatten(expr: Expr) -> And:
     """
-    We only support three types of expressions:
+    We only support the following types of expressions:
     (1) (and ...input constraints... ...output constraints...)
     (2) (and ...input constraints... (or ...output constraints...))
     (3) (and (or ...input constraints...) ...output constraints...)

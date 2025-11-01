@@ -2,9 +2,10 @@ __docformat__ = ["restructuredtext"]
 __all__ = ["tokenize"]
 
 import re
+from collections import deque
 
 
-def tokenize(lines: list[str]) -> list[list[str]]:
+def tokenize(lines: list[str]) -> list[deque[str]]:
     """
     The input is a list of lines from a VNNLIB file and this funciton tokenizes each
     line.
@@ -49,7 +50,8 @@ def tokenize(lines: list[str]) -> list[list[str]]:
             token = match.group(1)
             tokens.append(token)
             pos = match.end()
+
         if tokens:
-            tokens_list.append(tokens)
+            tokens_list.append(deque(tokens))
 
     return tokens_list

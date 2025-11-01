@@ -1,6 +1,10 @@
 __docformat__ = "restructuredtext"
 __all__ = ["convert_to_tensor"]
 
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from typing import Any
+
 import torch
 from torch import Tensor
 
@@ -176,6 +180,7 @@ def _convert_one_property(
     for the output variables. In some cases, the output constraints may involve the
     input variables as well.
     """
+    assert isinstance(expr, And), f"Expected And expression, got {type(expr)}"
     input_bounds_expr: And
     output_constrs_expr: Or
     input_bounds_expr = expr.args[0]  # noqa
@@ -206,17 +211,40 @@ def convert_to_tensor(
     the other is for output constraints.
     """
 
-    and_properties = []
-    for or_expr in expr.args:
-        or_groups = []
-        or_expr: Or
-        for and_expr in or_expr.args:
-            if not isinstance(and_expr, And):
-                raise ValueError(f"Invalid expression: {and_expr}")
-            input_bounds, output_constrs = _convert_one_property(
-                and_expr, n_inputs, n_outputs
-            )
-            or_groups.append((input_bounds, output_constrs))
-        and_properties.append(or_groups)
+    # and_properties = []
+    # for or_expr in expr.args:
+    #     or_groups = []
+    #     or_expr: Or
+    #
+    #     for and_expr in or_expr.args:
+    #         if not isinstance(and_expr, And):
+    #             raise ValueError(f"Invalid expression: {and_expr}")
+    #         input_bounds, output_constrs = _convert_one_property(
+    #             and_expr, n_inputs, n_outputs
+    #         )
+    #         or_groups.append((input_bounds, output_constrs))
+    #
+    #     and_properties.append(or_groups)
 
-    return and_properties
+    def _process_or_expr(
+        or_expr: Or, n_inputs: int, n_outputs: int
+    ) -> list[tuple[Any, Any]]:
+        if not isinstance(or_expr, Or):
+            raise ValueError(f"Expected Or expression, got {type(or_expr)}")
+
+        convert = partial(_convert_one_property, n_inputs=n_inputs, n_outputs=n_outputs)
+
+        with ThreadPoolExecutor() as executor:
+            or_groups = list(executor.map(convert, or_expr.args))
+
+        return or_groups
+
+    def convert_all_properties_parallel(expr, n_inputs: int, n_outputs: int):
+        process = partial(_process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs)
+
+        with ThreadPoolExecutor() as executor:
+            and_properties = list(executor.map(process, expr.args))
+
+        return and_properties
+
+    return convert_all_properties_parallel(expr, n_inputs, n_outputs)

@@ -23,7 +23,14 @@ BINARY_OPS_MAP = {
 }
 
 
-def parse_expr(tokens: deque[str]) -> Expr:
+def parse_tokens_list(tokens_list: list[deque[str]]) -> list[Expr]:
+    with ThreadPoolExecutor() as executor:
+        exprs = list(executor.map(parse_tokens, tokens_list))
+
+    return exprs
+
+
+def parse_tokens(tokens: deque[str]) -> Expr:
     # NOTE: The deque is really quicker than list by popleft(), thousands of times
 
     tok = tokens.popleft()
@@ -32,30 +39,27 @@ def parse_expr(tokens: deque[str]) -> Expr:
         op = tokens.popleft()
 
         if op == "assert":
-            expr = parse_expr(tokens)
-            assert tokens.popleft() == ")"
+            expr = parse_tokens(tokens)
+            tokens.popleft()  # Expecting ')'
             return expr
 
-        elif op in NARY_OPS_MAP.keys():
+        elif op in NARY_OPS_MAP:
             args = []
             while tokens[0] != ")":
-                args.append(parse_expr(tokens))
-            tokens.popleft()  # pop ')'
-
+                args.append(parse_tokens(tokens))
+            tokens.popleft()  # Expecting ')'
             return NARY_OPS_MAP[op](args)
 
-        elif op in BINARY_OPS_MAP.keys():
+        elif op in BINARY_OPS_MAP:
             if tokens[0] == "(":
-                tokens.popleft()  # pop nested '('
-                a = parse_expr(tokens)
-                b = parse_expr(tokens)
-                tokens.popleft()  # pop nested ')'
+                tokens.popleft()  # Expecting '('
+                a = parse_tokens(tokens)
+                b = parse_tokens(tokens)
+                tokens.popleft()  # Expecting ')'
             else:
-                a = parse_expr(tokens)
-                b = parse_expr(tokens)
-
-            tokens.popleft()  # pop ')'
-
+                a = parse_tokens(tokens)
+                b = parse_tokens(tokens)
+            tokens.popleft()  # Expecting ')'
             return BINARY_OPS_MAP[op](a, b)
 
         else:
@@ -67,19 +71,6 @@ def parse_expr(tokens: deque[str]) -> Expr:
             return Cst(float(tok))
         except ValueError:
             return Var(tok)
-
-
-def _parse_single_expr(tokens: list[str]) -> Expr:
-    if tokens[0] == "(" and tokens[1] == "assert":
-        tokens = tokens[2:-1]  # Remove surrounding (assert ...)
-
-    return parse_expr(deque(tokens))
-
-
-def _parse_expr_list(tokens_list: list[list[str]]) -> list[Expr]:
-    with ThreadPoolExecutor() as executor:
-        exprs = list(executor.map(_parse_single_expr, tokens_list))
-    return exprs
 
 
 def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
@@ -94,7 +85,7 @@ def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
     return And(exprs_list)
 
 
-def parse(tokens_list: list[list[str]]) -> Expr:
+def parse(tokens_list: list[deque[str]]) -> Expr:
     """
     Parses a VNNLIB file and returns a list of tokens.
 
@@ -102,7 +93,8 @@ def parse(tokens_list: list[list[str]]) -> Expr:
         line of tokens.
     :return: An expression object representing the parsed VNNLIB file.
     """
-    exprs_list = _parse_expr_list(tokens_list)
+    exprs_list = parse_tokens_list(tokens_list)
+    # Merge all expressions into a single And expression
     expr = _merge_all_exprs_as_and(exprs_list)
 
     return expr
