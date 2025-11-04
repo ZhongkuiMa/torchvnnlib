@@ -36,9 +36,10 @@ def _write_property(
 ):
     if target_folder_path is None:
         target_folder_path = vnnlib_path.replace(".vnnlib", "")
-    else:
-        vnnlib_name = os.path.basename(vnnlib_path).replace(".vnnlib", "")
-        target_folder_path = os.path.join(target_folder_path, vnnlib_name)
+    # else:
+    #     raise NotImplementedError("Need checking here.")
+    #     vnnlib_name = os.path.basename(vnnlib_path).replace(".vnnlib", "")
+    #     target_folder_path = os.path.join(target_folder_path, vnnlib_name)
 
     os.makedirs(target_folder_path, exist_ok=True)
 
