@@ -7,30 +7,31 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ._expr import *
 
+# Pre-compiled pattern (defined but not used - kept for compatibility)
 number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
 
-NARY_OPS_MAP = {
-    "and": And,
-    "or": Or,
-    "+": Add,
-}
-BINARY_OPS_MAP = {
-    "<=": Leq,
-    ">=": Geq,
-    "-": Sub,
-    "*": Mul,
-    "/": Div,
+# Combine operator maps for faster lookup (single dictionary access)
+OPS_MAP = {
+    "and": (And, True),    # (class, is_nary)
+    "or": (Or, True),
+    "+": (Add, True),
+    "<=": (Leq, False),
+    ">=": (Geq, False),
+    "-": (Sub, False),
+    "*": (Mul, False),
+    "/": (Div, False),
 }
 
 
 def parse_tokens_list(tokens_list: list[deque[str]]) -> list[Expr]:
+    """Parse tokens with simple parallel processing."""
     with ThreadPoolExecutor() as executor:
         exprs = list(executor.map(parse_tokens, tokens_list))
-
     return exprs
 
 
 def parse_tokens(tokens: deque[str]) -> Expr:
+    """Parse tokens with optimized operator lookup."""
     # NOTE: The deque is really quicker than list by popleft(), thousands of times
 
     tok = tokens.popleft()
@@ -43,31 +44,37 @@ def parse_tokens(tokens: deque[str]) -> Expr:
             tokens.popleft()  # Expecting ')'
             return expr
 
-        elif op in NARY_OPS_MAP:
-            args = []
-            while tokens[0] != ")":
-                args.append(parse_tokens(tokens))
-            tokens.popleft()  # Expecting ')'
-            return NARY_OPS_MAP[op](args)
+        # Optimized: Single dictionary lookup instead of two checks
+        op_info = OPS_MAP.get(op)
+        if op_info is not None:
+            op_class, is_nary = op_info
 
-        elif op in BINARY_OPS_MAP:
-            if tokens[0] == "(":
-                tokens.popleft()  # Expecting '('
-                a = parse_tokens(tokens)
-                b = parse_tokens(tokens)
+            if is_nary:
+                # N-ary operator (and, or, +)
+                args = []
+                while tokens[0] != ")":
+                    args.append(parse_tokens(tokens))
                 tokens.popleft()  # Expecting ')'
+                return op_class(args)
             else:
-                a = parse_tokens(tokens)
-                b = parse_tokens(tokens)
-            tokens.popleft()  # Expecting ')'
-            return BINARY_OPS_MAP[op](a, b)
-
+                # Binary operator (<=, >=, -, *, /)
+                # Check if arguments are wrapped in extra parentheses
+                if tokens[0] == "(":
+                    tokens.popleft()  # Expecting '('
+                    a = parse_tokens(tokens)
+                    b = parse_tokens(tokens)
+                    tokens.popleft()  # Expecting ')'
+                else:
+                    a = parse_tokens(tokens)
+                    b = parse_tokens(tokens)
+                tokens.popleft()  # Expecting ')'
+                return op_class(a, b)
         else:
             raise ValueError(f"Unknown operator: {op}")
 
     else:
+        # Optimized: Try float conversion directly (faster than regex)
         try:
-            # Handle numbers faster than regex
             return Cst(float(tok))
         except ValueError:
             return Var(tok)

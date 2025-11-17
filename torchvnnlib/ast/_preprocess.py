@@ -3,13 +3,17 @@ __all__ = ["preprocess_vnnlib"]
 
 import re
 
+# Pre-compile regex patterns for performance
+COMMENT_PATTERN = re.compile(r";.*")
+ASSERT_PATTERN = re.compile(r"^\(assert\s+.*\)$")
+
 
 def _remove_comments(lines: list[str]) -> list[str]:
     new_lines = []
 
     for line in lines:
-        # Remove comments starting with `;`
-        line = re.sub(r";.*", "", line)
+        # Remove comments starting with `;` (using pre-compiled pattern)
+        line = COMMENT_PATTERN.sub("", line)
         # Remove leading and trailing whitespace
         line = line.strip()
         # Only add non-empty lines
@@ -57,7 +61,7 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
     :return: A list of lines where each line is a complete expression.
     """
     new_lines = []
-    current_expr = ""
+    current_parts = []  # Use list accumulation for O(n) instead of O(n²)
     paren_count = 0
 
     for line in lines:
@@ -65,15 +69,15 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
         if not stripped or stripped.startswith(";"):  # skip empty or comment lines
             continue
 
-        current_expr += " " + stripped
+        current_parts.append(stripped)
         paren_count += stripped.count("(")
         paren_count -= stripped.count(")")
 
-        if paren_count == 0 and current_expr.strip():
-            new_lines.append(current_expr.strip())
-            current_expr = ""
+        if paren_count == 0 and current_parts:
+            new_lines.append(" ".join(current_parts))  # Join once at the end
+            current_parts = []
 
-    if current_expr.strip():
+    if current_parts:
         raise ValueError("Unbalanced parentheses in VNNLIB file.")
 
     return new_lines
@@ -88,8 +92,8 @@ def _check_illegal_lines(lines: list[str]) -> None:
     :raises ValueError: If an illegal line is found.
     """
     for line in lines:
-        # Check if the line has a form as "(assert <expr>)"
-        if not re.match(r"^\(assert\s+.*\)$", line):
+        # Check if the line has a form as "(assert <expr>)" (using pre-compiled pattern)
+        if not ASSERT_PATTERN.match(line):
             raise ValueError(f"Illegal line found in VNNLIB file: {line}")
 
 

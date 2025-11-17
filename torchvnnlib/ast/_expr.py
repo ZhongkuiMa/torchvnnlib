@@ -20,7 +20,8 @@ __all__ = [
 
 class Expr:
     def __init__(self):
-        pass
+        self._has_input_vars = None  # Cache for input variable presence
+        self._has_output_vars = None  # Cache for output variable presence
 
     def __repr__(self):
         raise NotImplementedError("This should be implemented in subclasses")
@@ -29,7 +30,30 @@ class Expr:
         raise NotImplementedError("This should be implemented in subclasses")
 
     def __hash__(self):
+        # Default implementation - subclasses should override
         return hash(self.__repr__())
+
+    @property
+    def has_input_vars(self) -> bool:
+        """Check if expression contains input variables (X_*)."""
+        if self._has_input_vars is None:
+            self._has_input_vars = self._compute_has_input_vars()
+        return self._has_input_vars
+
+    @property
+    def has_output_vars(self) -> bool:
+        """Check if expression contains output variables (Y_*)."""
+        if self._has_output_vars is None:
+            self._has_output_vars = self._compute_has_output_vars()
+        return self._has_output_vars
+
+    def _compute_has_input_vars(self) -> bool:
+        """Compute whether expression contains input variables. Override in subclasses."""
+        return False
+
+    def _compute_has_output_vars(self) -> bool:
+        """Compute whether expression contains output variables. Override in subclasses."""
+        return False
 
 
 class Cst(Expr):
@@ -60,6 +84,14 @@ class Var(Expr):
         ):
             raise ValueError(f"Variable name must start with 'X' or 'Y' but {name}.")
 
+        # Cache variable type and index for performance
+        self.var_type = name[0]  # 'X' or 'Y'
+        self.index = int(name[2:])  # Parse index once
+
+        # Set cached flags directly since we know the type
+        self._has_input_vars = (self.var_type == 'X')
+        self._has_output_vars = (self.var_type == 'Y')
+
     def __repr__(self):
         return f"{self.name}"
 
@@ -70,6 +102,12 @@ class Var(Expr):
 
     def __hash__(self):
         return hash(self.name)
+
+    def _compute_has_input_vars(self) -> bool:
+        return self.var_type == 'X'
+
+    def _compute_has_output_vars(self) -> bool:
+        return self.var_type == 'Y'
 
 
 class UnaryOp(Expr):
@@ -88,6 +126,12 @@ class UnaryOp(Expr):
     def __hash__(self):
         return hash(self.arg)
 
+    def _compute_has_input_vars(self) -> bool:
+        return self.arg.has_input_vars
+
+    def _compute_has_output_vars(self) -> bool:
+        return self.arg.has_output_vars
+
 
 class BinaryOp(Expr):
     def __init__(self, left: Expr, right: Expr):
@@ -105,6 +149,12 @@ class BinaryOp(Expr):
 
     def __hash__(self):
         return hash((self.left, self.right))
+
+    def _compute_has_input_vars(self) -> bool:
+        return self.left.has_input_vars or self.right.has_input_vars
+
+    def _compute_has_output_vars(self) -> bool:
+        return self.left.has_output_vars or self.right.has_output_vars
 
 
 class NaryOp(Expr):
@@ -130,6 +180,12 @@ class NaryOp(Expr):
 
     def __iter__(self):
         return iter(self.args)
+
+    def _compute_has_input_vars(self) -> bool:
+        return any(arg.has_input_vars for arg in self.args)
+
+    def _compute_has_output_vars(self) -> bool:
+        return any(arg.has_output_vars for arg in self.args)
 
 
 class Add(NaryOp):

@@ -3,12 +3,54 @@ __all__ = ["tokenize"]
 
 import re
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+
+# Pre-compile regex pattern at module level for performance
+# The ordering of the regex is important - match the longest possible token first
+TOKEN_PATTERN = re.compile(
+    r"""
+        \s*                                            # optional whitespace
+        (
+            -?(?:\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)? |  # float/scientific notation
+            -?\d+                                   |  # integer
+            [a-zA-Z_][a-zA-Z0-9_-]*                 |  # identifier
+            [()]                                    |  # parentheses
+            <=|>=|==|!=|=|<|>                       |  # comparison operators
+            [-+*/]                                  |  # arithmetic operators
+        )
+        """,
+    re.VERBOSE,
+)
+
+
+def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
+    """Tokenize a single line (helper function for parallel processing).
+
+    :param args: Tuple of (line_index, line_string)
+    :return: Deque of tokens, or None if line is empty
+    """
+    i, line = args
+    pos = 0
+    tokens = []
+
+    while pos < len(line):
+        match = TOKEN_PATTERN.match(line, pos)
+        if not match:
+            raise ValueError(
+                f"Invalid token at line {i+1}, position {pos}: '{line[pos:].strip()}'"
+            )
+        token = match.group(1)
+        tokens.append(token)
+        pos = match.end()
+
+    return deque(tokens) if tokens else None
 
 
 def tokenize(lines: list[str]) -> list[deque[str]]:
     """
-    The input is a list of lines from a VNNLIB file and this funciton tokenizes each
-    line.
+    The input is a list of lines from a VNNLIB file and this function tokenizes each
+    line in parallel for improved performance.
+
     Tokenizes a string into a list of tokens. The tokens can be:
     - Parentheses: `(`, `)`
     - Identifiers: a word including "declare-const", "Real", "assert", "and", "or".
@@ -17,41 +59,23 @@ def tokenize(lines: list[str]) -> list[deque[str]]:
     For other tokens, it will be ignored.
 
     :param lines: The input string to tokenize.
-    :return:  A list of tokens.
+    :return: A list of tokens.
     """
-    # Regex pattern to match valid tokens
-    # The ordering of the regex is important.
-    # We need to match the longest possible token first.
-    token_pattern = re.compile(
-        r"""
-            \s*                                            # optional whitespace
-            (
-                -?(?:\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)? |  # float/scientific notation
-                -?\d+                                   |  # integer
-                [a-zA-Z_][a-zA-Z0-9_-]*                 |  # identifier
-                [()]                                    |  # parentheses
-                <=|>=|==|!=|=|<|>                       |  # comparison operators
-                [-+*/]                                  |  # arithmetic operators
-            )
-            """,
-        re.VERBOSE,
-    )
+    # For small files, use sequential processing to avoid overhead
+    if len(lines) < 100:
+        tokens_list = []
+        for i, line in enumerate(lines):
+            result = _tokenize_line((i, line))
+            if result is not None:
+                tokens_list.append(result)
+        return tokens_list
 
-    tokens_list = []
-    for i, line in enumerate(lines):
-        pos = 0
-        tokens = []
-        while pos < len(line):
-            match = token_pattern.match(line, pos)
-            if not match:
-                raise ValueError(
-                    f"Invalid token at line {i+1}, position {pos}: '{line[pos:].strip()}'"
-                )
-            token = match.group(1)
-            tokens.append(token)
-            pos = match.end()
-
-        if tokens:
-            tokens_list.append(deque(tokens))
+    # For larger files, use parallel processing
+    with ThreadPoolExecutor() as executor:
+        # Create enumerated args for line tracking
+        indexed_lines = list(enumerate(lines))
+        results = executor.map(_tokenize_line, indexed_lines)
+        # Filter out None results (empty lines)
+        tokens_list = [r for r in results if r is not None]
 
     return tokens_list

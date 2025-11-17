@@ -8,6 +8,10 @@ from typing import Callable
 
 from ._expr import *
 
+# Pre-compile regex patterns for performance
+VAR_LETTER_PATTERN = re.compile(r"([XY])")
+VAR_NUMBER_PATTERN = re.compile(r"(\d+)")
+
 
 def _else_recursion(expr: Expr, func: Callable) -> Expr:
     if isinstance(expr, UnaryOp):
@@ -27,7 +31,7 @@ def _remove_single_and_or(expr: Expr) -> Expr:
     """
 
     if isinstance(expr, And) or isinstance(expr, Or):
-        if len(expr.args) == 1 and "Y" not in expr.args[0].__repr__():
+        if len(expr.args) == 1 and not expr.args[0].has_output_vars:
             return expr.args[0]
         else:
             for i in range(len(expr.args)):
@@ -50,21 +54,22 @@ def _simplify_leqgeq(expr: Expr) -> Expr:
 
     for arg in expr.args:
         if isinstance(arg, Leq):
-            key = (str(arg.left), str(arg.right))
+            # Use expression objects directly as key instead of converting to string
+            key = (arg.left, arg.right)
             leq_pairs[key] = arg
         elif isinstance(arg, Geq):
-            key = (str(arg.left), str(arg.right))
+            # Use expression objects directly as key instead of converting to string
+            key = (arg.left, arg.right)
             geq_pairs[key] = arg
         else:
             simplified_args.append(_simplify_leqgeq(arg))
 
     # Combine matching Le and Ge into Eq
     used = set()
-    for (a, b), le_expr in leq_pairs.items():
-        if (a, b) in geq_pairs:
+    for key, le_expr in leq_pairs.items():
+        if key in geq_pairs:
             simplified_args.append(Eq(le_expr.left, le_expr.right))
-            used.add((a, b))
-            used.add((a, b))
+            used.add(key)
 
     # Add remaining Le/Ge that weren't combined
     for k, v in leq_pairs.items():
@@ -78,31 +83,22 @@ def _simplify_leqgeq(expr: Expr) -> Expr:
 
 
 def _get_priority(var: Var) -> int | float:
-    """Extract the number from the variable name."""
-    # Get the first X or Y variable in the expression
-    var_repr = repr(var)
-    priority = 0
-    # Find the first letter of "X" or "Y" in the variable name
-    match = re.search(r"([XY])", var_repr)
-    if not match:
+    """Extract the number from the variable name using cached values."""
+    # Use cached var_type and index for O(1) performance
+    if not isinstance(var, Var):
         # This is a constant
         return float("inf")
-    letter = match.group(1)
-    if letter == "Y":
+
+    priority = 0
+    if var.var_type == "Y":
         priority += 1000000
-    # Find the number in the variable name
-    match = re.search(r"(\d+)", var.__repr__())
-    if not match:
-        raise ValueError(f"Invalid variable repr: {var.__repr__()}")
-    number = match.group(1)
-    if not number:
-        raise ValueError(f"Invalid variable repr: {var.__repr__()}")
-    if int(number) > 100000000:
+
+    if var.index > 100000000:
         warnings.warn(
             "The number in the variable name is greater than 10000. This will result "
             "in incorrect sorting when printing.",
         )
-    priority += int(number)
+    priority += var.index
 
     return priority
 
@@ -182,15 +178,20 @@ def fuse_and_and(expr: Expr) -> Expr:
     Fuse two And expressions into one.
     """
     if isinstance(expr, And):
+        # Build new list instead of mutating during iteration (bug fix)
+        new_args = []
         for arg in expr.args:
             if isinstance(arg, And):
-                expr.args.remove(arg)
-                expr.args.extend(arg.args)
+                new_args.extend(arg.args)  # Flatten nested And
+            else:
+                new_args.append(arg)
+        expr.args = new_args
 
     return _else_recursion(expr, fuse_and_and)
 
 
 def optimize(expr: Expr) -> Expr:
+    """Optimize expressions with simple parallel processing."""
     is_and = isinstance(expr, And)
     is_or = isinstance(expr, Or)
 
@@ -212,10 +213,6 @@ def optimize(expr: Expr) -> Expr:
     else:
         raise ValueError("The expression must be either an And or an Or.")
 
-    # expr = _remove_single_and_or(expr)
-    # expr = _simplify_leqgeq(expr)
-    # expr = flatten_and_or(expr)
-    # expr = fuse_and_and(expr)
     expr = _sort_vars_in_expr(expr)
 
     return expr

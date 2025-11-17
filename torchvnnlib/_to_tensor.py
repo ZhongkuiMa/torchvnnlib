@@ -12,7 +12,9 @@ from .ast import *
 
 
 def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
-    intput_bounds = [[None] * 2 for _ in range(n_inputs)]
+    # Pre-allocate tensor with NaN for efficient filling (optimization)
+    input_bounds = torch.full((n_inputs, 2), float('nan'), dtype=torch.float64)
+
     for sub_expr in expr:
         if not (
             isinstance(sub_expr, Leq)
@@ -20,24 +22,25 @@ def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
             or isinstance(sub_expr, Eq)
         ):
             raise ValueError(f"Invalid input bound expression: {sub_expr}")
-        idx = int(sub_expr.left.name[2:])  # noqa
+        idx = sub_expr.left.index  # Use cached index
         value = float(sub_expr.right.value)  # noqa
+
         if isinstance(sub_expr, Leq):
-            intput_bounds[idx][1] = value  # noqa
+            input_bounds[idx, 1] = value  # Direct tensor assignment
         elif isinstance(sub_expr, Geq):
-            intput_bounds[idx][0] = value  # noqa
+            input_bounds[idx, 0] = value  # Direct tensor assignment
         elif isinstance(sub_expr, Eq):
-            intput_bounds[idx][0] = value  # noqa
-            intput_bounds[idx][1] = value  # noqa
+            input_bounds[idx, 0] = value  # Direct tensor assignment
+            input_bounds[idx, 1] = value  # Direct tensor assignment
         else:
             raise RuntimeError(f"Invalid {sub_expr} to obtain input bounds.")
 
-    for i in range(n_inputs):
-        for j in range(2):
-            if intput_bounds[i][j] is None:
-                raise ValueError(f"Missing input bound for input {i}: {intput_bounds}")
+    # Check for missing bounds (NaN values)
+    if torch.isnan(input_bounds).any():
+        nan_indices = torch.where(torch.isnan(input_bounds))
+        raise ValueError(f"Missing input bounds at indices: {list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))}")
 
-    return torch.tensor(intput_bounds, dtype=torch.float64)
+    return input_bounds
 
 
 def _convert_linear_poly(
@@ -59,14 +62,14 @@ def _convert_linear_poly(
     (- Y_0 (+ (* 12.36122962667928 X_3) (* 13.97706212118972 X_2) 39.460058770740844))
     """
     if isinstance(expr, Var):
-        # Extract the index from the variable name
-        idx = int(expr.name[2:])
-        if "Y" in expr.name:
+        # Use cached index and var_type
+        idx = expr.index
+        if expr.var_type == "Y":
             constr[idx + 1] += 1 if is_add else -1
-        elif "X" in expr.name:
+        elif expr.var_type == "X":
             constr[idx + y_dim + 1] += 1 if is_add else -1
         else:
-            raise ValueError(f"Invalid variable name: {expr.name}")
+            raise ValueError(f"Invalid variable type: {expr.var_type}")
     elif isinstance(expr, Cst):
         constr[0] += expr.value if is_add else -expr.value
     elif isinstance(expr, Add):
@@ -76,13 +79,13 @@ def _convert_linear_poly(
         left = expr.left
         right = expr.right
         if isinstance(left, Cst) and isinstance(right, Var):
-            idx = int(right.name[2:])
-            if "Y" in right.name:
+            idx = right.index  # Use cached index
+            if right.var_type == "Y":
                 constr[idx + 1] += left.value if is_add else -left.value
-            elif "X" in right.name:
+            elif right.var_type == "X":
                 constr[idx + y_dim + 1] += left.value if is_add else -left.value
             else:
-                raise ValueError(f"Invalid variable name: {right.name}")
+                raise ValueError(f"Invalid variable type: {right.var_type}")
     elif isinstance(expr, Sub):
         left = expr.left
         right = expr.right
@@ -108,7 +111,7 @@ def _convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> T
         )
 
     if isinstance(left, Var):
-        idx = int(left.name[2:])
+        idx = left.index  # Use cached index
         constr[idx + 1] += -1
     elif isinstance(left, Cst):
         constr[0] += -left.value  # noqa
@@ -116,7 +119,7 @@ def _convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> T
         raise NotImplementedError(f"Now only support Var and Cst for left: {left}")
 
     if isinstance(right, Var):
-        idx = int(right.name[2:])
+        idx = right.index  # Use cached index
         constr[idx + 1] += 1
     elif isinstance(right, Cst):
         constr[0] += right.value
@@ -137,7 +140,22 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
     """
     y_dim = n_outputs
     x_dim = n_inputs
-    output_constrs = []
+    num_constraints = len(expr.args)
+
+    # Pre-allocate constraints tensor for better performance (optimization)
+    # We'll determine the max dimension needed
+    max_dim = y_dim + 1  # Start with minimum dimension
+    for sub_expr in expr.args:
+        # Check if we need extended dimensions (when right side has Add/Sub/Mul/Div)
+        if hasattr(sub_expr, 'right'):
+            right = sub_expr.right
+            if isinstance(right, (Add, Sub, Mul, Div)):
+                max_dim = max(max_dim, y_dim + x_dim + 1)
+                break
+
+    # Pre-allocate the full tensor
+    output_constrs_list = []
+
     for i, sub_expr in enumerate(expr):
         left = sub_expr.left  # noqa
         right = sub_expr.right  # noqa
@@ -151,8 +169,10 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
         else:
             raise ValueError(f"Invalid output constraint expression: {sub_expr}")
 
-        output_constrs.append(constr)
-    output_constrs = torch.stack(output_constrs)
+        output_constrs_list.append(constr)
+
+    # Stack all constraints at once
+    output_constrs = torch.stack(output_constrs_list)
 
     return output_constrs
 

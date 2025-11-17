@@ -18,7 +18,7 @@ def _check_output_constrs_expr(expr: Expr):
 
 
 def _check_bound_or_constr_expr(expr: Expr):
-    if "Y" in expr.__repr__():
+    if expr.has_output_vars:
         _check_output_constrs_expr(expr)
     else:
         _check_input_bound_expr(expr)
@@ -33,13 +33,13 @@ def _check_and_expr(expr: Expr):
     num_or_input_bounds = 0
     num_or_output_constrs = 0
     for sub_expr in expr.args:
-        if "Y" in sub_expr.__repr__():
+        if sub_expr.has_output_vars:
             has_Y = True
-        elif "X" in sub_expr.__repr__():
+        elif sub_expr.has_input_vars:
             has_X = True
 
         if isinstance(sub_expr, Or):
-            if "Y" in sub_expr.__repr__():
+            if sub_expr.has_output_vars:
                 num_or_output_constrs += 1
                 if num_or_output_constrs > 1:
                     raise ValueError(
@@ -76,20 +76,20 @@ def _flatten_and_expr(expr: And) -> Or:
     # Collect direct input bound expressions
     direct_input_exprs = []
     for sub_expr in expr.args:
-        if not isinstance(sub_expr, Or) and "Y" not in sub_expr.__repr__():
+        if not isinstance(sub_expr, Or) and not sub_expr.has_output_vars:
             direct_input_exprs.append(sub_expr)
 
     # Collect direct output constraints expressions
     direct_output_exprs = []
     for sub_expr in expr.args:
-        if not isinstance(sub_expr, Or) and "Y" in sub_expr.__repr__():
+        if not isinstance(sub_expr, Or) and sub_expr.has_output_vars:
             direct_output_exprs.append(sub_expr)
 
     # Collect input bound expressions in the Or expression
     or_input_exprs = []
     if len(direct_input_exprs) == 0:
         for sub_expr in expr.args:
-            if isinstance(sub_expr, Or) and "Y" not in sub_expr.__repr__():
+            if isinstance(sub_expr, Or) and not sub_expr.has_output_vars:
                 or_input_exprs.extend(sub_expr.args)
                 break
 
@@ -97,7 +97,7 @@ def _flatten_and_expr(expr: And) -> Or:
     or_output_exprs = None
     if len(direct_output_exprs) == 0:
         for sub_expr in expr.args:
-            if isinstance(sub_expr, Or) and "Y" in sub_expr.__repr__():
+            if isinstance(sub_expr, Or) and sub_expr.has_output_vars:
                 or_output_exprs = sub_expr
                 break
 
