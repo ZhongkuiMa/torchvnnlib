@@ -55,8 +55,9 @@ def _write_property(
 
 
 class TorchVNNLIB:
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, use_parallel: bool = False):
         self.verbose = verbose
+        self.use_parallel = use_parallel
 
     def convert(self, vnnlib_path: str, target_folder_path: str | None = None):
         if self.verbose:
@@ -78,19 +79,19 @@ class TorchVNNLIB:
 
         # Tokenize the lines to get a list of tokens
         t = time.perf_counter()
-        tokens_list = tokenize(lines)
+        tokens_list = tokenize(lines, verbose=self.verbose, use_parallel=self.use_parallel)
         if self.verbose:
             print(f"  Tokenization: {time.perf_counter() - t:.4f}s")
 
         # Get the expression of each line as a list
         t = time.perf_counter()
-        expr = parse(tokens_list)
+        expr = parse(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
         if self.verbose:
             print(f"  Parsing ({len(expr.args)} expressions): {time.perf_counter() - t:.4f}s")
 
         # Optimize expressions
         t = time.perf_counter()
-        expr = optimize(expr)
+        expr = optimize(expr, verbose=self.verbose, use_parallel=self.use_parallel)
         if self.verbose:
             print(f"  Optimization: {time.perf_counter() - t:.4f}s")
 
@@ -102,7 +103,7 @@ class TorchVNNLIB:
 
         # Convert to tensors
         t = time.perf_counter()
-        and_properties = convert_to_tensor(expr, n_inputs, n_outputs)
+        and_properties = convert_to_tensor(expr, n_inputs, n_outputs, verbose=self.verbose, use_parallel=self.use_parallel)
         if self.verbose:
             print(f"  Tensor conversion ({len(and_properties)} AND properties): {time.perf_counter() - t:.4f}s")
 

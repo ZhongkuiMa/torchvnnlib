@@ -213,7 +213,7 @@ def _convert_one_property(
 
 
 def convert_to_tensor(
-    expr: And, n_inputs: int, n_outputs: int
+    expr: And, n_inputs: int, n_outputs: int, verbose: bool = False, use_parallel: bool = True
 ) -> list[list[tuple[Tensor, list[Tensor]]]]:
     """
     Now we should get an Expr.
@@ -230,21 +230,7 @@ def convert_to_tensor(
     The third level is a pair of two And expressions. One is for input constraints, and
     the other is for output constraints.
     """
-
-    # and_properties = []
-    # for or_expr in expr.args:
-    #     or_groups = []
-    #     or_expr: Or
-    #
-    #     for and_expr in or_expr.args:
-    #         if not isinstance(and_expr, And):
-    #             raise ValueError(f"Invalid expression: {and_expr}")
-    #         input_bounds, output_constrs = _convert_one_property(
-    #             and_expr, n_inputs, n_outputs
-    #         )
-    #         or_groups.append((input_bounds, output_constrs))
-    #
-    #     and_properties.append(or_groups)
+    import time
 
     def _process_or_expr(
         or_expr: Or, n_inputs: int, n_outputs: int
@@ -254,17 +240,28 @@ def convert_to_tensor(
 
         convert = partial(_convert_one_property, n_inputs=n_inputs, n_outputs=n_outputs)
 
-        with ThreadPoolExecutor() as executor:
-            or_groups = list(executor.map(convert, or_expr.args))
+        if use_parallel:
+            with ThreadPoolExecutor() as executor:
+                or_groups = list(executor.map(convert, or_expr.args))
+        else:
+            or_groups = [convert(arg) for arg in or_expr.args]
 
         return or_groups
 
-    def convert_all_properties_parallel(expr, n_inputs: int, n_outputs: int):
+    def convert_all_properties(expr, n_inputs: int, n_outputs: int):
         process = partial(_process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs)
 
-        with ThreadPoolExecutor() as executor:
-            and_properties = list(executor.map(process, expr.args))
+        t = time.perf_counter()
+        if use_parallel:
+            with ThreadPoolExecutor() as executor:
+                and_properties = list(executor.map(process, expr.args))
+            if verbose:
+                print(f"    - Convert properties (parallel): {time.perf_counter() - t:.4f}s")
+        else:
+            and_properties = [process(arg) for arg in expr.args]
+            if verbose:
+                print(f"    - Convert properties (sequential): {time.perf_counter() - t:.4f}s")
 
         return and_properties
 
-    return convert_all_properties_parallel(expr, n_inputs, n_outputs)
+    return convert_all_properties(expr, n_inputs, n_outputs)

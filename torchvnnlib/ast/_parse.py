@@ -23,10 +23,22 @@ OPS_MAP = {
 }
 
 
-def parse_tokens_list(tokens_list: list[deque[str]]) -> list[Expr]:
-    """Parse tokens with simple parallel processing."""
+def parse_tokens_list(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> list[Expr]:
+    """Parse tokens with optional parallel processing."""
+    import time
+
+    if not use_parallel:
+        t = time.perf_counter()
+        exprs = [parse_tokens(tokens) for tokens in tokens_list]
+        if verbose:
+            print(f"    - Parse tokens (sequential): {time.perf_counter() - t:.4f}s")
+        return exprs
+
+    t = time.perf_counter()
     with ThreadPoolExecutor() as executor:
         exprs = list(executor.map(parse_tokens, tokens_list))
+    if verbose:
+        print(f"    - Parse tokens (parallel): {time.perf_counter() - t:.4f}s")
     return exprs
 
 
@@ -92,16 +104,24 @@ def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
     return And(exprs_list)
 
 
-def parse(tokens_list: list[deque[str]]) -> Expr:
+def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> Expr:
     """
     Parses a VNNLIB file and returns a list of tokens.
 
     :param tokens_list: A list of lists of tokens, where each inner list represents a
         line of tokens.
+    :param verbose: Print timing information.
+    :param use_parallel: Use parallel processing.
     :return: An expression object representing the parsed VNNLIB file.
     """
-    exprs_list = parse_tokens_list(tokens_list)
+    import time
+
+    exprs_list = parse_tokens_list(tokens_list, verbose=verbose, use_parallel=use_parallel)
+
+    t = time.perf_counter()
     # Merge all expressions into a single And expression
     expr = _merge_all_exprs_as_and(exprs_list)
+    if verbose:
+        print(f"    - Merge exprs: {time.perf_counter() - t:.4f}s")
 
     return expr

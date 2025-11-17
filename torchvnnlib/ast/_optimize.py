@@ -190,8 +190,10 @@ def fuse_and_and(expr: Expr) -> Expr:
     return _else_recursion(expr, fuse_and_and)
 
 
-def optimize(expr: Expr) -> Expr:
-    """Optimize expressions with simple parallel processing."""
+def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Expr:
+    """Optimize expressions with optional parallel processing."""
+    import time
+
     is_and = isinstance(expr, And)
     is_or = isinstance(expr, Or)
 
@@ -199,12 +201,24 @@ def optimize(expr: Expr) -> Expr:
         raise ValueError("The expression must be either an And or an Or.")
 
     def simplify(epr: Expr) -> Expr:
+        # Quick check: skip expensive operations for simple leaf expressions
+        if isinstance(epr, (Leq, Geq, Eq, Var, Cst)):
+            return epr
+
         epr = _remove_single_and_or(epr)
         epr = _simplify_leqgeq(epr)
         return epr
 
-    with ThreadPoolExecutor() as executor:
-        expr_list = list(executor.map(simplify, expr.args))
+    t = time.perf_counter()
+    if use_parallel:
+        with ThreadPoolExecutor() as executor:
+            expr_list = list(executor.map(simplify, expr.args))
+        if verbose:
+            print(f"    - Simplify (parallel): {time.perf_counter() - t:.4f}s")
+    else:
+        expr_list = [simplify(arg) for arg in expr.args]
+        if verbose:
+            print(f"    - Simplify (sequential): {time.perf_counter() - t:.4f}s")
 
     if is_and:
         expr = And(expr_list)
@@ -213,6 +227,9 @@ def optimize(expr: Expr) -> Expr:
     else:
         raise ValueError("The expression must be either an And or an Or.")
 
+    t = time.perf_counter()
     expr = _sort_vars_in_expr(expr)
+    if verbose:
+        print(f"    - Sort vars: {time.perf_counter() - t:.4f}s")
 
     return expr

@@ -130,7 +130,6 @@ def compare_baseline(
 
     # Run conversion
     converter = TorchVNNLIB()
-    converter.verbose = True
     converter.convert(vnnlib_path, target_folder_path=results_path)
 
     # Compare folders
@@ -242,13 +241,13 @@ def verify_all_benchmarks(
 
 if __name__ == "__main__":
     # Example 1: Update baseline for one vnnlib file
-    vnnlib_file = "benchmarks/vggnet16_2023/spec0_briard.vnnlib"
+    # vnnlib_file = "benchmarks/vggnet16_2023/spec0_briard.vnnlib"
     # update_baseline(vnnlib_file, baselines_dir="baselines")
 
     # Example 2: Compare one vnnlib file against baseline
-    success = compare_baseline(
-        vnnlib_file, baselines_dir="baselines", results_dir="results"
-    )
+    # success = compare_baseline(
+    #     vnnlib_file, baselines_dir="baselines", results_dir="results"
+    # )
 
     # Example 3: Batch update baselines for all benchmarks
     # update_all_benchmarks(
@@ -258,9 +257,9 @@ if __name__ == "__main__":
     # )
 
     # Example 4: Batch verify all benchmarks against their baselines
-    # verify_all_benchmarks(
-    #     benchmarks_dir="benchmarks",
-    #     baselines_dir="baselines",
-    #     results_dir="results",
-    #     max_per_benchmark=20,
-    # )
+    verify_all_benchmarks(
+        benchmarks_dir="benchmarks",
+        baselines_dir="baselines",
+        results_dir="results",
+        max_per_benchmark=20,
+    )
