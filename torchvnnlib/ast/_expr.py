@@ -89,8 +89,8 @@ class Var(Expr):
         self.index = int(name[2:])  # Parse index once
 
         # Set cached flags directly since we know the type
-        self._has_input_vars = (self.var_type == 'X')
-        self._has_output_vars = (self.var_type == 'Y')
+        self._has_input_vars = self.var_type == "X"
+        self._has_output_vars = self.var_type == "Y"
 
     def __repr__(self):
         return f"{self.name}"
@@ -104,10 +104,10 @@ class Var(Expr):
         return hash(self.name)
 
     def _compute_has_input_vars(self) -> bool:
-        return self.var_type == 'X'
+        return self.var_type == "X"
 
     def _compute_has_output_vars(self) -> bool:
-        return self.var_type == 'Y'
+        return self.var_type == "Y"
 
 
 class UnaryOp(Expr):

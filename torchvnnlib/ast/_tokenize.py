@@ -46,7 +46,9 @@ def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
     return deque(tokens) if tokens else None
 
 
-def tokenize(lines: list[str], verbose: bool = False, use_parallel: bool = True) -> list[deque[str]]:
+def tokenize(
+    lines: list[str], verbose: bool = False, use_parallel: bool = True
+) -> list[deque[str]]:
     """
     The input is a list of lines from a VNNLIB file and this function tokenizes each
     line in parallel for improved performance.

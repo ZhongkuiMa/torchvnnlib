@@ -12,7 +12,7 @@ number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
 
 # Combine operator maps for faster lookup (single dictionary access)
 OPS_MAP = {
-    "and": (And, True),    # (class, is_nary)
+    "and": (And, True),  # (class, is_nary)
     "or": (Or, True),
     "+": (Add, True),
     "<=": (Leq, False),
@@ -23,7 +23,9 @@ OPS_MAP = {
 }
 
 
-def parse_tokens_list(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> list[Expr]:
+def parse_tokens_list(
+    tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True
+) -> list[Expr]:
     """Parse tokens with optional parallel processing."""
     import time
 
@@ -104,7 +106,9 @@ def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
     return And(exprs_list)
 
 
-def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> Expr:
+def parse(
+    tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True
+) -> Expr:
     """
     Parses a VNNLIB file and returns a list of tokens.
 
@@ -116,7 +120,9 @@ def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bo
     """
     import time
 
-    exprs_list = parse_tokens_list(tokens_list, verbose=verbose, use_parallel=use_parallel)
+    exprs_list = parse_tokens_list(
+        tokens_list, verbose=verbose, use_parallel=use_parallel
+    )
 
     t = time.perf_counter()
     # Merge all expressions into a single And expression
