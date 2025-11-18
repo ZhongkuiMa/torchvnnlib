@@ -14,8 +14,13 @@ __all__ = [
     "OUTPUT_CONSTRAINT_INNER_PATTERN",
     "OUTPUT_BOUND_INNER_PATTERN",
     "convert_simple_input_bounds",
-    "parse_or_block",
     "parse_input_bounds_block",
+    "parse_output_and_block",
+    "parse_input_or_block",
+    "parse_output_or_block",
+    "parse_and_block",
+    "parse_dual_or_blocks",
+    "parse_or_block",  # Backward compatibility
 ]
 
 
@@ -147,17 +152,58 @@ def convert_simple_input_bounds(simple_bounds: list[tuple], n_inputs: int) -> Te
     return input_bounds
 
 
-def parse_or_block(
-    or_block_lines: list[str], n_inputs: int, n_outputs: int
-) -> list[Tensor]:
-    """Parse OR block to extract output constraints using direct pattern matching.
+def parse_input_or_block(or_block_lines: list[str], n_inputs: int) -> list[Tensor]:
+    """Parse OR block to extract input bounds using direct pattern matching.
 
-    Optimized for Type2/Type3 fixed pattern: (assert (or (and ...) (and ...) ...))
-    Uses direct string parsing instead of AST for better performance.
+    Pattern: (assert (or (and X_...) (and X_...) ...))
+    Used by Type3 processor.
 
     Args:
         or_block_lines: Lines containing OR block expressions
         n_inputs: Number of input variables
+
+    Returns:
+        List of input bound tensors
+    """
+    if not or_block_lines:
+        return [torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)]
+
+    # Merge all lines into single string for processing
+    content = ' '.join(or_block_lines)
+
+    # Split by '(and ' to extract individual AND blocks
+    parts = content.split('(and ')
+
+    input_bounds_list = []
+
+    # First part is "(assert (or", skip it and process each AND block
+    for part in parts[1:]:
+        if not part.strip():
+            continue
+
+        # Extract input bounds from this AND block
+        bounds = parse_input_bounds_block(part, n_inputs)
+        if not torch.isnan(bounds).all():
+            input_bounds_list.append(bounds)
+
+    return (
+        input_bounds_list
+        if input_bounds_list
+        else [torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)]
+    )
+
+
+def parse_output_or_block(
+    or_block_lines: list[str], n_inputs: int, n_outputs: int
+) -> list[Tensor]:
+    """Parse OR block to extract output constraints using direct pattern matching.
+
+    Pattern: (assert (or (and Y_...) (and Y_...) ...))
+    Used by Type2 processor.
+
+    Args:
+        or_block_lines: Lines containing OR block expressions
+        n_inputs: Number of input variables (unused, kept for API consistency)
         n_outputs: Number of output variables
 
     Returns:
@@ -170,7 +216,6 @@ def parse_or_block(
     content = ' '.join(or_block_lines)
 
     # Split by '(and ' to extract individual AND blocks
-    # Pattern: (assert (or (and ...) (and ...) ...))
     parts = content.split('(and ')
 
     output_constrs = []
@@ -181,7 +226,7 @@ def parse_or_block(
             continue
 
         # Extract constraints from this AND block
-        constr = _parse_and_block_direct(part, n_outputs)
+        constr = parse_output_and_block(part, n_outputs)
         if constr is not None and constr.numel() > 0:
             output_constrs.append(constr)
 
@@ -190,6 +235,74 @@ def parse_or_block(
         if output_constrs
         else [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
     )
+
+
+# Backward compatibility alias
+parse_or_block = parse_output_or_block
+
+
+def parse_and_block(
+    block: str, n_inputs: int, n_outputs: int
+) -> tuple[Tensor, list[Tensor]]:
+    """Parse a single AND block to extract both input bounds and output constraints.
+
+    Handles patterns with both X and Y variables:
+    - (<=/>=/= X_i value): Input bounds
+    - (<=/>=/= Y_i value): Output bounds
+
+    Used by Type5 processor for complete property blocks.
+
+    Args:
+        block: String containing AND block content
+        n_inputs: Number of input variables
+        n_outputs: Number of output variables
+
+    Returns:
+        Tuple of (input_bounds, output_constraints_list)
+    """
+    # Parse input bounds
+    input_bounds = parse_input_bounds_block(block, n_inputs)
+
+    # Parse output constraints (only simple bounds for Type5)
+    output_constraints = []
+    matches = OUTPUT_BOUND_INNER_PATTERN.findall(block)
+    for match in matches:
+        op, var_prefix, idx, value = match
+        idx = int(idx)
+        value = float(value)
+
+        if idx >= n_outputs:
+            continue
+
+        constr_row = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+
+        if op == ">=":
+            # Y_i >= value  =>  -value + Y_i >= 0
+            constr_row[0, 0] = -value
+            constr_row[0, idx + 1] = 1.0
+            output_constraints.append(constr_row)
+        elif op == "<=":
+            # Y_i <= value  =>  value - Y_i >= 0
+            constr_row[0, 0] = value
+            constr_row[0, idx + 1] = -1.0
+            output_constraints.append(constr_row)
+        elif op == "=":
+            # Y_i = value  =>  two constraints
+            constr_row1 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+            constr_row1[0, 0] = -value
+            constr_row1[0, idx + 1] = 1.0
+            output_constraints.append(constr_row1)
+
+            constr_row2 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+            constr_row2[0, 0] = value
+            constr_row2[0, idx + 1] = -1.0
+            output_constraints.append(constr_row2)
+
+    # If no output constraints, add zero constraint
+    if not output_constraints:
+        output_constraints = [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
+
+    return (input_bounds, output_constraints)
 
 
 def parse_input_bounds_block(block: str, n_inputs: int) -> Tensor:
@@ -231,7 +344,7 @@ def parse_input_bounds_block(block: str, n_inputs: int) -> Tensor:
     return input_bounds
 
 
-def _parse_and_block_direct(block: str, n_outputs: int) -> Tensor:
+def parse_output_and_block(block: str, n_outputs: int) -> Tensor:
     """Parse a single AND block to extract output constraints.
 
     Handles patterns:
@@ -306,3 +419,50 @@ def _parse_and_block_direct(block: str, n_outputs: int) -> Tensor:
         return torch.stack(constraints, dim=0)
     else:
         return torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+
+
+def parse_dual_or_blocks(
+    lines: list[str], n_inputs: int, n_outputs: int
+) -> tuple[list[Tensor], list[Tensor]]:
+    """Parse two OR blocks for inputs and outputs using direct pattern matching.
+
+    Pattern: (assert (and (or (and X_...) ...) (or (and Y_...) ...)))
+
+    Shared utility for Type4 processor. Implemented using parse_input_or_block()
+    and parse_output_or_block() for consistency.
+
+    Args:
+        lines: Preprocessed assertion lines
+        n_inputs: Number of input variables
+        n_outputs: Number of output variables
+
+    Returns:
+        Tuple of (input_bounds_list, output_constrs_list)
+    """
+    # Merge all lines into single string
+    content = ' '.join(lines)
+
+    # Split by '(or ' to get OR blocks
+    or_parts = content.split('(or ')
+
+    if len(or_parts) < 3:
+        # Not enough OR blocks, return defaults
+        return (
+            [torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)],
+            [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
+        )
+
+    # Extract the two OR blocks
+    # or_parts[0] = "(assert (and "
+    # or_parts[1] = first OR block (inputs)
+    # or_parts[2] = second OR block (outputs)
+
+    # Reconstruct OR blocks with proper prefix
+    input_or_lines = ['(assert (or ' + or_parts[1]]
+    output_or_lines = ['(assert (or ' + or_parts[2]]
+
+    # Use the specialized functions
+    input_bounds_list = parse_input_or_block(input_or_lines, n_inputs)
+    output_constrs_list = parse_output_or_block(output_or_lines, n_inputs, n_outputs)
+
+    return input_bounds_list, output_constrs_list

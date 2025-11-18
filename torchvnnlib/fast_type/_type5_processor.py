@@ -17,7 +17,7 @@ import time
 import torch
 from torch import Tensor
 
-from ._utils import INPUT_BOUND_INNER_PATTERN, OUTPUT_BOUND_INNER_PATTERN
+from ._utils import parse_and_block
 
 
 def process_type5(
@@ -83,8 +83,8 @@ def _parse_top_level_or(
         if not part:
             continue
 
-        # Re-add "(and " prefix and parse
-        prop = _parse_single_property_line('(and ' + part, n_inputs, n_outputs)
+        # Re-add "(and " prefix and parse using shared utility
+        prop = parse_and_block('(and ' + part, n_inputs, n_outputs)
         if prop:
             properties.append(prop)
 
@@ -98,79 +98,3 @@ def _parse_top_level_or(
             )
         ]
     )
-
-
-def _parse_single_property_line(
-    line: str, n_inputs: int, n_outputs: int
-) -> tuple[Tensor, list[Tensor]] | None:
-    """Parse a single property from one line using regex patterns.
-
-    Line format: (and (>= X_0 v1) (<= X_0 v2) ... (<= Y_0 v))
-
-    Uses regex patterns for robust and consistent parsing.
-    """
-    # Initialize bounds tensors
-    input_bounds = torch.full((n_inputs, 2), float('nan'), dtype=torch.float64)
-    output_constraints = []
-
-    # Parse input bounds using regex
-    matches = INPUT_BOUND_INNER_PATTERN.findall(line)
-    for match in matches:
-        op, var_prefix, idx, value = match
-        idx = int(idx)
-        value = float(value)
-
-        if idx >= n_inputs:
-            continue
-
-        if op == "<=":
-            input_bounds[idx, 1] = value
-        elif op == ">=":
-            input_bounds[idx, 0] = value
-        elif op == "=":
-            input_bounds[idx, 0] = value
-            input_bounds[idx, 1] = value
-
-    # Parse output bounds using regex
-    matches = OUTPUT_BOUND_INNER_PATTERN.findall(line)
-    for match in matches:
-        op, var_prefix, idx, value = match
-        idx = int(idx)
-        value = float(value)
-
-        if idx >= n_outputs:
-            continue
-
-        # Create output constraint
-        # Format: [b, a0, a1, ..., a_{n_outputs-1}] representing b + a0*Y_0 + a1*Y_1 + ... >= 0
-        constr_row = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
-
-        if op == ">=":
-            # Y_i >= value  =>  -value + Y_i >= 0
-            constr_row[0, 0] = -value
-            constr_row[0, idx + 1] = 1.0
-            output_constraints.append(constr_row)
-        elif op == "<=":
-            # Y_i <= value  =>  value - Y_i >= 0
-            constr_row[0, 0] = value
-            constr_row[0, idx + 1] = -1.0
-            output_constraints.append(constr_row)
-        elif op == "=":
-            # Y_i = value  =>  two constraints
-            # First: Y_i >= value
-            constr_row1 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
-            constr_row1[0, 0] = -value
-            constr_row1[0, idx + 1] = 1.0
-            output_constraints.append(constr_row1)
-
-            # Second: Y_i <= value
-            constr_row2 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
-            constr_row2[0, 0] = value
-            constr_row2[0, idx + 1] = -1.0
-            output_constraints.append(constr_row2)
-
-    # If no output constraints, add zero constraint
-    if not output_constraints:
-        output_constraints = [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
-
-    return (input_bounds, output_constraints)
