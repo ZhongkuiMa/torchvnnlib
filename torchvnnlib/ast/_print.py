@@ -1,30 +1,30 @@
 __docformat__ = ["restructuredtext"]
-__all__ = ["print_ast"]
+__all__ = ["print_expr"]
 
 from ._expr import *
 
 
-def print_ast(expr: Expr, indent: int = 0):
+def print_expr(expr: Expr, indent: int = 0):
     prefix = "  " * indent
 
     def print_binary_op(op_symbol, left, right):
         print(f"{prefix}({op_symbol} ", end="")
-        print_ast(left, indent + 1)
+        print_expr(left, indent + 1)
         print(" ", end="")
-        print_ast(right, indent + 1)
+        print_expr(right, indent + 1)
         print(")", end="")
 
     def print_nary_op(op_symbol, args):
         print(f"({op_symbol} ", end="")
         for arg in args:
-            print_ast(arg, indent + 1)
+            print_expr(arg, indent + 1)
             print(" ", end="")
         print(")", end="")
 
     def print_logical_op(op_symbol, args):
         print(f"{prefix}({op_symbol} ")
         for arg in args:
-            print_ast(arg, indent + 1)
+            print_expr(arg, indent + 1)
         print(f"{prefix})")
 
     if isinstance(expr, Cst):

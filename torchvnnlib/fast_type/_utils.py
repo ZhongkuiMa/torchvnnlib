@@ -169,10 +169,10 @@ def parse_input_or_block(or_block_lines: list[str], n_inputs: int) -> list[Tenso
         return [torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)]
 
     # Merge all lines into single string for processing
-    content = ' '.join(or_block_lines)
+    content = " ".join(or_block_lines)
 
     # Split by '(and ' to extract individual AND blocks
-    parts = content.split('(and ')
+    parts = content.split("(and ")
 
     input_bounds_list = []
 
@@ -213,10 +213,10 @@ def parse_output_or_block(
         return [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
 
     # Merge all lines into single string for processing
-    content = ' '.join(or_block_lines)
+    content = " ".join(or_block_lines)
 
     # Split by '(and ' to extract individual AND blocks
-    parts = content.split('(and ')
+    parts = content.split("(and ")
 
     output_constrs = []
 
@@ -440,16 +440,16 @@ def parse_dual_or_blocks(
         Tuple of (input_bounds_list, output_constrs_list)
     """
     # Merge all lines into single string
-    content = ' '.join(lines)
+    content = " ".join(lines)
 
     # Split by '(or ' to get OR blocks
-    or_parts = content.split('(or ')
+    or_parts = content.split("(or ")
 
     if len(or_parts) < 3:
         # Not enough OR blocks, return defaults
         return (
             [torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)],
-            [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
+            [torch.zeros((1, n_outputs + 1), dtype=torch.float64)],
         )
 
     # Extract the two OR blocks
@@ -458,8 +458,8 @@ def parse_dual_or_blocks(
     # or_parts[2] = second OR block (outputs)
 
     # Reconstruct OR blocks with proper prefix
-    input_or_lines = ['(assert (or ' + or_parts[1]]
-    output_or_lines = ['(assert (or ' + or_parts[2]]
+    input_or_lines = ["(assert (or " + or_parts[1]]
+    output_or_lines = ["(assert (or " + or_parts[2]]
 
     # Use the specialized functions
     input_bounds_list = parse_input_or_block(input_or_lines, n_inputs)

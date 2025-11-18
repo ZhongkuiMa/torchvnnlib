@@ -5,7 +5,12 @@ Instead of scanning all lines twice (once for detection, once for parsing), we d
 """
 
 __docformat__ = "restructuredtext"
-__all__ = ["fast_detect_type", "fast_detect_and_parse", "parse_simple_patterns"]
+__all__ = [
+    "VNNLIBType",
+    "fast_detect_type",
+    "fast_detect_and_parse",
+    "parse_simple_patterns",
+]
 
 import re
 import time

@@ -47,13 +47,14 @@ def process_type3(
     # Use pre-parsed data if available, otherwise parse now
     if parsed_data is None:
         from ._fast_type_detect import parse_simple_patterns
+
         t = time.perf_counter()
         parsed_data = parse_simple_patterns(lines, verbose=False)
         if verbose:
             print(f"  Type3 parsing: {time.perf_counter() - t:.4f}s")
 
-    simple_input_bounds = parsed_data['simple_input_bounds']
-    or_block_lines = parsed_data['complex_lines']  # OR blocks are complex
+    simple_input_bounds = parsed_data["simple_input_bounds"]
+    or_block_lines = parsed_data["complex_lines"]  # OR blocks are complex
 
     if verbose:
         print(f"  Type3 processing:")

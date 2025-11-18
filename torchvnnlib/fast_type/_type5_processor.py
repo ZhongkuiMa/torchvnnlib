@@ -75,8 +75,8 @@ def _parse_top_level_or(
 
     # After preprocessing, TYPE5 files are merged into ONE line.
     # Split by "(and " to extract individual properties - this is fast in Python (C implementation)
-    content = ' '.join(lines)
-    parts = content.split('(and ')
+    content = " ".join(lines)
+    parts = content.split("(and ")
 
     # First part is "(assert (or", skip it
     for part in parts[1:]:
@@ -84,7 +84,7 @@ def _parse_top_level_or(
             continue
 
         # Re-add "(and " prefix and parse using shared utility
-        prop = parse_and_block('(and ' + part, n_inputs, n_outputs)
+        prop = parse_and_block("(and " + part, n_inputs, n_outputs)
         if prop:
             properties.append(prop)
 

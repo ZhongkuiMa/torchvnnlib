@@ -46,13 +46,14 @@ def process_type2(
     # Use pre-parsed data if available, otherwise parse now
     if parsed_data is None:
         from ._fast_type_detect import parse_simple_patterns
+
         t = time.perf_counter() if verbose else None
         parsed_data = parse_simple_patterns(lines, verbose=False)
         if verbose and t is not None:
             print(f"  Type2 parsing: {time.perf_counter() - t:.4f}s")
 
-    simple_input_bounds = parsed_data['simple_input_bounds']
-    or_block_lines = parsed_data['complex_lines']  # OR blocks are complex
+    simple_input_bounds = parsed_data["simple_input_bounds"]
+    or_block_lines = parsed_data["complex_lines"]  # OR blocks are complex
 
     if verbose:
         print(f"  Type2 processing:")

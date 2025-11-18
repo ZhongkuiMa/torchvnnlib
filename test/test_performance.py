@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 from torchvnnlib import TorchVNNLIB
 from utils import find_benchmarks_folders, find_all_vnnlib_files
 
+
 def test_performance():
     """Test performance on a sample of files."""
     # Test a few files from each type
@@ -37,7 +38,9 @@ def test_performance():
             if os.path.exists(f"_temp_perf_test_{i}"):
                 shutil.rmtree(f"_temp_perf_test_{i}")
         except Exception as e:
-            print(f"[{i}/{len(vnnlib_files)}] ERROR - {os.path.basename(vnnlib_path)}: {e}")
+            print(
+                f"[{i}/{len(vnnlib_files)}] ERROR - {os.path.basename(vnnlib_path)}: {e}"
+            )
 
     print("=" * 70)
     print(f"Total time: {total_time:.4f}s")

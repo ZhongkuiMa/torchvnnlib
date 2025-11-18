@@ -166,7 +166,9 @@ def _convert_simple_output_constraints_batched(
     n_constrs = len(simple_output_constrs)
     constraints = torch.zeros((n_constrs, n_outputs + 1), dtype=torch.float64)
 
-    for i, (op, var_prefix1, idx1, var_prefix2, idx2) in enumerate(simple_output_constrs):
+    for i, (op, var_prefix1, idx1, var_prefix2, idx2) in enumerate(
+        simple_output_constrs
+    ):
         if op == "<=":
             # Y_idx1 <= Y_idx2  =>  Y_idx1 - Y_idx2 <= 0  =>  -Y_idx1 + Y_idx2 >= 0
             constraints[i, idx1 + 1] = -1.0

@@ -16,7 +16,7 @@ from utils import find_benchmarks_folders, find_all_vnnlib_files
 def copy_benchmarks(
     source_base_dir: str = "../../../vnncomp2024_benchmarks/benchmarks",
     target_dir: str = "benchmarks",
-    max_per_benchmark: int = 20
+    max_per_benchmark: int = 20,
 ):
     """Copy VNN-LIB files from VNNComp benchmarks to local folder.
 

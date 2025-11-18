@@ -202,7 +202,9 @@ def test_all_benchmarks(
                 failed_files.append(vnnlib_path)
                 elapsed = time.perf_counter() - file_start
                 if not verbose:
-                    print(f"MISMATCH ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
+                    print(
+                        f"MISMATCH ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}"
+                    )
         except Exception as e:
             failed += 1
             failed_files.append(vnnlib_path)

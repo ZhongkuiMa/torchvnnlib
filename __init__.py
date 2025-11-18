@@ -1,1 +1,6 @@
-from .torchvnnlib import *
+"""TorchVNNLIB: VNN-LIB to PyTorch tensor converter."""
+
+__docformat__ = "restructuredtext"
+__all__ = ["TorchVNNLIB"]
+
+from .torchvnnlib import TorchVNNLIB
