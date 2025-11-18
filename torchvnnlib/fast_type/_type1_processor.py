@@ -13,6 +13,7 @@ from torch import Tensor
 
 from .._to_tensor import convert_and_output_constrs
 from ..ast import tokenize, parse, optimize, And, Or
+from ._utils import convert_simple_input_bounds
 
 
 def process_type1(
@@ -54,9 +55,7 @@ def process_type1(
 
     # Convert simple input bounds to tensor
     t = time.perf_counter() if verbose else None
-    input_bounds = _convert_simple_input_bounds_vectorized(
-        simple_input_bounds, n_inputs
-    )
+    input_bounds = convert_simple_input_bounds(simple_input_bounds, n_inputs)
     if verbose and t is not None:
         print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
@@ -155,52 +154,6 @@ def process_type1(
         print(f"  Type1 fast total: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
-
-
-def _convert_simple_input_bounds_vectorized(
-    simple_bounds: list[tuple], n_inputs: int
-) -> Tensor:
-    """Vectorized input bounds conversion (optimized version)."""
-    input_bounds = torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)
-
-    # Group by operation type for batch processing
-    leq_indices, leq_values = [], []
-    geq_indices, geq_values = [], []
-    eq_indices, eq_values = [], []
-
-    for op, var_type, idx, value in simple_bounds:
-        if var_type != "X_":
-            continue
-
-        if op == "<=":
-            leq_indices.append(idx)
-            leq_values.append(value)
-        elif op == ">=":
-            geq_indices.append(idx)
-            geq_values.append(value)
-        elif op == "=":
-            eq_indices.append(idx)
-            eq_values.append(value)
-
-    # Batch assignments
-    if leq_indices:
-        input_bounds[leq_indices, 1] = torch.tensor(leq_values, dtype=torch.float64)
-    if geq_indices:
-        input_bounds[geq_indices, 0] = torch.tensor(geq_values, dtype=torch.float64)
-    if eq_indices:
-        eq_vals = torch.tensor(eq_values, dtype=torch.float64)
-        eq_idx = torch.tensor(eq_indices, dtype=torch.long)
-        input_bounds[eq_idx, 0] = eq_vals
-        input_bounds[eq_idx, 1] = eq_vals
-
-    # Validation
-    if torch.isnan(input_bounds).any():
-        nan_indices = torch.where(torch.isnan(input_bounds))
-        raise ValueError(
-            f"Missing input bounds at indices: {list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))}"
-        )
-
-    return input_bounds
 
 
 def _convert_simple_output_constraints_batched(

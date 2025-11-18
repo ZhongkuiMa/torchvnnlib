@@ -384,13 +384,13 @@ def _classify_type_by_patterns(
     has_or_and_output: bool,
     has_or_and_mixed: bool,
 ) -> VNNLIBType:
-    """Classify VNN-LIB type based on EXACT pattern matching.
+    """Classify VNN-LIB type using pattern matching lookup table.
 
-    Type1: simple_in=True, simple_out=True, or_in=False, or_out=False, or_mixed=False
-    Type2: simple_in=False, simple_out=True, or_in=True, or_out=False, or_mixed=False
-    Type3: simple_in=True, simple_out=False, or_in=False, or_out=True, or_mixed=False
-    Type4: simple_in=False, simple_out=False, or_in=True, or_out=True, or_mixed=False
-    Type5: simple_in=False, simple_out=False, or_in=False, or_out=False, or_mixed=True
+    Type1: Simple inputs + Simple outputs
+    Type2: OR(AND) inputs + Simple outputs
+    Type3: Simple inputs + OR(AND) outputs
+    Type4: OR(AND) inputs + OR(AND) outputs
+    Type5: Mixed OR(AND) with both X and Y
     COMPLEX: Everything else
 
     Args:
@@ -403,56 +403,21 @@ def _classify_type_by_patterns(
     Returns:
         VNNLIBType enum value
     """
+    # Pattern lookup: (simple_in, simple_out, or_in, or_out, mixed) -> Type
+    pattern_key = (
+        has_simple_input,
+        has_simple_output,
+        has_or_and_input,
+        has_or_and_output,
+        has_or_and_mixed,
+    )
 
-    # Type1: EXACT match - simple_in=True, simple_out=True, or_in=False, or_out=False, or_mixed=False
-    if (
-        has_simple_input
-        and has_simple_output
-        and not has_or_and_input
-        and not has_or_and_output
-        and not has_or_and_mixed
-    ):
-        return VNNLIBType.TYPE1
+    type_patterns = {
+        (True, True, False, False, False): VNNLIBType.TYPE1,
+        (False, True, True, False, False): VNNLIBType.TYPE2,
+        (True, False, False, True, False): VNNLIBType.TYPE3,
+        (False, False, True, True, False): VNNLIBType.TYPE4,
+        (False, False, False, False, True): VNNLIBType.TYPE5,
+    }
 
-    # Type2: EXACT match - simple_in=False, simple_out=True, or_in=True, or_out=False, or_mixed=False
-    if (
-        not has_simple_input
-        and has_simple_output
-        and has_or_and_input
-        and not has_or_and_output
-        and not has_or_and_mixed
-    ):
-        return VNNLIBType.TYPE2
-
-    # Type3: EXACT match - simple_in=True, simple_out=False, or_in=False, or_out=True, or_mixed=False
-    if (
-        has_simple_input
-        and not has_simple_output
-        and not has_or_and_input
-        and has_or_and_output
-        and not has_or_and_mixed
-    ):
-        return VNNLIBType.TYPE3
-
-    # Type4: EXACT match - simple_in=False, simple_out=False, or_in=True, or_out=True, or_mixed=False
-    if (
-        not has_simple_input
-        and not has_simple_output
-        and has_or_and_input
-        and has_or_and_output
-        and not has_or_and_mixed
-    ):
-        return VNNLIBType.TYPE4
-
-    # Type5: EXACT match - simple_in=False, simple_out=False, or_in=False, or_out=False, or_mixed=True
-    if (
-        not has_simple_input
-        and not has_simple_output
-        and not has_or_and_input
-        and not has_or_and_output
-        and has_or_and_mixed
-    ):
-        return VNNLIBType.TYPE5
-
-    # Default: COMPLEX (doesn't match any of the 5 exact patterns)
-    return VNNLIBType.COMPLEX
+    return type_patterns.get(pattern_key, VNNLIBType.COMPLEX)

@@ -14,9 +14,7 @@ import time
 import torch
 from torch import Tensor
 
-from ._utils import SIMPLE_INPUT_BOUND_PATTERN
-from .._to_tensor import convert_and_output_constrs
-from ..ast import tokenize, parse, optimize, And, Or
+from ._utils import convert_simple_input_bounds, parse_or_block
 
 
 def process_type2(
@@ -63,13 +61,13 @@ def process_type2(
 
     # Convert simple input bounds to tensor
     t = time.perf_counter() if verbose else None
-    input_bounds = _convert_simple_input_bounds(simple_input_bounds, n_inputs, verbose)
+    input_bounds = convert_simple_input_bounds(simple_input_bounds, n_inputs)
     if verbose and t is not None:
         print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
     # Parse OR block for output constraints
     t = time.perf_counter() if verbose else None
-    output_constrs = _parse_or_block(or_block_lines, n_inputs, n_outputs, verbose)
+    output_constrs = parse_or_block(or_block_lines, n_inputs, n_outputs)
     if verbose and t is not None:
         print(f"    OR block parsing: {time.perf_counter() - t:.4f}s")
         print(f"    Extracted {len(output_constrs)} output constraint options")
@@ -81,100 +79,3 @@ def process_type2(
         print(f"  Type2 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
-
-
-def _convert_simple_input_bounds(
-    simple_bounds: list[tuple], n_inputs: int, verbose: bool = False
-) -> Tensor:
-    """Convert simple input bounds to tensor - vectorized version."""
-    input_bounds = torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)
-
-    # Group by operation type for batch processing
-    leq_indices, leq_values = [], []
-    geq_indices, geq_values = [], []
-    eq_indices, eq_values = [], []
-
-    for op, var_type, idx, value in simple_bounds:
-        if var_type != "X_":
-            continue
-
-        if op == "<=":
-            leq_indices.append(idx)
-            leq_values.append(value)
-        elif op == ">=":
-            geq_indices.append(idx)
-            geq_values.append(value)
-        elif op == "=":
-            eq_indices.append(idx)
-            eq_values.append(value)
-
-    # Batch assignments
-    if leq_indices:
-        input_bounds[leq_indices, 1] = torch.tensor(leq_values, dtype=torch.float64)
-    if geq_indices:
-        input_bounds[geq_indices, 0] = torch.tensor(geq_values, dtype=torch.float64)
-    if eq_indices:
-        eq_vals = torch.tensor(eq_values, dtype=torch.float64)
-        eq_idx = torch.tensor(eq_indices, dtype=torch.long)
-        input_bounds[eq_idx, 0] = eq_vals
-        input_bounds[eq_idx, 1] = eq_vals
-
-    # Check for missing bounds
-    if torch.isnan(input_bounds).any():
-        nan_indices = torch.where(torch.isnan(input_bounds))
-        raise ValueError(
-            f"Missing input bounds at indices: {list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))}"
-        )
-
-    return input_bounds
-
-
-def _parse_or_block(
-    or_block_lines: list[str], n_inputs: int, n_outputs: int, verbose: bool = False
-) -> list[Tensor]:
-    """Parse OR block to extract output constraints."""
-
-    if not or_block_lines:
-        return [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
-
-    # Parse OR block using standard AST path
-    tokens_list = tokenize(or_block_lines, verbose=False, use_parallel=False)
-    expr = parse(tokens_list, verbose=False, use_parallel=False)
-    expr = optimize(expr, verbose=False, use_parallel=False)
-
-    output_constrs = []
-
-    # Extract output constraints from OR structure
-    if isinstance(expr, Or):
-        # Direct OR expression
-        for or_arg in expr.args:
-            if isinstance(or_arg, And):
-                constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs)
-            else:
-                constr = convert_and_output_constrs(And([or_arg]), n_outputs, n_inputs)
-            output_constrs.append(constr)
-    elif isinstance(expr, And):
-        # Might have OR nested inside
-        for arg in expr.args:
-            if isinstance(arg, Or):
-                for or_arg in arg.args:
-                    if isinstance(or_arg, And):
-                        constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs)
-                    else:
-                        constr = convert_and_output_constrs(
-                            And([or_arg]), n_outputs, n_inputs
-                        )
-                    output_constrs.append(constr)
-            else:
-                constr = convert_and_output_constrs(And([arg]), n_outputs, n_inputs)
-                output_constrs.append(constr)
-    else:
-        # Single constraint
-        constr = convert_and_output_constrs(And([expr]), n_outputs, n_inputs)
-        output_constrs.append(constr)
-
-    return (
-        output_constrs
-        if output_constrs
-        else [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
-    )

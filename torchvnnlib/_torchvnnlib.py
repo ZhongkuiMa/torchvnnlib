@@ -88,6 +88,86 @@ class TorchVNNLIB:
         # Track statistics for each file: {vnnlib_path: {'type': VNNLIBType, 'used_fast': bool, 'time': float}}
         self.conversion_stats = {}
 
+    def _process_by_type(
+        self,
+        vnnlib_type: VNNLIBType,
+        lines: list[str],
+        n_inputs: int,
+        n_outputs: int
+    ) -> list[list[tuple[Tensor, list[Tensor]]]] | None:
+        """Process VNN-LIB file using type-specific processor.
+
+        Args:
+            vnnlib_type: Detected VNN-LIB type
+            lines: Preprocessed assertion lines
+            n_inputs: Number of input variables
+            n_outputs: Number of output variables
+
+        Returns:
+            Processed properties or None if type requires AST processing
+        """
+        t = time.perf_counter()
+
+        if vnnlib_type == VNNLIBType.TYPE1:
+            # Type1: Parse simple patterns then process
+            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
+            and_properties = process_type1(
+                parsed_data['simple_input_bounds'],
+                parsed_data['simple_output_constrs'],
+                parsed_data['complex_lines'],
+                n_inputs,
+                n_outputs,
+                verbose=self.verbose,
+                simple_output_bounds=parsed_data['simple_output_bounds']
+            )
+            if self.verbose:
+                print(f"  Type1 fast processing complete: {time.perf_counter() - t:.4f}s")
+            return and_properties
+
+        elif vnnlib_type == VNNLIBType.TYPE2:
+            # Type2: Simple inputs + OR(AND) outputs
+            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
+            and_properties = process_type2(
+                lines, n_inputs, n_outputs,
+                verbose=self.verbose,
+                parsed_data=parsed_data
+            )
+            if self.verbose:
+                print(f"  Type2 processing complete: {time.perf_counter() - t:.4f}s")
+            return and_properties
+
+        elif vnnlib_type == VNNLIBType.TYPE3:
+            # Type3: OR(AND) inputs + simple outputs
+            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
+            and_properties = process_type3(
+                lines, n_inputs, n_outputs,
+                verbose=self.verbose,
+                parsed_data=parsed_data
+            )
+            if self.verbose:
+                print(f"  Type3 processing complete: {time.perf_counter() - t:.4f}s")
+            return and_properties
+
+        elif vnnlib_type == VNNLIBType.TYPE4:
+            # Type4: OR inputs + OR outputs
+            and_properties = process_type4(lines, n_inputs, n_outputs, verbose=self.verbose)
+            if self.verbose:
+                print(f"  Type4 processing complete: {time.perf_counter() - t:.4f}s")
+            return and_properties
+
+        elif vnnlib_type == VNNLIBType.TYPE5:
+            # Type5: Top-level OR wrapping complete properties
+            and_properties = process_type5(lines, n_inputs, n_outputs, verbose=self.verbose)
+            if self.verbose:
+                print(f"  Type5 processing complete: {time.perf_counter() - t:.4f}s")
+            return and_properties
+
+        else:
+            # Complex: Use AST-based approach
+            if self.verbose:
+                print(f"  Complex structure detected, using AST-based processing")
+            return None
+
     def convert(self, vnnlib_path: str, target_folder_path: str | None = None):
         if self.verbose:
             print(f"Converting {vnnlib_path}...")
@@ -109,80 +189,18 @@ class TorchVNNLIB:
         # Type-based routing for optimized processing
         use_type_processor = False
         detected_type = VNNLIBType.COMPLEX  # Default
+
         if self.detect_fast_type:
             # Fast type detection (optimized reverse scan)
-            t = time.perf_counter()
             vnnlib_type = fast_detect_type(lines, verbose=self.verbose)
             detected_type = vnnlib_type  # Store detected type
 
             # Route to appropriate type processor
             try:
-                if vnnlib_type == VNNLIBType.TYPE1:
-                    # Type1: Parse simple patterns then process
-                    t = time.perf_counter()
-                    parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-                    and_properties = process_type1(
-                        parsed_data['simple_input_bounds'],
-                        parsed_data['simple_output_constrs'],
-                        parsed_data['complex_lines'],
-                        n_inputs,
-                        n_outputs,
-                        verbose=self.verbose,
-                        simple_output_bounds=parsed_data['simple_output_bounds']
-                    )
-                    use_type_processor = True
-                    if self.verbose:
-                        print(f"  Type1 fast processing complete: {time.perf_counter() - t:.4f}s")
-
-                elif vnnlib_type == VNNLIBType.TYPE2:
-                    # Type2: Simple inputs + OR(AND) outputs
-                    t = time.perf_counter()
-                    parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-                    and_properties = process_type2(
-                        lines, n_inputs, n_outputs,
-                        verbose=self.verbose,
-                        parsed_data=parsed_data
-                    )
-                    use_type_processor = True
-                    if self.verbose:
-                        print(f"  Type2 processing complete: {time.perf_counter() - t:.4f}s")
-
-                elif vnnlib_type == VNNLIBType.TYPE3:
-                    # Type3: OR(AND) inputs + simple outputs
-                    t = time.perf_counter()
-                    parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-                    and_properties = process_type3(
-                        lines, n_inputs, n_outputs,
-                        verbose=self.verbose,
-                        parsed_data=parsed_data
-                    )
-                    use_type_processor = True
-                    if self.verbose:
-                        print(f"  Type3 processing complete: {time.perf_counter() - t:.4f}s")
-
-                elif vnnlib_type == VNNLIBType.TYPE4:
-                    # Type4: OR inputs + OR outputs
-                    t = time.perf_counter()
-                    and_properties = process_type4(lines, n_inputs, n_outputs, verbose=self.verbose)
-                    use_type_processor = True
-                    if self.verbose:
-                        print(f"  Type4 processing complete: {time.perf_counter() - t:.4f}s")
-
-                elif vnnlib_type == VNNLIBType.TYPE5:
-                    # Type5: Top-level OR wrapping complete properties
-                    # TEMPORARILY ENABLED for debugging
-                    t = time.perf_counter()
-                    and_properties = process_type5(lines, n_inputs, n_outputs, verbose=self.verbose)
-                    use_type_processor = True
-                    if self.verbose:
-                        print(f"  Type5 processing complete: {time.perf_counter() - t:.4f}s")
-
-                else:
-                    # Complex: Use AST-based approach
-                    if self.verbose:
-                        print(f"  Complex structure detected, using AST-based processing")
-                    use_type_processor = False
-
+                and_properties = self._process_by_type(
+                    vnnlib_type, lines, n_inputs, n_outputs
+                )
+                use_type_processor = (and_properties is not None)
             except (ValueError, RuntimeError) as e:
                 # Type processor failed, fall back to AST
                 if self.verbose:
