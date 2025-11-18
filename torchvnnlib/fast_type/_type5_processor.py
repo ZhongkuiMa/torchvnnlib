@@ -12,11 +12,12 @@ TYPE5 files have a simple, fixed structure that can be parsed with regex.
 __docformat__ = "restructuredtext"
 __all__ = ["process_type5"]
 
-import re
 import time
 
 import torch
 from torch import Tensor
+
+from ._utils import INPUT_BOUND_INNER_PATTERN, OUTPUT_BOUND_INNER_PATTERN
 
 
 def process_type5(
@@ -102,105 +103,71 @@ def _parse_top_level_or(
 def _parse_single_property_line(
     line: str, n_inputs: int, n_outputs: int
 ) -> tuple[Tensor, list[Tensor]] | None:
-    """Parse a single property from one line.
+    """Parse a single property from one line using regex patterns.
 
     Line format: (and (>= X_0 v1) (<= X_0 v2) ... (<= Y_0 v))
 
-    ULTRA-FAST: Use simple string split operations, not regex.
+    Uses regex patterns for robust and consistent parsing.
     """
     # Initialize bounds tensors
     input_bounds = torch.full((n_inputs, 2), float('nan'), dtype=torch.float64)
     output_constraints = []
 
-    # Split by '(' to get individual constraints
-    # This is much faster than regex
-    parts = line.split('(')
+    # Parse input bounds using regex
+    matches = INPUT_BOUND_INNER_PATTERN.findall(line)
+    for match in matches:
+        op, var_prefix, idx, value = match
+        idx = int(idx)
+        value = float(value)
 
-    for part in parts:
-        # Quick filter: must start with >= or <=
-        if not part or not (part[0] == '>' or part[0] == '<'):
+        if idx >= n_inputs:
             continue
 
-        # Split by whitespace to get tokens
-        tokens = part.split()
-        if len(tokens) < 3:
+        if op == "<=":
+            input_bounds[idx, 1] = value
+        elif op == ">=":
+            input_bounds[idx, 0] = value
+        elif op == "=":
+            input_bounds[idx, 0] = value
+            input_bounds[idx, 1] = value
+
+    # Parse output bounds using regex
+    matches = OUTPUT_BOUND_INNER_PATTERN.findall(line)
+    for match in matches:
+        op, var_prefix, idx, value = match
+        idx = int(idx)
+        value = float(value)
+
+        if idx >= n_outputs:
             continue
 
-        op = tokens[0]  # >= or <=
-        var = tokens[1]  # X_0 or Y_0
+        # Create output constraint
+        # Format: [b, a0, a1, ..., a_{n_outputs-1}] representing b + a0*Y_0 + a1*Y_1 + ... >= 0
+        constr_row = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
 
-        # Quick check for variable type (first character)
-        if var[0] == 'X':
-            # Input variable
-            # Extract index: X_123 -> 123
-            idx_start = var.find('_')
-            if idx_start == -1:
-                continue
-            idx_str = var[idx_start+1:]
-            try:
-                idx = int(idx_str)
-            except ValueError:
-                continue
-
-            if idx >= n_inputs:
-                continue
-
-            # Extract value
-            value_str = tokens[2].rstrip(')')
-            try:
-                value = float(value_str)
-            except ValueError:
-                continue
-
-            # Set bound
-            if op[0] == '>':  # >= or >
-                input_bounds[idx, 0] = value
-            else:  # <= or <
-                input_bounds[idx, 1] = value
-
-        elif var[0] == 'Y':
-            # Output variable
-            # Extract index
-            idx_start = var.find('_')
-            if idx_start == -1:
-                continue
-            idx_str = var[idx_start+1:]
-            try:
-                idx = int(idx_str)
-            except ValueError:
-                continue
-
-            if idx >= n_outputs:
-                continue
-
-            # Extract value
-            value_str = tokens[2].rstrip(')')
-            try:
-                value = float(value_str)
-            except ValueError:
-                continue
-
-            # Create output constraint
-            # Format: [b, a0, a1, ..., a_{n_outputs-1}] representing b + a0*Y_0 + a1*Y_1 + ... >= 0
-            # Index 0 is bias (b), indices 1...n_outputs are coefficients
-            constr_row = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
-
-            if op[0] == '>':  # >= or >
-                # Y_i >= v
-                # Convert to standard form: v - Y_i <= 0, then negate to get -v + Y_i >= 0
-                # Bias (index 0): -v
-                # Coefficient for Y_i (index i+1): +1
-                constr_row[0, 0] = -value
-                constr_row[0, idx + 1] = 1.0
-            else:  # <= or <
-                # Y_i <= v
-                # Convert to standard form: Y_i - v <= 0, then negate to get v - Y_i >= 0
-                # Bias (index 0): +v
-                # Coefficient for Y_i (index i+1): -1
-                constr_row[0, 0] = value
-                constr_row[0, idx + 1] = -1.0
-
+        if op == ">=":
+            # Y_i >= value  =>  -value + Y_i >= 0
+            constr_row[0, 0] = -value
+            constr_row[0, idx + 1] = 1.0
             output_constraints.append(constr_row)
+        elif op == "<=":
+            # Y_i <= value  =>  value - Y_i >= 0
+            constr_row[0, 0] = value
+            constr_row[0, idx + 1] = -1.0
+            output_constraints.append(constr_row)
+        elif op == "=":
+            # Y_i = value  =>  two constraints
+            # First: Y_i >= value
+            constr_row1 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+            constr_row1[0, 0] = -value
+            constr_row1[0, idx + 1] = 1.0
+            output_constraints.append(constr_row1)
+
+            # Second: Y_i <= value
+            constr_row2 = torch.zeros((1, n_outputs + 1), dtype=torch.float64)
+            constr_row2[0, 0] = value
+            constr_row2[0, idx + 1] = -1.0
+            output_constraints.append(constr_row2)
 
     # If no output constraints, add zero constraint
     if not output_constraints:

@@ -10,8 +10,12 @@ __all__ = [
     "SIMPLE_INPUT_BOUND_PATTERN",
     "SIMPLE_OUTPUT_CONSTRAINT_PATTERN",
     "SIMPLE_OUTPUT_BOUND_PATTERN",
+    "INPUT_BOUND_INNER_PATTERN",
+    "OUTPUT_CONSTRAINT_INNER_PATTERN",
+    "OUTPUT_BOUND_INNER_PATTERN",
     "convert_simple_input_bounds",
     "parse_or_block",
+    "parse_input_bounds_block",
 ]
 
 
@@ -54,10 +58,24 @@ SIMPLE_OUTPUT_BOUND_PATTERN = re.compile(
     r"^\s*\(\s*assert\s+\(\s*(<=|>=|=)\s+(Y_)(\d+)\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)\s*\)\s*\)\s*$"
 )
 
+# Patterns for parsing constraints within blocks (without assert wrapper)
+# For Y_i <op> Y_j constraints
+OUTPUT_CONSTRAINT_INNER_PATTERN = re.compile(
+    r"\(\s*(<=|>=)\s+(Y_)(\d+)\s+(Y_)(\d+)\s*\)"
+)
 
-def convert_simple_input_bounds(
-    simple_bounds: list[tuple], n_inputs: int
-) -> Tensor:
+# For Y_i <op> value constraints
+OUTPUT_BOUND_INNER_PATTERN = re.compile(
+    r"\(\s*(<=|>=|=)\s+(Y_)(\d+)\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)\s*\)"
+)
+
+# For X_i <op> value constraints (input bounds within blocks)
+INPUT_BOUND_INNER_PATTERN = re.compile(
+    r"\(\s*(<=|>=|=)\s+(X_)(\d+)\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)\s*\)"
+)
+
+
+def convert_simple_input_bounds(simple_bounds: list[tuple], n_inputs: int) -> Tensor:
     """Convert simple input bounds to tensor format.
 
     This is a shared utility used by multiple type processors to convert
@@ -132,10 +150,10 @@ def convert_simple_input_bounds(
 def parse_or_block(
     or_block_lines: list[str], n_inputs: int, n_outputs: int
 ) -> list[Tensor]:
-    """Parse OR block to extract output constraints.
+    """Parse OR block to extract output constraints using direct pattern matching.
 
-    Shared utility for Type2 and Type3 processors to parse OR blocks containing
-    output constraints.
+    Optimized for Type2/Type3 fixed pattern: (assert (or (and ...) (and ...) ...))
+    Uses direct string parsing instead of AST for better performance.
 
     Args:
         or_block_lines: Lines containing OR block expressions
@@ -145,45 +163,146 @@ def parse_or_block(
     Returns:
         List of output constraint tensors
     """
-    # Import here to avoid circular dependency
-    from .._to_tensor import convert_and_output_constrs
-    from ..ast import tokenize, parse, optimize, And, Or
-
     if not or_block_lines:
         return [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
 
-    # Parse OR block using standard AST path
-    tokens_list = tokenize(or_block_lines, verbose=False, use_parallel=False)
-    expr = parse(tokens_list, verbose=False, use_parallel=False)
-    expr = optimize(expr, verbose=False, use_parallel=False)
+    # Merge all lines into single string for processing
+    content = ' '.join(or_block_lines)
 
-    def _convert_to_constraint(arg):
-        """Convert expression arg to constraint, wrapping in And if needed."""
-        if isinstance(arg, And):
-            return convert_and_output_constrs(arg, n_outputs, n_inputs)
-        else:
-            return convert_and_output_constrs(And([arg]), n_outputs, n_inputs)
+    # Split by '(and ' to extract individual AND blocks
+    # Pattern: (assert (or (and ...) (and ...) ...))
+    parts = content.split('(and ')
 
     output_constrs = []
 
-    if isinstance(expr, Or):
-        # Direct OR expression
-        for or_arg in expr.args:
-            output_constrs.append(_convert_to_constraint(or_arg))
-    elif isinstance(expr, And):
-        # OR might be nested inside AND
-        for arg in expr.args:
-            if isinstance(arg, Or):
-                for or_arg in arg.args:
-                    output_constrs.append(_convert_to_constraint(or_arg))
-            else:
-                output_constrs.append(_convert_to_constraint(arg))
-    else:
-        # Single constraint
-        output_constrs.append(_convert_to_constraint(expr))
+    # First part is "(assert (or", skip it and process each AND block
+    for part in parts[1:]:
+        if not part.strip():
+            continue
+
+        # Extract constraints from this AND block
+        constr = _parse_and_block_direct(part, n_outputs)
+        if constr is not None and constr.numel() > 0:
+            output_constrs.append(constr)
 
     return (
         output_constrs
         if output_constrs
         else [torch.zeros((1, n_outputs + 1), dtype=torch.float64)]
     )
+
+
+def parse_input_bounds_block(block: str, n_inputs: int) -> Tensor:
+    """Parse a single AND block to extract input bounds.
+
+    Handles patterns:
+    - (<=/>=/= X_i value): X_i <op> constant constraint
+
+    Args:
+        block: String containing AND block content
+        n_inputs: Number of input variables
+
+    Returns:
+        Tensor of shape (n_inputs, 2) with lower and upper bounds
+    """
+    input_bounds = torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)
+
+    # Find all input bound patterns in the block
+    matches = INPUT_BOUND_INNER_PATTERN.findall(block)
+    for match in matches:
+        op, var_prefix, idx, value = match
+        idx = int(idx)
+        value = float(value)
+
+        if idx >= n_inputs:
+            continue
+
+        if op == "<=":
+            # X_idx <= value
+            input_bounds[idx, 1] = value
+        elif op == ">=":
+            # X_idx >= value
+            input_bounds[idx, 0] = value
+        elif op == "=":
+            # X_idx = value
+            input_bounds[idx, 0] = value
+            input_bounds[idx, 1] = value
+
+    return input_bounds
+
+
+def _parse_and_block_direct(block: str, n_outputs: int) -> Tensor:
+    """Parse a single AND block to extract output constraints.
+
+    Handles patterns:
+    - (<=/>= Y_i Y_j): Y_i <op> Y_j constraint
+    - (<=/>=/= Y_i value): Y_i <op> constant constraint
+
+    Args:
+        block: String containing AND block content
+        n_outputs: Number of output variables
+
+    Returns:
+        Tensor of constraints (rows x (n_outputs + 1))
+    """
+    constraints = []
+
+    # Find all constraint patterns in the block
+    # Pattern 1: Y_i <op> Y_j (two Y variables)
+    matches = OUTPUT_CONSTRAINT_INNER_PATTERN.findall(block)
+    for match in matches:
+        op, var_prefix1, idx1, var_prefix2, idx2 = match
+        idx1, idx2 = int(idx1), int(idx2)
+
+        # Create constraint row: [bias, coef_Y0, coef_Y1, ..., coef_Yn]
+        constr_row = torch.zeros(n_outputs + 1, dtype=torch.float64)
+
+        if op == "<=":
+            # Y_idx1 <= Y_idx2  =>  Y_idx1 - Y_idx2 <= 0  =>  -Y_idx1 + Y_idx2 >= 0
+            constr_row[idx1 + 1] = -1.0
+            constr_row[idx2 + 1] = 1.0
+        elif op == ">=":
+            # Y_idx1 >= Y_idx2  =>  Y_idx1 - Y_idx2 >= 0
+            constr_row[idx1 + 1] = 1.0
+            constr_row[idx2 + 1] = -1.0
+
+        constraints.append(constr_row)
+
+    # Pattern 2: Y_i <op> value (Y variable with constant)
+    matches = OUTPUT_BOUND_INNER_PATTERN.findall(block)
+    for match in matches:
+        op, var_prefix, idx, value = match
+        idx = int(idx)
+        value = float(value)
+
+        if op == "<=":
+            # Y_idx <= value  =>  -value + Y_idx >= 0
+            constr_row = torch.zeros(n_outputs + 1, dtype=torch.float64)
+            constr_row[0] = -value
+            constr_row[idx + 1] = 1.0
+            constraints.append(constr_row)
+        elif op == ">=":
+            # Y_idx >= value  =>  -value + Y_idx >= 0
+            constr_row = torch.zeros(n_outputs + 1, dtype=torch.float64)
+            constr_row[0] = -value
+            constr_row[idx + 1] = 1.0
+            constraints.append(constr_row)
+        elif op == "=":
+            # Y_idx = value  =>  two constraints: Y_idx >= value AND Y_idx <= value
+            # First: Y_idx >= value  =>  -value + Y_idx >= 0
+            constr_row1 = torch.zeros(n_outputs + 1, dtype=torch.float64)
+            constr_row1[0] = -value
+            constr_row1[idx + 1] = 1.0
+            constraints.append(constr_row1)
+
+            # Second: Y_idx <= value  =>  value - Y_idx >= 0
+            constr_row2 = torch.zeros(n_outputs + 1, dtype=torch.float64)
+            constr_row2[0] = value
+            constr_row2[idx + 1] = -1.0
+            constraints.append(constr_row2)
+
+    # Stack all constraints into a single tensor
+    if constraints:
+        return torch.stack(constraints, dim=0)
+    else:
+        return torch.zeros((1, n_outputs + 1), dtype=torch.float64)
