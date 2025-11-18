@@ -36,13 +36,12 @@ def process_type5(
         Single AND group containing all OR clause properties
         Each property is a complete (input+output) specification
     """
-    if verbose:
-        t_start = time.perf_counter()
+    t_start = time.perf_counter() if verbose else None
 
     # Parse to extract OR clauses
-    t = time.perf_counter()
+    t = time.perf_counter() if verbose else None
     properties = _parse_top_level_or(lines, n_inputs, n_outputs, verbose)
-    if verbose:
+    if verbose and t is not None:
         print(f"  Type5 detection:")
         print(f"    OR clauses (properties): {len(properties)}")
         print(f"    Parsing: {time.perf_counter() - t:.4f}s")
@@ -51,7 +50,7 @@ def process_type5(
     # This matches the structure: (assert (or (and...) (and...) ...))
     and_properties = [properties]
 
-    if verbose:
+    if verbose and t_start is not None:
         print(f"  Type5 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties

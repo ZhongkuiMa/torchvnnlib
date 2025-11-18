@@ -22,9 +22,10 @@ if __name__ == "__main__":
     dir_name = "benchmarks"
 
     benchmark_dirs = find_benchmarks_folders(dir_name)
-    print(f"Collect {len(benchmark_dirs)} benchmark directories.")
+    print(f"Found {len(benchmark_dirs)} benchmark directories")
     vnnlib_paths = find_all_vnnlib_files(benchmark_dirs)
-    print(f"Collect {len(vnnlib_paths)} vnnlib files.")
+    print(f"Total files: {len(vnnlib_paths)}")
+    print("=" * 70)
 
     # Uncomment to test specific files
     # vnnlib_paths = [
@@ -47,11 +48,13 @@ if __name__ == "__main__":
         'fast_type_counts': defaultdict(int)
     })
 
+    overall_start_time = time.perf_counter()
+
     for i, vnnlib_path in enumerate(vnnlib_paths):
         # Get benchmark name from path
         benchmark_name = vnnlib_path.split(os.sep)[1] if os.sep in vnnlib_path else 'unknown'
 
-        print(f"[{i+1}/{len(vnnlib_paths)}] ", end="")
+        print(f"[{i+1}/{len(vnnlib_paths)}] ", end="", flush=True)
         time_start = time.perf_counter()
 
         try:
@@ -81,25 +84,27 @@ if __name__ == "__main__":
 
         except Exception as e:
             failed_vnnlib_paths.append(vnnlib_path)
-            print(f"Failed to convert: {e}")
             benchmark_stats[benchmark_name]['total'] += 1
+            success = False
             # raise e  # Uncomment to stop on first error
 
         elapsed = time.perf_counter() - time_start
-        print(
-            f"{'Success!' if success else 'Failure.'} "
-            f"({elapsed:.2f}s) "
-            f"for {os.path.basename(vnnlib_path)}"
-        )
+        if success:
+            print(f"OK ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
+        else:
+            print(f"FAILED ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
         total_count += 1
 
-    if total_count > success_count:
-        print(
-            f"\n{len(failed_vnnlib_paths)} failed files:\n"
-            + "\n".join(failed_vnnlib_paths)
-        )
+    overall_elapsed = time.perf_counter() - overall_start_time
 
-    print(f"\nSuccessfully converted {success_count}/{total_count} vnnlib files.")
+    if failed_vnnlib_paths:
+        print(f"\n{len(failed_vnnlib_paths)} failed files:")
+        for f in failed_vnnlib_paths:
+            print(f"  {f}")
+
+    print(f"\nConversion complete: {success_count}/{total_count} succeeded")
+    print(f"Total time: {overall_elapsed:.2f}s")
+    print(f"Average time: {overall_elapsed/total_count:.4f}s per file")
 
     # Print detailed statistics by benchmark
     print("\n" + "="*80)

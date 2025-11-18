@@ -101,7 +101,7 @@ def update_baseline(vnnlib_path: str, baselines_dir: str = "baselines"):
 
     benchmark_name = get_benchmark_name(vnnlib_path)
     print(
-        f"[{benchmark_name}] Saved {os.path.basename(vnnlib_path)} ({pth_count} .pth files)"
+        f"OK - [{benchmark_name}] {os.path.basename(vnnlib_path)} ({pth_count} files)"
     )
 
     return baseline_path
@@ -123,7 +123,6 @@ def compare_baseline(
     results_path = get_results_path(vnnlib_path, results_dir)
 
     if not os.path.exists(baseline_path):
-        print(f"No baseline: {os.path.basename(vnnlib_path)}")
         return False
 
     # Remove existing results if they exist
@@ -137,15 +136,7 @@ def compare_baseline(
     # Compare folders
     success, mismatches = compare_output_folders(baseline_path, results_path)
 
-    if success:
-        print(f"OK: {os.path.basename(vnnlib_path)}")
-        return True
-
-    print(f"MISMATCH: {os.path.basename(vnnlib_path)}")
-    for mismatch in mismatches:
-        print(f"  {mismatch}")
-
-    return False
+    return success
 
 
 def update_all_benchmarks(
@@ -161,31 +152,41 @@ def update_all_benchmarks(
     """
     benchmark_dirs = find_benchmarks_folders(benchmarks_dir)
     vnnlib_files = find_all_vnnlib_files(benchmark_dirs, num_limit=max_per_benchmark)
-    print(f"Creating baselines for {len(vnnlib_files)} vnnlib files")
+    print(f"Creating baselines for {len(vnnlib_files)} files")
+    print("=" * 70)
 
     success = 0
     failed = []
     start_time = time.perf_counter()
 
     for i, vnnlib_path in enumerate(vnnlib_files, 1):
-        print(f"[{i}/{len(vnnlib_files)}] ", end="")
+        file_start = time.perf_counter()
+        print(f"[{i}/{len(vnnlib_files)}] ", end="", flush=True)
         try:
             update_baseline(vnnlib_path, baselines_dir)
             success += 1
+            elapsed = time.perf_counter() - file_start
+            print(f"({elapsed:.2f}s)")
         except Exception as e:
-            print(f"Error: {e}")
+            elapsed = time.perf_counter() - file_start
+            print(f"ERROR ({elapsed:.2f}s): {e}")
             failed.append(vnnlib_path)
 
     total_time = time.perf_counter() - start_time
 
-    print(f"\nCompleted: {success}/{len(vnnlib_files)} success, {len(failed)} failed")
+    print("\n" + "=" * 70)
+    print("BASELINE UPDATE SUMMARY")
+    print("=" * 70)
+    print(f"Total files: {len(vnnlib_files)}")
+    print(f"Success: {success}")
+    print(f"Failed: {len(failed)}")
+    print(f"Total time: {total_time:.2f}s")
+    print(f"Average time: {total_time/len(vnnlib_files):.4f}s per file")
+
     if failed:
-        print("Failed files:")
+        print("\nFailed files:")
         for f in failed:
             print(f"  {os.path.basename(f)}")
-    print(
-        f"Total time: {total_time:.2f}s (avg {total_time/len(vnnlib_files):.2f}s/file)"
-    )
 
 
 def verify_all_benchmarks(
@@ -203,7 +204,8 @@ def verify_all_benchmarks(
     """
     benchmark_dirs = find_benchmarks_folders(benchmarks_dir)
     vnnlib_files = find_all_vnnlib_files(benchmark_dirs, num_limit=max_per_benchmark)
-    print(f"Verifying {len(vnnlib_files)} vnnlib files")
+    print(f"Verifying {len(vnnlib_files)} files against baselines")
+    print("=" * 70)
 
     passed = 0
     failed = []
@@ -211,34 +213,48 @@ def verify_all_benchmarks(
     start_time = time.perf_counter()
 
     for i, vnnlib_path in enumerate(vnnlib_files, 1):
-        print(f"[{i}/{len(vnnlib_files)}] ", end="")
+        file_start = time.perf_counter()
+        print(f"[{i}/{len(vnnlib_files)}] ", end="", flush=True)
         try:
             baseline_path = get_baseline_path(vnnlib_path, baselines_dir)
             if not os.path.exists(baseline_path):
-                print(f"Skip {os.path.basename(vnnlib_path)} - no baseline")
+                print(f"SKIP (no baseline) - {os.path.basename(vnnlib_path)}")
                 missing.append(vnnlib_path)
                 continue
 
+            basename = os.path.basename(vnnlib_path)
             if compare_baseline(vnnlib_path, baselines_dir, results_dir):
                 passed += 1
+                elapsed = time.perf_counter() - file_start
+                print(f"OK ({elapsed:.2f}s) - {basename}")
             else:
                 failed.append(vnnlib_path)
+                elapsed = time.perf_counter() - file_start
+                print(f"MISMATCH ({elapsed:.2f}s) - {basename}")
         except Exception as e:
-            print(f"Error: {e}")
+            elapsed = time.perf_counter() - file_start
+            print(f"ERROR ({elapsed:.2f}s): {e}")
             failed.append(vnnlib_path)
 
     total_time = time.perf_counter() - start_time
     tested = len(vnnlib_files) - len(missing)
 
-    print(f"\nTested: {tested}/{len(vnnlib_files)}")
-    print(f"Passed: {passed}/{tested}")
+    print("\n" + "=" * 70)
+    print("BASELINE VERIFICATION SUMMARY")
+    print("=" * 70)
+    print(f"Total files: {len(vnnlib_files)}")
+    print(f"Tested: {tested}")
+    print(f"Passed: {passed}")
+    print(f"Failed: {len(failed)}")
+    if missing:
+        print(f"Skipped (no baseline): {len(missing)}")
+    print(f"Total time: {total_time:.2f}s")
+    print(f"Average time: {total_time/tested:.4f}s per file" if tested > 0 else "")
+
     if failed:
-        print(f"Failed: {len(failed)}")
+        print("\nFailed files:")
         for f in failed:
             print(f"  {os.path.basename(f)}")
-    if missing:
-        print(f"Missing baselines: {len(missing)}")
-    print(f"Total time: {total_time:.2f}s")
 
 
 if __name__ == "__main__":

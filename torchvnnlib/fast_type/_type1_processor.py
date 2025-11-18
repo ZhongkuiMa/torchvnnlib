@@ -42,8 +42,9 @@ def process_type1(
     Returns:
         Standardized format: [[(input_bounds, [output_constrs])]]
     """
+    t_start = time.perf_counter() if verbose else None
+
     if verbose:
-        t_start = time.perf_counter()
         print(f"  Type1 fast processing:")
         print(f"    Simple input bounds: {len(simple_input_bounds)}")
         print(f"    Simple output constraints: {len(simple_output_constrs)}")
@@ -52,20 +53,20 @@ def process_type1(
         print(f"    Complex lines: {len(complex_lines)}")
 
     # Convert simple input bounds to tensor
-    t = time.perf_counter()
+    t = time.perf_counter() if verbose else None
     input_bounds = _convert_simple_input_bounds_vectorized(
         simple_input_bounds, n_inputs
     )
-    if verbose:
+    if verbose and t is not None:
         print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
     # Convert simple output constraints and bounds to tensors
-    t = time.perf_counter()
+    t = time.perf_counter() if verbose else None
     output_constrs_list = []
 
     # Handle Y <op> Y constraints
     if simple_output_constrs:
-        output_constrs_tensor = _convert_simple_output_constraints(
+        output_constrs_tensor = _convert_simple_output_constraints_batched(
             simple_output_constrs, n_outputs
         )
         if output_constrs_tensor is not None:
@@ -73,13 +74,13 @@ def process_type1(
 
     # Handle Y <op> value constraints
     if simple_output_bounds:
-        output_bounds_tensor = _convert_simple_output_bounds(
+        output_bounds_tensor = _convert_simple_output_bounds_batched(
             simple_output_bounds, n_outputs
         )
         if output_bounds_tensor is not None:
             output_constrs_list.append(output_bounds_tensor)
 
-    if verbose:
+    if verbose and t is not None:
         print(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
 
     # Handle complex expressions if any
@@ -87,15 +88,15 @@ def process_type1(
         if verbose:
             print(f"    Processing {len(complex_lines)} complex expressions...")
 
-        t = time.perf_counter()
+        t = time.perf_counter() if verbose else None
         tokens_list = tokenize(complex_lines, verbose=False, use_parallel=False)
         expr_complex = parse(tokens_list, verbose=False, use_parallel=False)
         expr_complex = optimize(expr_complex, verbose=False, use_parallel=False)
-        if verbose:
+        if verbose and t is not None:
             print(f"    Complex expression processing: {time.perf_counter() - t:.4f}s")
 
         # Extract output constraints
-        t = time.perf_counter()
+        t = time.perf_counter() if verbose else None
         complex_output_constrs = []
 
         if isinstance(expr_complex, Or):
@@ -132,7 +133,7 @@ def process_type1(
             )
             complex_output_constrs.append(constr)
 
-        if verbose:
+        if verbose and t is not None:
             print(f"    Complex output extraction: {time.perf_counter() - t:.4f}s")
             print(
                 f"    Extracted {len(complex_output_constrs)} complex output constraints"
@@ -150,7 +151,7 @@ def process_type1(
 
     and_properties = [[(input_bounds, all_output_constrs)]]
 
-    if verbose:
+    if verbose and t_start is not None:
         print(f"  Type1 fast total: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
@@ -202,65 +203,62 @@ def _convert_simple_input_bounds_vectorized(
     return input_bounds
 
 
-def _convert_simple_output_constraints(
+def _convert_simple_output_constraints_batched(
     simple_output_constrs: list[tuple], n_outputs: int
 ) -> Tensor:
-    """Convert simple output constraints (Y <op> Y format)."""
+    """Convert simple output constraints (Y <op> Y format) - batched version."""
     if not simple_output_constrs:
         return None
 
-    constraints = []
-    for op, var_prefix1, idx1, var_prefix2, idx2 in simple_output_constrs:
-        constr = torch.zeros(n_outputs + 1, dtype=torch.float64)
+    n_constrs = len(simple_output_constrs)
+    constraints = torch.zeros((n_constrs, n_outputs + 1), dtype=torch.float64)
 
+    for i, (op, var_prefix1, idx1, var_prefix2, idx2) in enumerate(simple_output_constrs):
         if op == "<=":
             # Y_idx1 <= Y_idx2  =>  Y_idx1 - Y_idx2 <= 0  =>  -Y_idx1 + Y_idx2 >= 0
-            constr[idx1 + 1] = -1.0
-            constr[idx2 + 1] = 1.0
+            constraints[i, idx1 + 1] = -1.0
+            constraints[i, idx2 + 1] = 1.0
         elif op == ">=":
             # Y_idx1 >= Y_idx2  =>  Y_idx1 - Y_idx2 >= 0
-            constr[idx1 + 1] = 1.0
-            constr[idx2 + 1] = -1.0
+            constraints[i, idx1 + 1] = 1.0
+            constraints[i, idx2 + 1] = -1.0
 
-        constraints.append(constr)
-
-    return torch.stack(constraints) if constraints else None
+    return constraints
 
 
-def _convert_simple_output_bounds(
+def _convert_simple_output_bounds_batched(
     simple_output_bounds: list[tuple], n_outputs: int
 ) -> Tensor:
-    """Convert simple output bounds (Y <op> value format)."""
+    """Convert simple output bounds (Y <op> value format) - batched version."""
     if not simple_output_bounds:
         return None
 
-    constraints = []
-    for op, var_prefix, idx, value in simple_output_bounds:
-        constr = torch.zeros(n_outputs + 1, dtype=torch.float64)
+    # Pre-count constraints (equality creates 2)
+    n_constrs = sum(2 if op == "=" else 1 for op, _, _, _ in simple_output_bounds)
+    constraints = torch.zeros((n_constrs, n_outputs + 1), dtype=torch.float64)
 
+    row_idx = 0
+    for op, var_prefix, idx, value in simple_output_bounds:
         if op == "<=":
             # Y_idx <= value  =>  Y_idx - value <= 0  =>  Y_idx >= -value
-            constr[0] = -float(value)  # constant term
-            constr[idx + 1] = 1.0
+            constraints[row_idx, 0] = -float(value)  # constant term
+            constraints[row_idx, idx + 1] = 1.0
+            row_idx += 1
         elif op == ">=":
             # Y_idx >= value  =>  Y_idx - value >= 0
-            constr[0] = -float(value)  # constant term
-            constr[idx + 1] = 1.0
+            constraints[row_idx, 0] = -float(value)  # constant term
+            constraints[row_idx, idx + 1] = 1.0
+            row_idx += 1
         elif op == "=":
             # Y_idx = value  =>  Y_idx - value >= 0 AND value - Y_idx >= 0
             # First constraint: Y_idx >= value
-            constr1 = torch.zeros(n_outputs + 1, dtype=torch.float64)
-            constr1[0] = -float(value)
-            constr1[idx + 1] = 1.0
-            constraints.append(constr1)
+            constraints[row_idx, 0] = -float(value)
+            constraints[row_idx, idx + 1] = 1.0
+            row_idx += 1
 
             # Second constraint: Y_idx <= value
-            constr2 = torch.zeros(n_outputs + 1, dtype=torch.float64)
-            constr2[0] = float(value)
-            constr2[idx + 1] = -1.0
-            constraints.append(constr2)
-            continue
+            constraints[row_idx, 0] = float(value)
+            constraints[row_idx, idx + 1] = -1.0
+            row_idx += 1
 
-        constraints.append(constr)
-
-    return torch.stack(constraints) if constraints else None
+    return constraints

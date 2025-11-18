@@ -43,15 +43,14 @@ def process_type2(
         Standardized format: [[(input_bounds, [output_constr1, output_constr2, ...])]]
         Single AND group with one property containing multiple OR output options
     """
-    if verbose:
-        t_start = time.perf_counter()
+    t_start = time.perf_counter() if verbose else None
 
     # Use pre-parsed data if available, otherwise parse now
     if parsed_data is None:
         from ._fast_type_detect import parse_simple_patterns
-        t = time.perf_counter()
+        t = time.perf_counter() if verbose else None
         parsed_data = parse_simple_patterns(lines, verbose=False)
-        if verbose:
+        if verbose and t is not None:
             print(f"  Type2 parsing: {time.perf_counter() - t:.4f}s")
 
     simple_input_bounds = parsed_data['simple_input_bounds']
@@ -63,22 +62,22 @@ def process_type2(
         print(f"    OR block lines: {len(or_block_lines)}")
 
     # Convert simple input bounds to tensor
-    t = time.perf_counter()
+    t = time.perf_counter() if verbose else None
     input_bounds = _convert_simple_input_bounds(simple_input_bounds, n_inputs, verbose)
-    if verbose:
+    if verbose and t is not None:
         print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
     # Parse OR block for output constraints
-    t = time.perf_counter()
+    t = time.perf_counter() if verbose else None
     output_constrs = _parse_or_block(or_block_lines, n_inputs, n_outputs, verbose)
-    if verbose:
+    if verbose and t is not None:
         print(f"    OR block parsing: {time.perf_counter() - t:.4f}s")
         print(f"    Extracted {len(output_constrs)} output constraint options")
 
     # Package in expected format: [[(input_bounds, [output_constrs])]]
     and_properties = [[(input_bounds, output_constrs)]]
 
-    if verbose:
+    if verbose and t_start is not None:
         print(f"  Type2 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
@@ -87,20 +86,38 @@ def process_type2(
 def _convert_simple_input_bounds(
     simple_bounds: list[tuple], n_inputs: int, verbose: bool = False
 ) -> Tensor:
-    """Convert simple input bounds to tensor."""
+    """Convert simple input bounds to tensor - vectorized version."""
     input_bounds = torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)
+
+    # Group by operation type for batch processing
+    leq_indices, leq_values = [], []
+    geq_indices, geq_values = [], []
+    eq_indices, eq_values = [], []
 
     for op, var_type, idx, value in simple_bounds:
         if var_type != "X_":
             continue
 
         if op == "<=":
-            input_bounds[idx, 1] = value
+            leq_indices.append(idx)
+            leq_values.append(value)
         elif op == ">=":
-            input_bounds[idx, 0] = value
+            geq_indices.append(idx)
+            geq_values.append(value)
         elif op == "=":
-            input_bounds[idx, 0] = value
-            input_bounds[idx, 1] = value
+            eq_indices.append(idx)
+            eq_values.append(value)
+
+    # Batch assignments
+    if leq_indices:
+        input_bounds[leq_indices, 1] = torch.tensor(leq_values, dtype=torch.float64)
+    if geq_indices:
+        input_bounds[geq_indices, 0] = torch.tensor(geq_values, dtype=torch.float64)
+    if eq_indices:
+        eq_vals = torch.tensor(eq_values, dtype=torch.float64)
+        eq_idx = torch.tensor(eq_indices, dtype=torch.long)
+        input_bounds[eq_idx, 0] = eq_vals
+        input_bounds[eq_idx, 1] = eq_vals
 
     # Check for missing bounds
     if torch.isnan(input_bounds).any():

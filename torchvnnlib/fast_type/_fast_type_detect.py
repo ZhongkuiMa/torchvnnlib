@@ -42,8 +42,7 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
     Returns:
         VNNLIBType enum value
     """
-    if verbose:
-        t = time.perf_counter()
+    start_time = time.perf_counter() if verbose else None
 
     # Pattern counters
     has_simple_input = False  # Pattern (1): (assert X_
@@ -109,8 +108,9 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
         has_or_and_mixed,
     )
 
-    if verbose:
-        print(f"  Fast type detection: {time.perf_counter() - t:.4f}s")
+    if verbose and start_time is not None:
+        elapsed = time.perf_counter() - start_time
+        print(f"  Fast type detection: {elapsed:.4f}s")
         print(f"    Detected: {vnnlib_type.name}")
         print(
             f"    Patterns: simple_in={has_simple_input}, simple_out={has_simple_output}, "
@@ -144,8 +144,7 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
         - complex_lines: Lines that don't match simple patterns
         - complex_indices: Line indices for complex lines
     """
-    if verbose:
-        t = time.perf_counter()
+    start_time = time.perf_counter() if verbose else None
 
     simple_input_bounds = []
     simple_output_constrs = []
@@ -215,8 +214,9 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
         "complex_indices": complex_indices,
     }
 
-    if verbose:
-        print(f"  Parse simple patterns: {time.perf_counter() - t:.4f}s")
+    if verbose and start_time is not None:
+        elapsed = time.perf_counter() - start_time
+        print(f"  Parse simple patterns: {elapsed:.4f}s")
         print(f"    Input bounds: {len(simple_input_bounds)}")
         print(f"    Output constraints: {len(simple_output_constrs)}")
         print(f"    Output bounds: {len(simple_output_bounds)}")
@@ -254,8 +254,7 @@ def fast_detect_and_parse(
         - type: VNNLIBType enum value
         - data: Dictionary with parsed data
     """
-    if verbose:
-        t = time.perf_counter()
+    start_time = time.perf_counter() if verbose else None
 
     n_lines = len(lines)
     simple_input_bounds = []
@@ -366,8 +365,9 @@ def fast_detect_and_parse(
         "metadata": metadata,
     }
 
-    if verbose:
-        print(f"  Fast detect+parse: {time.perf_counter() - t:.4f}s")
+    if verbose and start_time is not None:
+        elapsed = time.perf_counter() - start_time
+        print(f"  Fast detect+parse: {elapsed:.4f}s")
         print(f"    Detected: {vnnlib_type.name}")
         print(
             f"    Patterns: simple_in={has_simple_input}, simple_out={has_simple_output}, "

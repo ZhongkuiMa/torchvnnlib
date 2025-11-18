@@ -175,8 +175,8 @@ def test_all_benchmarks(
         random.seed(42)
         vnnlib_files = random.sample(vnnlib_files, min(sample_size, len(vnnlib_files)))
 
-    print(f"Testing correctness of type-based processors vs AST")
-    print(f"Files to test: {len(vnnlib_files)}")
+    print("Testing correctness of type-based processors vs AST")
+    print(f"Total files: {len(vnnlib_files)}")
     print("=" * 70)
 
     passed = 0
@@ -186,38 +186,40 @@ def test_all_benchmarks(
     start_time = time.perf_counter()
 
     for i, vnnlib_path in enumerate(vnnlib_files, 1):
+        file_start = time.perf_counter()
+
         if not verbose:
-            print(
-                f"[{i}/{len(vnnlib_files)}] {os.path.basename(vnnlib_path)}... ",
-                end="",
-                flush=True,
-            )
+            print(f"[{i}/{len(vnnlib_files)}] ", end="", flush=True)
 
         try:
             if test_file_correctness(vnnlib_path, verbose=verbose):
                 passed += 1
+                elapsed = time.perf_counter() - file_start
                 if not verbose:
-                    print("OK")
+                    print(f"OK ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
             else:
                 failed += 1
                 failed_files.append(vnnlib_path)
+                elapsed = time.perf_counter() - file_start
                 if not verbose:
-                    print("MISMATCH")
+                    print(f"MISMATCH ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
         except Exception as e:
             failed += 1
             failed_files.append(vnnlib_path)
+            elapsed = time.perf_counter() - file_start
             if not verbose:
-                print(f"ERROR: {e}")
+                print(f"ERROR ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}: {e}")
 
     elapsed = time.perf_counter() - start_time
 
     print("\n" + "=" * 70)
     print("CORRECTNESS TEST SUMMARY")
     print("=" * 70)
-    print(f"Tested: {len(vnnlib_files)}")
+    print(f"Total files: {len(vnnlib_files)}")
     print(f"Passed: {passed}")
     print(f"Failed: {failed}")
     print(f"Total time: {elapsed:.2f}s")
+    print(f"Average time: {elapsed/len(vnnlib_files):.4f}s per file")
 
     if failed_files:
         print("\nFailed files:")
