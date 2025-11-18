@@ -74,6 +74,6 @@ Thumbs.db
 
 # === GitHub Codespaces ===
 .devcontainer/
-/test/benchmarks/
-/test/baselines/
-/test/results/
+/test/baselines/nn4sys_2023/
+/test/benchmarks/nn4sys_2023/
+/test/results/nn4sys_2023/

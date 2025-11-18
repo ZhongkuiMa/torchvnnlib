@@ -4,7 +4,7 @@ Extracted helper functions used across multiple test files.
 """
 
 import os
-import shutil
+
 import torch
 
 
@@ -66,7 +66,9 @@ def find_all_vnnlib_files(benchmark_dirs, num_limit: int = 20):
             if os.path.isdir(vnnlib_subdir):
                 for entry in os.listdir(vnnlib_subdir):
                     if entry.endswith(".vnnlib"):
-                        vnnlib_path = os.path.normpath(os.path.join(vnnlib_subdir, entry))
+                        vnnlib_path = os.path.normpath(
+                            os.path.join(vnnlib_subdir, entry)
+                        )
                         vnnlib_files.append(vnnlib_path)
                         i += 1
                         if i >= num_limit:
@@ -100,7 +102,9 @@ def get_benchmark_name(vnnlib_path: str, benchmarks_dir: str = "benchmarks") -> 
     return os.path.basename(os.path.dirname(vnnlib_path))
 
 
-def compare_tensors(tensor1: torch.Tensor, tensor2: torch.Tensor, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
+def compare_tensors(
+    tensor1: torch.Tensor, tensor2: torch.Tensor, rtol: float = 1e-5, atol: float = 1e-8
+) -> bool:
     """Compare two PyTorch tensors with tolerance.
 
     :param tensor1: First tensor
@@ -114,7 +118,9 @@ def compare_tensors(tensor1: torch.Tensor, tensor2: torch.Tensor, rtol: float = 
     return torch.allclose(tensor1, tensor2, rtol=rtol, atol=atol)
 
 
-def compare_pth_files(file1: str, file2: str, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
+def compare_pth_files(
+    file1: str, file2: str, rtol: float = 1e-5, atol: float = 1e-8
+) -> bool:
     """Compare two .pth files containing tensor dictionaries.
 
     :param file1: Path to first .pth file
@@ -158,7 +164,9 @@ def compare_pth_files(file1: str, file2: str, rtol: float = 1e-5, atol: float = 
     return True
 
 
-def compare_output_folders(folder1: str, folder2: str, rtol: float = 1e-5, atol: float = 1e-8) -> tuple[bool, list[str]]:
+def compare_output_folders(
+    folder1: str, folder2: str, rtol: float = 1e-5, atol: float = 1e-8
+) -> tuple[bool, list[str]]:
     """Compare two output folders recursively.
 
     :param folder1: Path to first folder

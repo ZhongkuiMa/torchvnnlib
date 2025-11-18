@@ -76,13 +76,15 @@ def get_results_path(vnnlib_path: str, results_dir: str = "results") -> str:
 def update_baseline(vnnlib_path: str, baselines_dir: str = "baselines"):
     """Create or update baseline for ONE vnnlib file.
 
-    Runs TorchVNNLib.convert() and saves output to baselines directory.
+    Runs TorchVNNLib.convert() with AST-only (detect_fast_type=False) and saves output to baselines directory.
+    This ensures baselines are created using the known-correct AST method.
 
     :param vnnlib_path: Path to vnnlib file
     :param baselines_dir: Root directory to store baseline folders
     :return: Path to baseline folder
     """
-    converter = TorchVNNLIB()
+    # IMPORTANT: Use AST-only (no fast_type) for baseline generation to ensure correctness
+    converter = TorchVNNLIB(detect_fast_type=False)
     baseline_path = get_baseline_path(vnnlib_path, baselines_dir)
 
     # Remove existing baseline if it exists
@@ -240,26 +242,21 @@ def verify_all_benchmarks(
 
 
 if __name__ == "__main__":
-    # Example 1: Update baseline for one vnnlib file
-    # vnnlib_file = "benchmarks/vggnet16_2023/spec0_briard.vnnlib"
-    # update_baseline(vnnlib_file, baselines_dir="baselines")
+    import sys
 
-    # Example 2: Compare one vnnlib file against baseline
-    # success = compare_baseline(
-    #     vnnlib_file, baselines_dir="baselines", results_dir="results"
-    # )
-
-    # Example 3: Batch update baselines for all benchmarks
-    # update_all_benchmarks(
-    #     benchmarks_dir="benchmarks",
-    #     baselines_dir="baselines",
-    #     max_per_benchmark=20,
-    # )
-
-    # Example 4: Batch verify all benchmarks against their baselines
-    verify_all_benchmarks(
-        benchmarks_dir="benchmarks",
-        baselines_dir="baselines",
-        results_dir="results",
-        max_per_benchmark=20,
-    )
+    # Check command line argument
+    if len(sys.argv) > 1 and sys.argv[1] == "update":
+        # Update baselines
+        update_all_benchmarks(
+            benchmarks_dir="benchmarks",
+            baselines_dir="baselines",
+            max_per_benchmark=20,
+        )
+    else:
+        # Verify baselines (default)
+        verify_all_benchmarks(
+            benchmarks_dir="benchmarks",
+            baselines_dir="baselines",
+            results_dir="results",
+            max_per_benchmark=20,
+        )

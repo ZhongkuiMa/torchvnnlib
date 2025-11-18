@@ -1,9 +1,16 @@
 __docformat__ = "restructuredtext"
-__all__ = ["convert_to_tensor"]
+__all__ = [
+    "convert_input_bounds",
+    "convert_linear_poly",
+    "convert_linear_constr",
+    "convert_and_output_constrs",
+    "convert_output_constrs",
+    "convert_one_property",
+    "convert_to_tensor"
+]
 
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Any
 
 import torch
 from torch import Tensor
@@ -11,7 +18,7 @@ from torch import Tensor
 from .ast import *
 
 
-def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
+def convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
     # Pre-allocate tensor with NaN for efficient filling (optimization)
     input_bounds = torch.full((n_inputs, 2), float('nan'), dtype=torch.float64)
 
@@ -43,7 +50,7 @@ def _convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
     return input_bounds
 
 
-def _convert_linear_poly(
+def convert_linear_poly(
     constr: Tensor, expr: Expr, y_dim: int, x_dim: int, is_add: bool = True
 ) -> Tensor:
     """
@@ -74,7 +81,7 @@ def _convert_linear_poly(
         constr[0] += expr.value if is_add else -expr.value
     elif isinstance(expr, Add):
         for sub_expr in expr.args:
-            _convert_linear_poly(constr, sub_expr, y_dim, x_dim, is_add)
+            convert_linear_poly(constr, sub_expr, y_dim, x_dim, is_add)
     elif isinstance(expr, Mul):
         left = expr.left
         right = expr.right
@@ -89,13 +96,13 @@ def _convert_linear_poly(
     elif isinstance(expr, Sub):
         left = expr.left
         right = expr.right
-        _convert_linear_poly(constr, left, y_dim, x_dim)
-        _convert_linear_poly(constr, right, y_dim, x_dim, is_add=False)
+        convert_linear_poly(constr, left, y_dim, x_dim)
+        convert_linear_poly(constr, right, y_dim, x_dim, is_add=False)
 
     return constr
 
 
-def _convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Tensor:
+def convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Tensor:
     """
     By default, we handle left <= right. The dimension includes the bias term.
     We use b + Ax >= 0 as the default form.
@@ -127,14 +134,14 @@ def _convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> T
         extended_constr = torch.zeros(y_dim + x_dim + 1, dtype=torch.float64)
         extended_constr[: y_dim + 1] = constr
         constr = extended_constr
-        constr = _convert_linear_poly(constr, right, y_dim, x_dim)
+        constr = convert_linear_poly(constr, right, y_dim, x_dim)
     else:
         raise NotImplementedError(f"Now only support Var and Cst for right: {right}")
 
     return constr
 
 
-def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Tensor:
+def convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Tensor:
     """
     We treat all constraints in the form of b + Ax >= 0
     """
@@ -161,9 +168,9 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
         right = sub_expr.right  # noqa
 
         if isinstance(sub_expr, Leq):
-            constr = _convert_linear_constr(left, right, y_dim, x_dim)
+            constr = convert_linear_constr(left, right, y_dim, x_dim)
         elif isinstance(sub_expr, Geq):
-            constr = _convert_linear_constr(left, right, y_dim, x_dim)
+            constr = convert_linear_constr(left, right, y_dim, x_dim)
             constr = -constr
             constr.masked_fill_(constr == 0.0, 0.0)  # Remove negative zero
         else:
@@ -177,7 +184,7 @@ def _convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Ten
     return output_constrs
 
 
-def _convert_output_constrs(expr: Or, n_outputs: int, n_inputs: int) -> list[Tensor]:
+def convert_output_constrs(expr: Or, n_outputs: int, n_inputs: int) -> list[Tensor]:
     """
     The output is a list because we may have multiple Or expressions with different
     number of constraints. But the size should be the same in common cases.
@@ -185,13 +192,13 @@ def _convert_output_constrs(expr: Or, n_outputs: int, n_inputs: int) -> list[Ten
     or_output_constrs = []
     for and_expr in expr.args:
         and_expr: And
-        and_output_constrs = _convert_and_output_constrs(and_expr, n_outputs, n_inputs)
+        and_output_constrs = convert_and_output_constrs(and_expr, n_outputs, n_inputs)
         or_output_constrs.append(and_output_constrs)
 
     return or_output_constrs
 
 
-def _convert_one_property(
+def convert_one_property(
     expr: And, n_inputs: int, n_outputs: int
 ) -> tuple[Tensor, list[Tensor]]:
     """
@@ -206,8 +213,8 @@ def _convert_one_property(
     input_bounds_expr = expr.args[0]  # noqa
     output_constrs_expr = expr.args[1]  # noqa
 
-    input_bounds = _convert_input_bounds(input_bounds_expr, n_inputs)
-    output_constrs = _convert_output_constrs(output_constrs_expr, n_outputs, n_inputs)
+    input_bounds = convert_input_bounds(input_bounds_expr, n_inputs)
+    output_constrs = convert_output_constrs(output_constrs_expr, n_outputs, n_inputs)
 
     return input_bounds, output_constrs
 
@@ -234,11 +241,11 @@ def convert_to_tensor(
 
     def _process_or_expr(
         or_expr: Or, n_inputs: int, n_outputs: int
-    ) -> list[tuple[Any, Any]]:
+    ) -> list[tuple[Tensor, list[Tensor]]]:
         if not isinstance(or_expr, Or):
             raise ValueError(f"Expected Or expression, got {type(or_expr)}")
 
-        convert = partial(_convert_one_property, n_inputs=n_inputs, n_outputs=n_outputs)
+        convert = partial(convert_one_property, n_inputs=n_inputs, n_outputs=n_outputs)
 
         if use_parallel:
             with ThreadPoolExecutor() as executor:
