@@ -6,9 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
-import torch
-from torch import Tensor
-
+from ._backend import Backend, get_backend, TensorLike
 from ._to_tensor import convert_to_tensor
 from .ast import preprocess_vnnlib, tokenize, parse, optimize, flatten
 from .fast_type import (
@@ -24,14 +22,16 @@ from .fast_type import (
 
 
 def _save_property_file(
-    or_properties: list[tuple[Tensor, list[Tensor]]],
+    or_properties: list[tuple[TensorLike, list[TensorLike]]],
     or_folder_path: str,
+    backend: Backend,
     verbose: bool = False,
 ) -> None:
-    """Save OR properties to individual .pth files.
+    """Save OR properties to individual files.
 
     :param or_properties: List of (input_bounds, output_constraints) tuples
     :param or_folder_path: Directory path to save files
+    :param backend: Backend instance for saving operations
     :param verbose: Print progress messages
     """
     for j, and_property in enumerate(or_properties):
@@ -40,15 +40,16 @@ def _save_property_file(
 
         input_bounds, output_constrs = and_property
         data = {"input": input_bounds, "output": output_constrs}
-        file_name = f"sub_prop_{j}.pth"
+        file_name = f"sub_prop_{j}{backend.file_extension}"
         file_path = os.path.join(or_folder_path, file_name)
-        torch.save(data, file_path)
+        backend.save(data, file_path)
 
 
 def _write_property(
-    and_properties: list[list[tuple[Tensor, list[Tensor]]]],
+    and_properties: list[list[tuple[TensorLike, list[TensorLike]]]],
     target_folder_path: str | None,
     vnnlib_path: str,
+    backend: Backend,
     verbose: bool = False,
 ) -> None:
     """Write all properties to organized folder structure.
@@ -56,6 +57,7 @@ def _write_property(
     :param and_properties: Nested list of properties
     :param target_folder_path: Output directory path
     :param vnnlib_path: Original VNN-LIB file path
+    :param backend: Backend instance for saving operations
     :param verbose: Print progress messages
     """
     if target_folder_path is None:
@@ -69,29 +71,33 @@ def _write_property(
         or_folder_paths.append(or_folder_path)
         os.makedirs(or_folder_path, exist_ok=True)
 
-    save = partial(_save_property_file, verbose=verbose)
+    save = partial(_save_property_file, backend=backend, verbose=verbose)
     with ThreadPoolExecutor() as executor:
         executor.map(save, and_properties, or_folder_paths)
 
 
 class TorchVNNLIB:
-    """VNN-LIB to PyTorch tensor converter."""
+    """VNN-LIB to tensor converter supporting PyTorch and NumPy backends."""
 
     def __init__(
         self,
         verbose: bool = False,
         use_parallel: bool = False,
         detect_fast_type: bool = True,
+        output_format: str = "torch",
     ) -> None:
         """Initialize TorchVNNLIB converter.
 
         :param verbose: Print detailed timing information
         :param use_parallel: Use parallel processing where possible
         :param detect_fast_type: Use optimized type-specific processors
+        :param output_format: Output format ('torch' for .pth or 'numpy' for .npz)
         """
         self.verbose = verbose
         self.use_parallel = use_parallel
         self.detect_fast_type = detect_fast_type
+        self.output_format = output_format
+        self.backend = get_backend(output_format)
         self.conversion_stats: dict[str, dict] = {}
 
     def _process_by_type(
@@ -100,7 +106,7 @@ class TorchVNNLIB:
         lines: list[str],
         n_inputs: int,
         n_outputs: int,
-    ) -> list[list[tuple[Tensor, list[Tensor]]]] | None:
+    ) -> list[list[tuple[TensorLike, list[TensorLike]]]] | None:
         """Process VNN-LIB file using type-specific processor.
 
         :param vnnlib_type: Detected VNN-LIB type
@@ -119,6 +125,7 @@ class TorchVNNLIB:
                 parsed_data["complex_lines"],
                 n_inputs,
                 n_outputs,
+                self.backend,
                 verbose=self.verbose,
                 simple_output_bounds=parsed_data["simple_output_bounds"],
             )
@@ -132,6 +139,7 @@ class TorchVNNLIB:
                 lines,
                 n_inputs,
                 n_outputs,
+                self.backend,
                 verbose=self.verbose,
                 parsed_data=parsed_data,
             )
@@ -145,6 +153,7 @@ class TorchVNNLIB:
                 lines,
                 n_inputs,
                 n_outputs,
+                self.backend,
                 verbose=self.verbose,
                 parsed_data=parsed_data,
             )
@@ -154,7 +163,7 @@ class TorchVNNLIB:
 
         elif vnnlib_type == VNNLIBType.TYPE4:
             and_properties = process_type4(
-                lines, n_inputs, n_outputs, verbose=self.verbose
+                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
             )
             if self.verbose:
                 print(f"Type4 processing: {time.perf_counter() - t:.4f}s")
@@ -162,7 +171,7 @@ class TorchVNNLIB:
 
         elif vnnlib_type == VNNLIBType.TYPE5:
             and_properties = process_type5(
-                lines, n_inputs, n_outputs, verbose=self.verbose
+                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
             )
             if self.verbose:
                 print(f"Type5 processing: {time.perf_counter() - t:.4f}s")
@@ -174,13 +183,14 @@ class TorchVNNLIB:
             return None
 
     def convert(self, vnnlib_path: str, target_folder_path: str | None = None) -> None:
-        """Convert VNN-LIB file to PyTorch tensors.
+        """Convert VNN-LIB file to tensor data.
 
         :param vnnlib_path: Path to .vnnlib file
         :param target_folder_path: Output directory path
         """
         if self.verbose:
             print(f"Converting {vnnlib_path}")
+            print(f"Output format: {self.output_format}")
         t_start = time.perf_counter()
 
         t = time.perf_counter()
@@ -245,6 +255,7 @@ class TorchVNNLIB:
                 expr,
                 n_inputs,
                 n_outputs,
+                self.backend,
                 verbose=self.verbose,
                 use_parallel=self.use_parallel,
             )
@@ -254,7 +265,9 @@ class TorchVNNLIB:
                 )
 
         t = time.perf_counter()
-        _write_property(and_properties, target_folder_path, vnnlib_path, self.verbose)
+        _write_property(
+            and_properties, target_folder_path, vnnlib_path, self.backend, self.verbose
+        )
         if self.verbose:
             print(f"Writing to disk: {time.perf_counter() - t:.4f}s")
 
@@ -268,4 +281,5 @@ class TorchVNNLIB:
             "time": total_time,
             "n_inputs": n_inputs,
             "n_outputs": n_outputs,
+            "output_format": self.output_format,
         }

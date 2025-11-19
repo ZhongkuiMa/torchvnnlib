@@ -1,10 +1,11 @@
 # TorchVNNLIB
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-orange.svg)](https://pytorch.org/)
+[![NumPy](https://img.shields.io/badge/NumPy-required-green.svg)](https://numpy.org/)
+[![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x%20(optional)-orange.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-High-performance VNN-LIB to PyTorch tensor converter for neural network verification.
+High-performance VNN-LIB converter to PyTorch tensors or NumPy arrays for neural network verification.
 
 ## Overview
 
@@ -14,19 +15,21 @@ High-performance VNN-LIB to PyTorch tensor converter for neural network verifica
 - Inefficient for GPU-accelerated operations
 - Cumbersome integration with PyTorch pipelines
 
-**TorchVNNLIB** solves these problems by converting VNN-LIB specifications directly into PyTorch tensors, enabling:
+**TorchVNNLIB** solves these problems by converting VNN-LIB specifications directly into PyTorch tensors or NumPy arrays, enabling:
 
-- Fast loading via `.pth` format
-- Native PyTorch integration
-- GPU-ready constraint representations
+- Fast loading via `.pth` (PyTorch) or `.npz` (NumPy) formats
+- Native PyTorch integration or lightweight NumPy usage
+- GPU-ready constraint representations (PyTorch)
 - Standardized property formats
+- **No PyTorch dependency required** when using NumPy backend
 
 ## Installation
 
 ### Requirements
 
 - Python 3.10+
-- PyTorch 2.x
+- NumPy (required)
+- PyTorch 2.x (optional, only if using `output_format="torch"`)
 
 ### Setup
 
@@ -34,17 +37,42 @@ High-performance VNN-LIB to PyTorch tensor converter for neural network verifica
 # Clone or add as submodule
 git submodule add <repository-url> torchvnnlib
 
-# Install dependencies
+# Install minimal dependencies (NumPy only)
+pip install numpy
+
+# Optional: Install PyTorch for .pth output
 pip install torch
 ```
 
 ## Quick Start
 
+### Using NumPy Backend (No PyTorch Required)
+
 ```python
 from torchvnnlib import TorchVNNLIB
 
-# Initialize converter
-converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
+# Initialize converter with NumPy backend
+converter = TorchVNNLIB(verbose=True, detect_fast_type=True, output_format="numpy")
+
+# Convert .vnnlib to NumPy arrays
+converter.convert("property.vnnlib", target_folder_path="output")
+
+# Load converted arrays
+import numpy as np
+data = np.load("output/or_group_0/sub_prop_0.npz")
+
+# Access constraints
+input_bounds = data["input"]      # Shape: (n_inputs, 2)
+output_constraints = data["output"]  # List of arrays
+```
+
+### Using PyTorch Backend
+
+```python
+from torchvnnlib import TorchVNNLIB
+
+# Initialize converter with PyTorch backend (default)
+converter = TorchVNNLIB(verbose=True, detect_fast_type=True, output_format="torch")
 
 # Convert .vnnlib to PyTorch tensors
 converter.convert("property.vnnlib", target_folder_path="output")
@@ -59,6 +87,11 @@ output_constraints = data["output"]  # List of tensors
 ```
 
 ## Features
+
+### Dual Backend Support
+
+1. **NumPy Backend** - Lightweight, no PyTorch dependency
+2. **PyTorch Backend** - Full GPU acceleration support
 
 ### Dual Processing Pipelines
 
@@ -88,7 +121,8 @@ output_constraints = data["output"]  # List of tensors
 TorchVNNLIB(
     verbose: bool = False,
     use_parallel: bool = False,
-    detect_fast_type: bool = True
+    detect_fast_type: bool = True,
+    output_format: str = "torch"
 )
 ```
 
@@ -96,6 +130,7 @@ TorchVNNLIB(
 - `verbose`: Print detailed timing information
 - `use_parallel`: Enable parallel processing
 - `detect_fast_type`: Use optimized type-specific processors (recommended)
+- `output_format`: Output format - `"torch"` for .pth files or `"numpy"` for .npz files
 
 **Methods:**
 
@@ -108,7 +143,7 @@ converter.convert(
 )
 ```
 
-Convert VNN-LIB file to PyTorch tensors.
+Convert VNN-LIB file to tensor/array data.
 
 **Parameters:**
 - `vnnlib_path`: Path to `.vnnlib` file
@@ -118,22 +153,22 @@ Convert VNN-LIB file to PyTorch tensors.
 ```
 output/
 ├── or_group_0/
-│   ├── sub_prop_0.pth
-│   ├── sub_prop_1.pth
+│   ├── sub_prop_0.pth (or .npz)
+│   ├── sub_prop_1.pth (or .npz)
 │   └── ...
 ├── or_group_1/
 │   └── ...
 ```
 
-Each `.pth` file contains:
+Each file contains:
 ```python
 {
-    "input": Tensor,       # Shape: (n_inputs, 2) - [lower, upper] bounds
-    "output": list[Tensor] # List of constraint tensors
+    "input": Array,       # Shape: (n_inputs, 2) - [lower, upper] bounds
+    "output": list[Array] # List of constraint arrays
 }
 ```
 
-### Output Tensor Format
+### Output Tensor/Array Format
 
 #### Input Bounds
 Shape: `(n_inputs, 2)`
@@ -144,7 +179,7 @@ Shape: `(n_inputs, 2)`
 ```
 
 #### Output Constraints
-List of tensors, each with shape: `(n_constraints, 1 + n_outputs)` or `(n_constraints, 1 + n_outputs + n_inputs)`
+List of arrays, each with shape: `(n_constraints, 1 + n_outputs)` or `(n_constraints, 1 + n_outputs + n_inputs)`
 
 Format: `b + Ax >= 0`
 ```python
@@ -160,7 +195,7 @@ Where:
 
 ## Examples
 
-### Example 1: Simple Property (Type1)
+### Example 1: Simple Property (Type1) - NumPy
 
 **VNN-LIB:**
 ```lisp
@@ -176,199 +211,43 @@ Where:
 (assert (<= Y_0 Y_1))
 ```
 
-**Output Structure:**
-```
-output/
-├── or_group_0/
-│   └── sub_prop_0.pth
-```
-
-**sub_prop_0.pth:**
+**Python:**
 ```python
-{
-    "input": tensor([[-0.5, 0.5]]),
-    "output": [tensor([[0.0, -1.0, 1.0]])]
-}
+from torchvnnlib import TorchVNNLIB
+import numpy as np
+
+converter = TorchVNNLIB(output_format="numpy")
+converter.convert("property.vnnlib", "output")
+
+data = np.load("output/or_group_0/sub_prop_0.npz")
+print(data["input"])   # [[-0.5, 0.5]]
+print(data["output"])  # [array([[0.0, -1.0, 1.0]])]
 ```
 
-### Example 2: OR-Grouped Outputs (Type2)
+### Example 2: Using PyTorch Backend
 
-**VNN-LIB:**
-```lisp
-(declare-const X_0 Real)
-(declare-const Y_0 Real)
-(declare-const Y_1 Real)
-
-; Simple input bounds
-(assert (<= X_0 0.5))
-(assert (>= X_0 -0.5))
-
-; OR-grouped output constraints
-(assert (or
-    (and (<= Y_0 Y_1))
-    (and (<= Y_0 0.5))
-))
-```
-
-**Output Structure:**
-```
-output/
-├── or_group_0/
-│   └── sub_prop_0.pth
-```
-
-**sub_prop_0.pth:**
+**Python:**
 ```python
-{
-    "input": tensor([[-0.5, 0.5]]),
-    "output": [
-        tensor([[0.0, -1.0, 1.0]]),
-        tensor([[0.5, -1.0, 0.0]])
-    ]
-}
+from torchvnnlib import TorchVNNLIB
+import torch
+
+converter = TorchVNNLIB(output_format="torch", verbose=True)
+converter.convert("property.vnnlib", "output")
+
+data = torch.load("output/or_group_0/sub_prop_0.pth")
+input_bounds = data["input"].cuda()  # GPU acceleration
+output_constraints = [c.cuda() for c in data["output"]]
 ```
 
-### Example 3: OR-Grouped Inputs (Type3)
-
-**VNN-LIB:**
-```lisp
-(declare-const X_0 Real)
-(declare-const Y_0 Real)
-(declare-const Y_1 Real)
-
-; OR-grouped input constraints
-(assert (or
-    (and (<= X_0 0.3) (>= X_0 -0.5))
-    (and (<= X_0 0.5) (>= X_0 -0.3))
-))
-
-; Simple output constraint
-(assert (<= Y_0 Y_1))
-```
-
-**Output Structure:**
-```
-output/
-├── or_group_0/
-│   ├── sub_prop_0.pth
-│   └── sub_prop_1.pth
-```
-
-**sub_prop_0.pth:**
-```python
-{
-    "input": tensor([[-0.5, 0.3]]),
-    "output": [tensor([[0.0, -1.0, 1.0]])]
-}
-```
-
-**sub_prop_1.pth:**
-```python
-{
-    "input": tensor([[-0.3, 0.5]]),
-    "output": [tensor([[0.0, -1.0, 1.0]])]
-}
-```
-
-### Example 4: OR-Grouped Inputs and Outputs (Type4)
-
-**VNN-LIB:**
-```lisp
-(declare-const X_0 Real)
-(declare-const Y_0 Real)
-(declare-const Y_1 Real)
-
-; OR-grouped input constraints
-(assert (or
-    (and (<= X_0 0.3) (>= X_0 -0.5))
-    (and (<= X_0 0.5) (>= X_0 -0.3))
-))
-
-; OR-grouped output constraints
-(assert (or
-    (and (<= Y_0 Y_1))
-    (and (<= Y_0 0.5))
-))
-```
-
-**Output Structure:**
-```
-output/
-├── or_group_0/
-│   ├── sub_prop_0.pth
-│   └── sub_prop_1.pth
-```
-
-**sub_prop_0.pth:**
-```python
-{
-    "input": tensor([[-0.5, 0.3]]),
-    "output": [
-        tensor([[0.0, -1.0, 1.0]]),
-        tensor([[0.5, -1.0, 0.0]])
-    ]
-}
-```
-
-**sub_prop_1.pth:**
-```python
-{
-    "input": tensor([[-0.3, 0.5]]),
-    "output": [
-        tensor([[0.0, -1.0, 1.0]]),
-        tensor([[0.5, -1.0, 0.0]])
-    ]
-}
-```
-
-### Example 5: Top-Level OR (Type5)
-
-**VNN-LIB:**
-```lisp
-(declare-const X_0 Real)
-(declare-const Y_0 Real)
-(declare-const Y_1 Real)
-
-; Top-level OR wrapping complete properties
-(assert (or
-    (and (<= X_0 0.3) (>= X_0 -0.5) (<= Y_0 Y_1))
-    (and (<= X_0 0.5) (>= X_0 -0.3) (<= Y_0 0.5))
-))
-```
-
-**Output Structure:**
-```
-output/
-├── or_group_0/
-│   ├── sub_prop_0.pth
-│   └── sub_prop_1.pth
-```
-
-**sub_prop_0.pth:**
-```python
-{
-    "input": tensor([[-0.5, 0.3]]),
-    "output": [tensor([[0.0, -1.0, 1.0]])]
-}
-```
-
-**sub_prop_1.pth:**
-```python
-{
-    "input": tensor([[-0.3, 0.5]]),
-    "output": [tensor([[0.5, -1.0, 0.0]])]
-}
-```
-
-### Example 6: Complete Workflow
+### Example 3: Complete Workflow
 
 ```python
 import os
-import torch
+import numpy as np
 from torchvnnlib import TorchVNNLIB
 
 # Convert with timing information
-converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
+converter = TorchVNNLIB(verbose=True, detect_fast_type=True, output_format="numpy")
 converter.convert("acasxu_prop1.vnnlib", "acasxu_prop1_tensors")
 
 # Load and verify
@@ -376,7 +255,10 @@ for or_idx in range(len(os.listdir("acasxu_prop1_tensors"))):
     or_folder = f"acasxu_prop1_tensors/or_group_{or_idx}"
 
     for sub_file in os.listdir(or_folder):
-        data = torch.load(os.path.join(or_folder, sub_file))
+        if not sub_file.endswith(".npz"):
+            continue
+
+        data = np.load(os.path.join(or_folder, sub_file))
 
         input_bounds = data["input"]
         output_constraints = data["output"]
@@ -401,7 +283,7 @@ Type Detection (fast pattern matching)
     +----> Fast Type Processor (Type1-5)
     |           |
     |           v
-    |      Direct Tensor Conversion
+    |      Direct Tensor/Array Conversion
     |
     +----> AST-Based Processor (Complex)
                 |
@@ -409,10 +291,10 @@ Type Detection (fast pattern matching)
            Tokenize -> Parse -> Optimize -> Flatten
                 |
                 v
-           Tensor Conversion
+           Tensor/Array Conversion
     |
     v
-Save as .pth files
+Save as .pth or .npz files
 ```
 
 ### Module Structure
@@ -420,6 +302,7 @@ Save as .pth files
 ```
 torchvnnlib/
 ├── __init__.py           # Public API
+├── _backend.py           # Backend abstraction (torch/numpy)
 ├── _torchvnnlib.py       # Main converter class
 ├── _to_tensor.py         # AST to tensor conversion
 ├── ast/                  # AST-based parsing
@@ -490,7 +373,9 @@ python test/test_basic.py
 - Fast type detection reduces processing time by 10-100x for common patterns
 - Parallel processing enabled by default for multi-core systems
 - `.pth` loading is orders of magnitude faster than parsing `.vnnlib`
-- Pre-allocated tensors minimize memory allocations
+- `.npz` loading is lightweight and doesn't require PyTorch
+- Pre-allocated arrays minimize memory allocations
+- NumPy backend has significantly smaller memory footprint
 
 ## Limitations
 

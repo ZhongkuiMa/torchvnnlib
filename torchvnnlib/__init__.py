@@ -1,7 +1,7 @@
-"""TorchVNNLIB: Convert VNN-LIB files to PyTorch tensors.
+"""TorchVNNLIB: Convert VNN-LIB files to PyTorch tensors or NumPy arrays.
 
 Provides conversion from VNN-LIB specification format to PyTorch tensor
-representations for neural network verification.
+or NumPy array representations for neural network verification.
 """
 
 __docformat__ = "restructuredtext"

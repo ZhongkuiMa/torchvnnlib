@@ -1,83 +1,110 @@
-"""Type3 VNN-LIB Processor: Simple inputs + OR outputs.
-
-Type3: (and ...input_constraints... (or ...output_constraints...))
-
-Simple input bounds with OR structure for outputs (multiple output options).
-Pattern: simple_in=True, simple_out=False, or_in=False, or_out=True
-"""
+"""Type3 VNN-LIB Processor: OR inputs + Simple outputs."""
 
 __docformat__ = "restructuredtext"
 __all__ = ["process_type3"]
 
 import time
 
-import torch
-from torch import Tensor
-
-from ._utils import convert_simple_input_bounds, parse_or_block
+from .._backend import Backend, TensorLike
+from ._utils import (
+    convert_simple_input_bounds,
+    parse_input_or_block,
+    parse_output_and_block,
+)
 
 
 def process_type3(
     lines: list[str],
     n_inputs: int,
     n_outputs: int,
+    backend: Backend,
     verbose: bool = False,
     parsed_data: dict | None = None,
-) -> list[list[tuple[Tensor, list[Tensor]]]]:
+) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
+    """Fast processor for Type3 VNN-LIB files.
+
+    :param lines: Preprocessed assertion lines
+    :param n_inputs: Number of input variables
+    :param n_outputs: Number of output variables
+    :param backend: Backend instance for tensor operations
+    :param verbose: Print timing information
+    :param parsed_data: Pre-parsed data from parse_simple_patterns()
+    :return: Standardized format with OR input regions
     """
-    Fast processor for Type3 VNN-LIB files.
+    t_start = time.perf_counter() if verbose else None
 
-    Type3: Simple input bounds + OR(AND) output blocks
-    Pattern: (and ...input_bounds... (or (and Y_...) (and Y_...) ...))
-
-    Args:
-        lines: Preprocessed assertion lines
-        n_inputs: Number of input variables
-        n_outputs: Number of output variables
-        verbose: Print timing information
-        parsed_data: Pre-parsed data from parse_simple_patterns() (optional)
-
-    Returns:
-        Standardized format: [[(input_bounds, [output_constr1, output_constr2, ...])]]
-        Single AND group with one property containing multiple OR output options
-    """
-    if verbose:
-        t_start = time.perf_counter()
-
-    # Use pre-parsed data if available, otherwise parse now
     if parsed_data is None:
         from ._fast_type_detect import parse_simple_patterns
 
-        t = time.perf_counter()
+        t = time.perf_counter() if verbose else None
         parsed_data = parse_simple_patterns(lines, verbose=False)
-        if verbose:
+        if verbose and t is not None:
             print(f"  Type3 parsing: {time.perf_counter() - t:.4f}s")
 
-    simple_input_bounds = parsed_data["simple_input_bounds"]
-    or_block_lines = parsed_data["complex_lines"]  # OR blocks are complex
+    simple_output_constrs = parsed_data["simple_output_constrs"]
+    simple_output_bounds = parsed_data["simple_output_bounds"]
+    or_block_lines = parsed_data["complex_lines"]
 
     if verbose:
         print(f"  Type3 processing:")
-        print(f"    Simple input bounds: {len(simple_input_bounds)}")
         print(f"    OR block lines: {len(or_block_lines)}")
 
-    # Convert simple input bounds to tensor
-    t = time.perf_counter()
-    input_bounds = convert_simple_input_bounds(simple_input_bounds, n_inputs)
-    if verbose:
-        print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
+    t = time.perf_counter() if verbose else None
+    input_bounds_list = parse_input_or_block(or_block_lines, n_inputs, backend)
+    if verbose and t is not None:
+        print(f"    Input OR block parsing: {time.perf_counter() - t:.4f}s")
+        print(f"    Extracted {len(input_bounds_list)} input regions")
 
-    # Parse OR block for output constraints
-    t = time.perf_counter()
-    output_constrs = parse_or_block(or_block_lines, n_inputs, n_outputs)
-    if verbose:
-        print(f"    OR block parsing: {time.perf_counter() - t:.4f}s")
-        print(f"    Extracted {len(output_constrs)} output constraint options")
+    t = time.perf_counter() if verbose else None
+    output_constrs_list = []
 
-    # Package in expected format: [[(input_bounds, [output_constrs])]]
-    and_properties = [[(input_bounds, output_constrs)]]
+    if simple_output_constrs:
+        output_constr = backend.zeros(
+            (len(simple_output_constrs), n_outputs + 1), dtype="float64"
+        )
+        for i, (op, _, idx1, _, idx2) in enumerate(simple_output_constrs):
+            if op == "<=":
+                output_constr[i, idx1 + 1] = -1.0
+                output_constr[i, idx2 + 1] = 1.0
+            elif op == ">=":
+                output_constr[i, idx1 + 1] = 1.0
+                output_constr[i, idx2 + 1] = -1.0
+        output_constrs_list.append(output_constr)
 
-    if verbose:
+    if simple_output_bounds:
+        n_bounds = sum(2 if op == "=" else 1 for op, _, _, _ in simple_output_bounds)
+        output_bounds = backend.zeros((n_bounds, n_outputs + 1), dtype="float64")
+        row_idx = 0
+        for op, _, idx, value in simple_output_bounds:
+            if op == "<=":
+                output_bounds[row_idx, 0] = -float(value)
+                output_bounds[row_idx, idx + 1] = 1.0
+                row_idx += 1
+            elif op == ">=":
+                output_bounds[row_idx, 0] = -float(value)
+                output_bounds[row_idx, idx + 1] = 1.0
+                row_idx += 1
+            elif op == "=":
+                output_bounds[row_idx, 0] = -float(value)
+                output_bounds[row_idx, idx + 1] = 1.0
+                row_idx += 1
+                output_bounds[row_idx, 0] = float(value)
+                output_bounds[row_idx, idx + 1] = -1.0
+                row_idx += 1
+        output_constrs_list.append(output_bounds)
+
+    if not output_constrs_list:
+        output_constrs_list = [backend.zeros((1, n_outputs + 1), dtype="float64")]
+
+    if verbose and t is not None:
+        print(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
+
+    or_properties = [
+        (input_bounds, output_constrs_list) for input_bounds in input_bounds_list
+    ]
+    and_properties = [or_properties]
+
+    if verbose and t_start is not None:
         print(f"  Type3 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties

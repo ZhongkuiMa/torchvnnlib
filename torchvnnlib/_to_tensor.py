@@ -13,20 +13,19 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
-import torch
-from torch import Tensor
-
+from ._backend import Backend, TensorLike
 from .ast import And, Or, Expr, Var, Cst, Leq, Geq, Eq, Add, Sub, Mul, Div
 
 
-def convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
+def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLike:
     """Convert input bound expressions to tensor.
 
     :param expr: AND expression containing input bound constraints
     :param n_inputs: Number of input variables
+    :param backend: Backend instance for tensor operations
     :return: Input bounds tensor of shape (n_inputs, 2)
     """
-    input_bounds = torch.full((n_inputs, 2), float("nan"), dtype=torch.float64)
+    input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
 
     for sub_expr in expr:
         if not isinstance(sub_expr, (Leq, Geq, Eq)):
@@ -45,8 +44,8 @@ def convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
         else:
             raise RuntimeError(f"Invalid expression for input bounds: {sub_expr}")
 
-    if torch.isnan(input_bounds).any():
-        nan_indices = torch.where(torch.isnan(input_bounds))
+    if backend.isnan(input_bounds).any():
+        nan_indices = backend.where(backend.isnan(input_bounds))
         indices_list = list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))
         raise ValueError(f"Missing input bounds at indices: {indices_list}")
 
@@ -54,8 +53,8 @@ def convert_input_bounds(expr: And, n_inputs: int) -> Tensor:
 
 
 def convert_linear_poly(
-    constr: Tensor, expr: Expr, y_dim: int, x_dim: int, is_add: bool = True
-) -> Tensor:
+    constr: TensorLike, expr: Expr, y_dim: int, x_dim: int, is_add: bool = True
+) -> TensorLike:
     """Convert linear polynomial expression to constraint vector.
 
     Converts expression to form b + Ax where the constraint vector has dimensions:
@@ -101,7 +100,9 @@ def convert_linear_poly(
     return constr
 
 
-def convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Tensor:
+def convert_linear_constr(
+    left: Expr, right: Expr, y_dim: int, x_dim: int, backend: Backend
+) -> TensorLike:
     """Convert linear constraint to standard form b + Ax >= 0.
 
     Handles constraints of form left <= right.
@@ -110,9 +111,10 @@ def convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Te
     :param right: Right-hand side expression
     :param y_dim: Number of output variables
     :param x_dim: Number of input variables
+    :param backend: Backend instance for tensor operations
     :return: Constraint tensor in form b + Ax >= 0
     """
-    constr = torch.zeros(y_dim + 1, dtype=torch.float64)
+    constr = backend.zeros((y_dim + 1,), dtype="float64")
 
     def _is_arithmetic(expr: Expr) -> bool:
         return isinstance(expr, (Add, Sub, Mul, Div))
@@ -131,7 +133,7 @@ def convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Te
     elif isinstance(right, Cst):
         constr[0] += right.value
     elif _is_arithmetic(right):
-        extended_constr = torch.zeros(y_dim + x_dim + 1, dtype=torch.float64)
+        extended_constr = backend.zeros((y_dim + x_dim + 1,), dtype="float64")
         extended_constr[: y_dim + 1] = constr
         constr = extended_constr
         constr = convert_linear_poly(constr, right, y_dim, x_dim)
@@ -141,7 +143,9 @@ def convert_linear_constr(left: Expr, right: Expr, y_dim: int, x_dim: int) -> Te
     return constr
 
 
-def convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Tensor:
+def convert_and_output_constrs(
+    expr: And, n_outputs: int, n_inputs: int, backend: Backend
+) -> TensorLike:
     """Convert AND output constraints to tensor.
 
     All constraints are in form b + Ax >= 0.
@@ -149,6 +153,7 @@ def convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Tens
     :param expr: AND expression containing output constraints
     :param n_outputs: Number of output variables
     :param n_inputs: Number of input variables
+    :param backend: Backend instance for tensor operations
     :return: Stacked constraint tensor
     """
     y_dim = n_outputs
@@ -161,45 +166,51 @@ def convert_and_output_constrs(expr: And, n_outputs: int, n_inputs: int) -> Tens
         right = sub_expr.right
 
         if isinstance(sub_expr, Leq):
-            constr = convert_linear_constr(left, right, y_dim, x_dim)
+            constr = convert_linear_constr(left, right, y_dim, x_dim, backend)
         elif isinstance(sub_expr, Geq):
-            constr = convert_linear_constr(left, right, y_dim, x_dim)
+            constr = convert_linear_constr(left, right, y_dim, x_dim, backend)
             constr = -constr
-            constr.masked_fill_(constr == 0.0, 0.0)
+            constr[constr == 0.0] = 0.0
         else:
             raise ValueError(f"Invalid output constraint expression: {sub_expr}")
 
         output_constrs_list.append(constr)
 
-    output_constrs = torch.stack(output_constrs_list)
+    output_constrs = backend.stack(output_constrs_list)
 
     return output_constrs
 
 
-def convert_output_constrs(expr: Or, n_outputs: int, n_inputs: int) -> list[Tensor]:
+def convert_output_constrs(
+    expr: Or, n_outputs: int, n_inputs: int, backend: Backend
+) -> list[TensorLike]:
     """Convert OR output constraints to list of tensors.
 
     :param expr: OR expression containing AND groups
     :param n_outputs: Number of output variables
     :param n_inputs: Number of input variables
+    :param backend: Backend instance for tensor operations
     :return: List of constraint tensors
     """
     or_output_constrs = []
     for and_expr in expr.args:
-        and_output_constrs = convert_and_output_constrs(and_expr, n_outputs, n_inputs)
+        and_output_constrs = convert_and_output_constrs(
+            and_expr, n_outputs, n_inputs, backend
+        )
         or_output_constrs.append(and_output_constrs)
 
     return or_output_constrs
 
 
 def convert_one_property(
-    expr: And, n_inputs: int, n_outputs: int
-) -> tuple[Tensor, list[Tensor]]:
+    expr: And, n_inputs: int, n_outputs: int, backend: Backend
+) -> tuple[TensorLike, list[TensorLike]]:
     """Convert one property to input and output constraints.
 
     :param expr: AND expression containing input bounds and output constraints
     :param n_inputs: Number of input variables
     :param n_outputs: Number of output variables
+    :param backend: Backend instance for tensor operations
     :return: Tuple of (input_bounds, output_constraints)
     """
     if not isinstance(expr, And):
@@ -208,8 +219,10 @@ def convert_one_property(
     input_bounds_expr = expr.args[0]
     output_constrs_expr = expr.args[1]
 
-    input_bounds = convert_input_bounds(input_bounds_expr, n_inputs)
-    output_constrs = convert_output_constrs(output_constrs_expr, n_outputs, n_inputs)
+    input_bounds = convert_input_bounds(input_bounds_expr, n_inputs, backend)
+    output_constrs = convert_output_constrs(
+        output_constrs_expr, n_outputs, n_inputs, backend
+    )
 
     return input_bounds, output_constrs
 
@@ -218,9 +231,10 @@ def convert_to_tensor(
     expr: And,
     n_inputs: int,
     n_outputs: int,
+    backend: Backend,
     verbose: bool = False,
     use_parallel: bool = True,
-) -> list[list[tuple[Tensor, list[Tensor]]]]:
+) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Convert expression tree to nested tensor structure.
 
     Expression hierarchy:
@@ -231,18 +245,24 @@ def convert_to_tensor(
     :param expr: Root AND expression
     :param n_inputs: Number of input variables
     :param n_outputs: Number of output variables
+    :param backend: Backend instance for tensor operations
     :param verbose: Print timing information
     :param use_parallel: Use parallel processing
     :return: Nested list of (input_bounds, output_constraints) tuples
     """
 
     def _process_or_expr(
-        or_expr: Or, n_inputs: int, n_outputs: int
-    ) -> list[tuple[Tensor, list[Tensor]]]:
+        or_expr: Or, n_inputs: int, n_outputs: int, backend: Backend
+    ) -> list[tuple[TensorLike, list[TensorLike]]]:
         if not isinstance(or_expr, Or):
             raise ValueError(f"Expected Or expression, got {type(or_expr)}")
 
-        convert = partial(convert_one_property, n_inputs=n_inputs, n_outputs=n_outputs)
+        convert = partial(
+            convert_one_property,
+            n_inputs=n_inputs,
+            n_outputs=n_outputs,
+            backend=backend,
+        )
 
         if use_parallel:
             with ThreadPoolExecutor() as executor:
@@ -253,9 +273,11 @@ def convert_to_tensor(
         return or_groups
 
     def convert_all_properties(
-        expr: And, n_inputs: int, n_outputs: int
-    ) -> list[list[tuple[Tensor, list[Tensor]]]]:
-        process = partial(_process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs)
+        expr: And, n_inputs: int, n_outputs: int, backend: Backend
+    ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
+        process = partial(
+            _process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs, backend=backend
+        )
 
         t = time.perf_counter()
         if use_parallel:
@@ -272,4 +294,4 @@ def convert_to_tensor(
 
         return and_properties
 
-    return convert_all_properties(expr, n_inputs, n_outputs)
+    return convert_all_properties(expr, n_inputs, n_outputs, backend)
