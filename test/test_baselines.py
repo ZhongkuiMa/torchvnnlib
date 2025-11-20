@@ -17,11 +17,7 @@ Usage::
 
 import os
 import shutil
-import sys
 import time
-
-# Add parent directory to path for local imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from torchvnnlib import TorchVNNLIB
 from utils import (

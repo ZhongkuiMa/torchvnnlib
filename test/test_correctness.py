@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test correctness by comparing type-based processors with AST.
 
 This script verifies that type-based optimized processors produce
@@ -10,8 +9,6 @@ import argparse
 import os
 import sys
 import time
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 import numpy as np
 

@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
 """Quick performance test for optimizations."""
 
 import os
-import sys
-import time
 import shutil
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+import time
 
 from torchvnnlib import TorchVNNLIB
 from utils import find_benchmarks_folders, find_all_vnnlib_files

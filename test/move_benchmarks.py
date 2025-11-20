@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Script to collect VNN-LIB files from VNNComp 2024 benchmark directories.
 
 This script copies VNN-LIB files from the VNNComp benchmarks directory into
@@ -6,9 +5,6 @@ a local benchmarks/ folder, organizing them into subdirectories by benchmark nam
 """
 
 import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from utils import find_benchmarks_folders, find_all_vnnlib_files
 

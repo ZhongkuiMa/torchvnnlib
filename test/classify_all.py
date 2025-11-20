@@ -1,16 +1,12 @@
-#!/usr/bin/env python3
 """Quickly classify all VNN-LIB files without full conversion.
 
 This script only performs type detection, not conversion, so it's very fast.
 """
 
 import os
-import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 from torchvnnlib.torchvnnlib.ast._preprocess import preprocess_vnnlib
 from torchvnnlib.torchvnnlib.fast_type._fast_type_detect import fast_detect_type

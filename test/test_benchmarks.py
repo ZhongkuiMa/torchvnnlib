@@ -4,19 +4,11 @@ Runs conversion on all VNNComp benchmark vnnlib files and validates results.
 """
 
 import os
-import sys
 import time
 from collections import defaultdict
 
-# Add parent directory to path for local imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
-
 from torchvnnlib import TorchVNNLIB
-from torchvnnlib.torchvnnlib.fast_type import VNNLIBType
-from utils import (
-    find_benchmarks_folders,
-    find_all_vnnlib_files,
-)
+from utils import find_benchmarks_folders, find_all_vnnlib_files
 
 if __name__ == "__main__":
     dir_name = "benchmarks"

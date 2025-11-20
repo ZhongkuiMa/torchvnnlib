@@ -5,12 +5,8 @@ __all__ = ["process_type3"]
 
 import time
 
+from ._utils import parse_input_or_block
 from .._backend import Backend, TensorLike
-from ._utils import (
-    convert_simple_input_bounds,
-    parse_input_or_block,
-    parse_output_and_block,
-)
 
 
 def process_type3(
