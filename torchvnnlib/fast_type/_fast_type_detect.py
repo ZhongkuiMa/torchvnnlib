@@ -419,8 +419,8 @@ def _classify_type_by_patterns(
 
     type_patterns = {
         (True, True, False, False, False): VNNLIBType.TYPE1,
-        (False, True, True, False, False): VNNLIBType.TYPE2,
-        (True, False, False, True, False): VNNLIBType.TYPE3,
+        (True, False, False, True, False): VNNLIBType.TYPE2,
+        (False, True, True, False, False): VNNLIBType.TYPE3,
         (False, False, True, True, False): VNNLIBType.TYPE4,
         (False, False, False, False, True): VNNLIBType.TYPE5,
     }
