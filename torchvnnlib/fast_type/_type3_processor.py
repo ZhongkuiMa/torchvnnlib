@@ -77,8 +77,8 @@ def process_type3(
                 output_bounds[row_idx, idx + 1] = 1.0
                 row_idx += 1
             elif op == ">=":
-                output_bounds[row_idx, 0] = -float(value)
-                output_bounds[row_idx, idx + 1] = 1.0
+                output_bounds[row_idx, 0] = float(value)
+                output_bounds[row_idx, idx + 1] = -1.0
                 row_idx += 1
             elif op == "=":
                 output_bounds[row_idx, 0] = -float(value)
