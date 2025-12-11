@@ -192,8 +192,8 @@ def _convert_simple_output_bounds_batched(
     row_idx = 0
     for op, var_prefix, idx, value in simple_output_bounds:
         if op == "<=":
-            constraints[row_idx, 0] = -float(value)
-            constraints[row_idx, idx + 1] = 1.0
+            constraints[row_idx, 0] = float(value)
+            constraints[row_idx, idx + 1] = -1.0
             row_idx += 1
         elif op == ">=":
             constraints[row_idx, 0] = -float(value)

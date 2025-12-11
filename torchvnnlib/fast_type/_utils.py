@@ -321,8 +321,8 @@ def parse_output_and_block(block: str, n_outputs: int, backend: Backend) -> Tens
 
         if op == "<=":
             constr_row = backend.zeros((n_outputs + 1,), dtype="float64")
-            constr_row[0] = -value
-            constr_row[idx + 1] = 1.0
+            constr_row[0] = value
+            constr_row[idx + 1] = -1.0
             constraints.append(constr_row)
         elif op == ">=":
             constr_row = backend.zeros((n_outputs + 1,), dtype="float64")
