@@ -94,12 +94,12 @@ def _flatten_and_expr(expr: And) -> Or:
                 break
 
     # Collect output constraints expressions in the Or expression
+    # Always look for OR output expressions (even if direct ones exist)
     or_output_exprs = None
-    if len(direct_output_exprs) == 0:
-        for sub_expr in expr.args:
-            if isinstance(sub_expr, Or) and sub_expr.has_output_vars:
-                or_output_exprs = sub_expr
-                break
+    for sub_expr in expr.args:
+        if isinstance(sub_expr, Or) and sub_expr.has_output_vars:
+            or_output_exprs = sub_expr
+            break
 
     if direct_input_exprs:
         input_expr_list = [And(direct_input_exprs)]
@@ -110,13 +110,16 @@ def _flatten_and_expr(expr: And) -> Or:
                 sub_expr = And(sub_expr)
             input_expr_list.append(sub_expr)
 
-    if direct_output_exprs:
+    # Handle output constraints: combine direct AND Or expressions if both exist
+    if or_output_exprs is None:
+        # Only direct output expressions
         if not isinstance(direct_output_exprs[0], And):
             output_expr = And(direct_output_exprs)
         else:
             output_expr = direct_output_exprs[0]
         output_expr_list = [Or([output_expr])]
-    else:
+    elif len(direct_output_exprs) == 0:
+        # Only Or output expressions
         new_or_output_exprs = []
         for output_expr in or_output_exprs.args:
             if not isinstance(output_expr, And):
@@ -124,6 +127,19 @@ def _flatten_and_expr(expr: And) -> Or:
             new_or_output_exprs.append(output_expr)
         or_output_exprs = new_or_output_exprs
         output_expr_list = [Or(or_output_exprs)]
+    else:
+        # Both direct AND Or output expressions exist
+        # Each Or branch must be combined with the direct constraints
+        new_or_output_exprs = []
+        for output_expr in or_output_exprs.args:
+            # Combine: direct_output_exprs AND output_expr
+            combined_args = list(direct_output_exprs)
+            if isinstance(output_expr, And):
+                combined_args.extend(output_expr.args)
+            else:
+                combined_args.append(output_expr)
+            new_or_output_exprs.append(And(combined_args))
+        output_expr_list = [Or(new_or_output_exprs)]
 
     all_or_comb = []
     for input_expr, output_expr in itertools.product(input_expr_list, output_expr_list):
