@@ -386,7 +386,7 @@ TorchVNNLIB has been tested on all VNN-COMP 2024 benchmarks:
 ### Run Tests
 
 ```bash
-cd torchvnnlib/test
+cd torchvnnlib/tests
 python test_basic.py
 ```
 
