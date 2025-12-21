@@ -1,16 +1,32 @@
 """Test correctness by comparing type-based processors with AST.
 
-This script verifies that type-based optimized processors produce
+This module verifies that type-based optimized processors produce
 identical results to the general AST-based approach.
 Supports testing both PyTorch and NumPy backends.
+
+Usage::
+
+    # Test all files with both backends
+    pytest test_correctness.py -v
+
+    # Test with specific backend
+    pytest test_correctness.py -v --backend torch
+
+    # Test sample of files
+    pytest test_correctness.py -v --sample-size 10
+
+    # Backward compatible script execution
+    python test_correctness.py --backend torch --sample-size 100
 """
 
 import argparse
 import os
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
+import pytest
 
 try:
     import torch
@@ -144,6 +160,84 @@ def compare_results(
         print(f"  All {len(type_files)} properties match exactly")
 
     return len(mismatches) == 0, mismatches
+
+
+def get_all_vnnlib_files(sample_size=None):
+    """Collect all vnnlib files for parametrized testing.
+
+    :param sample_size: Number of files to sample (None for all)
+    :return: List of vnnlib file paths
+    """
+    test_dir = Path(__file__).parent
+    benchmarks_dir = test_dir / "benchmarks"
+
+    if not benchmarks_dir.exists():
+        return []
+
+    from utils import find_benchmarks_folders, find_all_vnnlib_files
+
+    benchmark_folders = find_benchmarks_folders(str(benchmarks_dir))
+    vnnlib_files = find_all_vnnlib_files(benchmark_folders)
+
+    if sample_size:
+        import random
+
+        random.seed(42)
+        vnnlib_files = random.sample(vnnlib_files, min(sample_size, len(vnnlib_files)))
+
+    return [str(f) for f in vnnlib_files]
+
+
+@pytest.mark.parametrize("vnnlib_file", get_all_vnnlib_files())
+def test_file_correctness_parametrized(vnnlib_file, backend, torch_available):
+    """Test correctness for a single VNN-LIB file and backend.
+
+    Compares type-based (optimized) results with AST-based (known-correct) results.
+
+    :param vnnlib_file: Path to VNN-LIB file
+    :param backend: Backend to use ('torch' or 'numpy')
+    :param torch_available: Fixture indicating if torch is available
+    """
+    if backend == "torch" and not TORCH_AVAILABLE:
+        pytest.skip("PyTorch not available")
+
+    basename = os.path.basename(vnnlib_file).replace(".vnnlib", "")
+    type_path = f"/tmp/test_correctness_{basename}_type_{backend}"
+    ast_path = f"/tmp/test_correctness_{basename}_ast_{backend}"
+
+    # Convert with type-based
+    try:
+        converter_type = TorchVNNLIB(
+            verbose=False, detect_fast_type=True, output_format=backend
+        )
+        converter_type.convert(vnnlib_file, target_folder_path=type_path)
+    except Exception as e:
+        pytest.fail(f"Type-based conversion failed: {e}")
+
+    # Convert with AST
+    try:
+        converter_ast = TorchVNNLIB(
+            verbose=False, detect_fast_type=False, output_format=backend
+        )
+        converter_ast.convert(vnnlib_file, target_folder_path=ast_path)
+    except Exception as e:
+        pytest.fail(f"AST conversion failed: {e}")
+
+    # Compare results
+    all_match, mismatches = compare_results(type_path, ast_path, backend, verbose=False)
+
+    # Cleanup
+    import shutil
+
+    if os.path.exists(type_path):
+        shutil.rmtree(type_path)
+    if os.path.exists(ast_path):
+        shutil.rmtree(ast_path)
+
+    # Assert results match
+    if not all_match:
+        mismatch_str = "\n  ".join(mismatches[:3])
+        pytest.fail(f"Type-based vs AST mismatch:\n  {mismatch_str}")
 
 
 def test_file_correctness(
@@ -297,7 +391,7 @@ def test_all_benchmarks(
 
 
 def main():
-    """Main test runner."""
+    """Backward compatible entry point supporting pytest execution."""
     parser = argparse.ArgumentParser(
         description="Test TorchVNNLib correctness with different backends"
     )
@@ -324,74 +418,24 @@ def main():
         print("ERROR: PyTorch not available, cannot test torch backend")
         sys.exit(1)
 
-    try:
-        if args.vnnlib_file:
-            # Test specific file
-            print(f"Testing single file: {args.vnnlib_file}")
-            if args.backend == "both":
-                print("\n" + "=" * 70)
-                print("Testing with PyTorch backend")
-                print("=" * 70)
-                success_torch = test_file_correctness(
-                    args.vnnlib_file, backend="torch", verbose=args.verbose
-                )
+    # Build pytest arguments
+    pytest_args = [__file__, "-v"]
 
-                print("\n" + "=" * 70)
-                print("Testing with NumPy backend")
-                print("=" * 70)
-                success_numpy = test_file_correctness(
-                    args.vnnlib_file, backend="numpy", verbose=args.verbose
-                )
+    if args.verbose:
+        pytest_args.append("-s")
 
-                success = success_torch and success_numpy
-            else:
-                success = test_file_correctness(
-                    args.vnnlib_file, backend=args.backend, verbose=args.verbose
-                )
-        else:
-            # Test all benchmarks
-            if args.backend == "both":
-                print("Testing with PyTorch backend first")
-                success_torch = test_all_benchmarks(
-                    sample_size=args.sample_size,
-                    backend="torch",
-                    verbose=args.verbose,
-                )
+    if args.backend != "both":
+        pytest_args.append(f"--backend={args.backend}")
 
-                print("\n" + "=" * 70)
-                print("Testing with NumPy backend")
-                print("=" * 70)
-                success_numpy = test_all_benchmarks(
-                    sample_size=args.sample_size,
-                    backend="numpy",
-                    verbose=args.verbose,
-                )
+    if args.sample_size:
+        pytest_args.append(f"--sample-size={args.sample_size}")
 
-                success = success_torch and success_numpy
-            else:
-                success = test_all_benchmarks(
-                    sample_size=args.sample_size,
-                    backend=args.backend,
-                    verbose=args.verbose,
-                )
+    if args.vnnlib_file:
+        # Filter to specific file
+        basename = os.path.basename(args.vnnlib_file).replace(".vnnlib", "")
+        pytest_args.append(f"-k {basename}")
 
-        if success:
-            print("\n" + "=" * 70)
-            print("SUCCESS: All tests passed")
-            print("=" * 70)
-            sys.exit(0)
-        else:
-            print("\n" + "=" * 70)
-            print("FAILURE: Some tests failed")
-            print("=" * 70)
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"\nERROR: Test failed with error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    sys.exit(pytest.main(pytest_args))
 
 
 if __name__ == "__main__":

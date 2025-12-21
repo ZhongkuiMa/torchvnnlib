@@ -1,62 +1,89 @@
 """VNNComp Benchmark Test Runner for TorchVNNLib.
 
 Runs conversion on all VNNComp benchmark vnnlib files and validates results.
+
+Usage::
+
+    # Run all benchmarks
+    pytest test_benchmarks.py -v -s
+
+    # Run specific benchmark
+    pytest test_benchmarks.py::test_benchmark_conversion -k acasxu -v -s
+
+    # Backward compatible script execution
+    python test_benchmarks.py
 """
 
 import os
+import sys
 import time
 from collections import defaultdict
+from pathlib import Path
+
+import pytest
 
 from torchvnnlib import TorchVNNLIB
 from utils import find_benchmarks_folders, find_all_vnnlib_files
 
-if __name__ == "__main__":
-    dir_name = "benchmarks"
 
-    benchmark_dirs = find_benchmarks_folders(dir_name)
-    print(f"Found {len(benchmark_dirs)} benchmark directories")
-    vnnlib_paths = find_all_vnnlib_files(benchmark_dirs)
-    print(f"Total files: {len(vnnlib_paths)}")
-    print("=" * 70)
+def get_all_benchmarks():
+    """Collect all benchmark directories for parametrization.
 
-    # Uncomment to test specific files
-    # vnnlib_paths = [
-    #     "benchmarks/acasxu/prop_6.vnnlib"
-    # ]
+    :return: List of benchmark directory paths
+    """
+    test_dir = Path(__file__).parent
+    benchmarks_dir = test_dir / "benchmarks"
 
-    failed_vnnlib_paths = []
-    verbose = False
+    if not benchmarks_dir.exists():
+        return []
 
-    success_count = 0
-    total_count = 0
+    benchmark_dirs = find_benchmarks_folders(str(benchmarks_dir))
+    return [str(b) for b in benchmark_dirs]
+
+
+# Global statistics for session summary
+_benchmark_stats = defaultdict(
+    lambda: {
+        "total": 0,
+        "success": 0,
+        "total_time": 0.0,
+        "type_counts": defaultdict(int),
+        "fast_type_counts": defaultdict(int),
+    }
+)
+_overall_stats = {"success_count": 0, "total_count": 0, "overall_time": 0.0}
+
+
+@pytest.mark.parametrize("benchmark_dir", get_all_benchmarks())
+def test_benchmark_conversion(benchmark_dir, test_dir):
+    """Test conversion for one benchmark directory.
+
+    :param benchmark_dir: Path to benchmark directory
+    :param test_dir: Test directory fixture
+    """
+    benchmark_name = Path(benchmark_dir).name
+    vnnlib_files = find_all_vnnlib_files([benchmark_dir])
+
+    if not vnnlib_files:
+        pytest.skip(f"No vnnlib files found in {benchmark_name}")
+
+    print(f"\n{'=' * 80}")
+    print(f"BENCHMARK: {benchmark_name}")
+    print(f"Files: {len(vnnlib_files)}")
+    print(f"{'=' * 80}")
+
     converter = TorchVNNLIB()
+    success_count = 0
+    failed = []
 
-    # Track statistics by benchmark
-    benchmark_stats = defaultdict(
-        lambda: {
-            "total": 0,
-            "success": 0,
-            "total_time": 0.0,
-            "type_counts": defaultdict(int),
-            "fast_type_counts": defaultdict(int),
-        }
-    )
+    bench_start = time.perf_counter()
 
-    overall_start_time = time.perf_counter()
-
-    for i, vnnlib_path in enumerate(vnnlib_paths):
-        # Get benchmark name from path
-        benchmark_name = (
-            vnnlib_path.split(os.sep)[1] if os.sep in vnnlib_path else "unknown"
-        )
-
-        print(f"[{i+1}/{len(vnnlib_paths)}] ", end="", flush=True)
-        time_start = time.perf_counter()
+    for i, vnnlib_path in enumerate(vnnlib_files, 1):
+        file_start = time.perf_counter()
 
         try:
-            success = False
-            # Convert to temporary output folder (will be cleaned up)
-            output_folder = f"_temp_test_output_{i}"
+            # Convert to temporary output folder
+            output_folder = f"_temp_test_output_{benchmark_name}_{i}"
             converter.convert(vnnlib_path, target_folder_path=output_folder)
 
             # Clean up temporary output
@@ -65,52 +92,69 @@ if __name__ == "__main__":
             if os.path.exists(output_folder):
                 shutil.rmtree(output_folder)
 
-            success = True
             success_count += 1
 
             # Collect statistics
             if vnnlib_path in converter.conversion_stats:
                 stats = converter.conversion_stats[vnnlib_path]
-                benchmark_stats[benchmark_name]["total"] += 1
-                benchmark_stats[benchmark_name]["success"] += 1
-                benchmark_stats[benchmark_name]["total_time"] += stats["time"]
-                benchmark_stats[benchmark_name]["type_counts"][stats["type"].name] += 1
+                _benchmark_stats[benchmark_name]["success"] += 1
+                _benchmark_stats[benchmark_name]["total_time"] += stats["time"]
+                _benchmark_stats[benchmark_name]["type_counts"][stats["type"].name] += 1
                 if stats["used_fast"]:
-                    benchmark_stats[benchmark_name]["fast_type_counts"][
+                    _benchmark_stats[benchmark_name]["fast_type_counts"][
                         stats["type"].name
                     ] += 1
 
+            elapsed = time.perf_counter() - file_start
+            print(f"  [{i}/{len(vnnlib_files)}] OK ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
+
         except Exception as e:
-            failed_vnnlib_paths.append(vnnlib_path)
-            benchmark_stats[benchmark_name]["total"] += 1
-            success = False
-            # raise e  # Uncomment to stop on first error
+            failed.append(os.path.basename(vnnlib_path))
+            elapsed = time.perf_counter() - file_start
+            print(f"  [{i}/{len(vnnlib_files)}] FAILED ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}: {e}")
 
-        elapsed = time.perf_counter() - time_start
-        if success:
-            print(f"OK ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
-        else:
-            print(f"FAILED ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
-        total_count += 1
+        _benchmark_stats[benchmark_name]["total"] += 1
 
-    overall_elapsed = time.perf_counter() - overall_start_time
+    bench_elapsed = time.perf_counter() - bench_start
+    _overall_stats["success_count"] += success_count
+    _overall_stats["total_count"] += len(vnnlib_files)
+    _overall_stats["overall_time"] += bench_elapsed
 
-    if failed_vnnlib_paths:
-        print(f"\n{len(failed_vnnlib_paths)} failed files:")
-        for f in failed_vnnlib_paths:
-            print(f"  {f}")
+    # Print summary for this benchmark
+    total = _benchmark_stats[benchmark_name]["total"]
+    print(f"\n  Success: {success_count}/{total}")
+    print(f"  Total time: {bench_elapsed:.2f}s")
+    print(f"  Average time: {bench_elapsed/total:.4f}s per file")
 
-    print(f"\nConversion complete: {success_count}/{total_count} succeeded")
-    print(f"Total time: {overall_elapsed:.2f}s")
-    print(f"Average time: {overall_elapsed/total_count:.4f}s per file")
+    # Print type distribution
+    type_counts = _benchmark_stats[benchmark_name]["type_counts"]
+    fast_counts = _benchmark_stats[benchmark_name]["fast_type_counts"]
+    if type_counts:
+        print(f"  Type distribution:")
+        for type_name in sorted(type_counts.keys()):
+            count = type_counts[type_name]
+            fast_count = fast_counts.get(type_name, 0)
+            fast_rate = 100.0 * fast_count / count if count > 0 else 0
+            print(
+                f"    {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)"
+            )
 
-    # Print detailed statistics by benchmark
-    print("\n" + "=" * 80)
+    assert success_count > 0 or not vnnlib_files, f"No files converted in {benchmark_name}"
+    if failed:
+        print(f"\n  Failed files: {', '.join(failed[:3])}")
+
+
+def print_summary():
+    """Print summary statistics for all benchmarks."""
+    if not _benchmark_stats:
+        return
+
+    print(f"\n{'=' * 80}")
     print("BENCHMARK ANALYSIS - Fast Type Usage")
-    print("=" * 80)
+    print(f"{'=' * 80}")
 
-    for benchmark_name in sorted(benchmark_stats.keys()):
-        stats = benchmark_stats[benchmark_name]
+    for benchmark_name in sorted(_benchmark_stats.keys()):
+        stats = _benchmark_stats[benchmark_name]
         print(f"\n{benchmark_name}:")
         print(f"  Total files: {stats['total']}")
         print(f"  Success: {stats['success']}")
@@ -125,12 +169,12 @@ if __name__ == "__main__":
             )
 
     # Overall summary
-    print("\n" + "=" * 80)
+    print(f"\n{'=' * 80}")
     print("OVERALL SUMMARY")
-    print("=" * 80)
+    print(f"{'=' * 80}")
     total_by_type = defaultdict(int)
     total_fast_by_type = defaultdict(int)
-    for stats in benchmark_stats.values():
+    for stats in _benchmark_stats.values():
         for type_name, count in stats["type_counts"].items():
             total_by_type[type_name] += count
             total_fast_by_type[type_name] += stats["fast_type_counts"].get(type_name, 0)
@@ -143,3 +187,18 @@ if __name__ == "__main__":
         print(
             f"  {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)"
         )
+
+    if _overall_stats["total_count"] > 0:
+        print(f"\nTotal conversion time: {_overall_stats['overall_time']:.2f}s")
+        print(f"Average time: {_overall_stats['overall_time']/_overall_stats['total_count']:.4f}s per file")
+        print(f"Overall success: {_overall_stats['success_count']}/{_overall_stats['total_count']}")
+
+
+def main():
+    """Backward compatible entry point supporting pytest execution."""
+    pytest_args = [__file__, "-v", "-s"]
+    sys.exit(pytest.main(pytest_args))
+
+
+if __name__ == "__main__":
+    main()

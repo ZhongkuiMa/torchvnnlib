@@ -5,19 +5,24 @@ Each vnnlib file is converted to a folder structure containing .pth files.
 
 Usage::
 
-    # Create/update baseline for one vnnlib file
-    update_baseline("path/to/property.vnnlib")
+    # Verify baselines (default, safe, read-only)
+    pytest test_baselines.py -v
 
-    # Compare one vnnlib file against baseline
-    compare_baseline("path/to/property.vnnlib")
+    # Update baselines (requires explicit marker)
+    pytest test_baselines.py -v -m update
 
-    # Batch: Create baselines for all benchmarks
-    update_all_benchmarks()
+    # Backward compatible script execution
+    python test_baselines.py           # verify (default)
+    python test_baselines.py update    # update
 """
 
 import os
 import shutil
+import sys
 import time
+from pathlib import Path
+
+import pytest
 
 from torchvnnlib import TorchVNNLIB
 from utils import (
@@ -253,22 +258,119 @@ def verify_all_benchmarks(
             print(f"  {os.path.basename(f)}")
 
 
-if __name__ == "__main__":
-    import sys
+def get_all_benchmarks():
+    """Collect all benchmark names for parametrization.
 
-    # Check command line argument
-    if len(sys.argv) > 1 and sys.argv[1] == "update":
-        # Update baselines
-        update_all_benchmarks(
-            benchmarks_dir="benchmarks",
-            baselines_dir="baselines",
-            max_per_benchmark=20,
-        )
+    :return: List of benchmark names
+    """
+    test_dir = Path(__file__).parent
+    benchmarks_dir = test_dir / "benchmarks"
+    if not benchmarks_dir.exists():
+        return []
+
+    benchmarks = find_benchmarks_folders(str(benchmarks_dir))
+    return [Path(b).name for b in benchmarks]
+
+
+@pytest.mark.parametrize("benchmark_name", get_all_benchmarks())
+@pytest.mark.update
+def test_update_baseline(benchmark_name, test_dir, baselines_dir):
+    """Update baseline for one benchmark.
+
+    NOTE: This test is NOT run by default. It must be explicitly invoked:
+      pytest test_baselines.py -v -m update
+      OR: python test_baselines.py update
+
+    :param benchmark_name: Name of benchmark (from parametrize)
+    :param test_dir: Test directory fixture
+    :param baselines_dir: Baselines directory fixture
+    """
+    vnnlib_files = find_all_vnnlib_files(
+        [str(test_dir / "benchmarks" / benchmark_name)],
+        num_limit=20
+    )
+
+    if not vnnlib_files:
+        pytest.skip(f"No vnnlib files found in {benchmark_name}")
+
+    success = 0
+    failed = []
+
+    for vnnlib_path in vnnlib_files:
+        try:
+            update_baseline(vnnlib_path, str(baselines_dir))
+            success += 1
+        except Exception as e:
+            failed.append((vnnlib_path, str(e)))
+
+    assert success > 0, f"No baselines updated for {benchmark_name}"
+    if failed:
+        # Log failures but don't fail the test if at least some succeeded
+        print(f"\nWarning: {len(failed)} files failed to update")
+
+
+@pytest.mark.parametrize("benchmark_name", get_all_benchmarks())
+def test_verify_baseline(benchmark_name, test_dir, baselines_dir, results_dir):
+    """Verify results against baseline for one benchmark.
+
+    This is the DEFAULT test - runs with normal `pytest` command.
+
+    :param benchmark_name: Name of benchmark (from parametrize)
+    :param test_dir: Test directory fixture
+    :param baselines_dir: Baselines directory fixture
+    :param results_dir: Results directory fixture
+    """
+    vnnlib_files = find_all_vnnlib_files(
+        [str(test_dir / "benchmarks" / benchmark_name)],
+        num_limit=20
+    )
+
+    if not vnnlib_files:
+        pytest.skip(f"No vnnlib files found in {benchmark_name}")
+
+    passed = 0
+    failed = []
+    missing = []
+
+    for vnnlib_path in vnnlib_files:
+        baseline_path = get_baseline_path(vnnlib_path, str(baselines_dir))
+        if not os.path.exists(baseline_path):
+            missing.append(os.path.basename(vnnlib_path))
+            continue
+
+        try:
+            if compare_baseline(vnnlib_path, str(baselines_dir), str(results_dir)):
+                passed += 1
+            else:
+                failed.append(os.path.basename(vnnlib_path))
+        except Exception as e:
+            failed.append(f"{os.path.basename(vnnlib_path)} (ERROR: {e})")
+
+    # Skip if no baselines exist for this benchmark
+    if not passed and not failed:
+        if missing:
+            pytest.skip(f"No baselines found for {benchmark_name}")
+
+    # Assert that verification passed
+    if failed:
+        assert False, f"Baseline mismatches for {benchmark_name}: {', '.join(failed[:3])}"
+
+    assert passed > 0 or len(missing) > 0, f"No tests run for {benchmark_name}"
+
+
+def main():
+    """Backward compatible entry point supporting both pytest and script execution."""
+    mode = sys.argv[1] if len(sys.argv) > 1 else "verify"
+
+    if mode == "update":
+        # Run update tests (explicitly marked)
+        pytest_args = [__file__, "-v", "-m", "update"]
     else:
-        # Verify baselines (default)
-        verify_all_benchmarks(
-            benchmarks_dir="benchmarks",
-            baselines_dir="baselines",
-            results_dir="results",
-            max_per_benchmark=20,
-        )
+        # Run verify tests (default - excludes update marker)
+        pytest_args = [__file__, "-v"]
+
+    sys.exit(pytest.main(pytest_args))
+
+
+if __name__ == "__main__":
+    main()

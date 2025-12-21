@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 import numpy as np
+import pytest
 
 try:
     import torch
@@ -99,15 +100,16 @@ def arrays_close(arr1, arr2, rtol=1e-5):
         return np.allclose(np.array(arr1), np.array(arr2), rtol=rtol)
 
 
-def test_basic_conversion(backend="torch"):
+def test_basic_conversion(backend, torch_available):
     """Test basic vnnlib conversion.
 
+    Parametrized test that runs for both torch and numpy backends.
+
     :param backend: Backend to use ('torch' or 'numpy')
-    :return: True if test passes
+    :param torch_available: Fixture indicating if torch is available
     """
     if backend == "torch" and not TORCH_AVAILABLE:
-        print("WARNING: PyTorch not available, skipping torch backend test")
-        return True
+        pytest.skip("PyTorch not available")
 
     print(f"\n{'='*60}")
     print(f"Testing with backend: {backend.upper()}")
@@ -195,7 +197,6 @@ def test_basic_conversion(backend="torch"):
         print(f"OK: Input bounds correct for sub_prop_1")
 
         print(f"\nAll assertions passed for {backend} backend!")
-        return True
 
     finally:
         print(f"\nCleaning up temporary files...")
@@ -204,7 +205,10 @@ def test_basic_conversion(backend="torch"):
 
 
 def main():
-    """Main test runner."""
+    """Main test runner - backward compatible entry point.
+
+    Converts command-line arguments to pytest arguments and runs tests.
+    """
     parser = argparse.ArgumentParser(
         description="Test TorchVNNLib with different backends"
     )
@@ -216,32 +220,11 @@ def main():
     )
     args = parser.parse_args()
 
-    try:
-        if args.backend == "both":
-            print("Testing both PyTorch and NumPy backends")
-            success_torch = test_basic_conversion("torch")
-            success_numpy = test_basic_conversion("numpy")
-            success = success_torch and success_numpy
-        else:
-            success = test_basic_conversion(args.backend)
+    pytest_args = [__file__, "-v", "-s"]
+    if args.backend != "both":
+        pytest_args.append(f"--backend={args.backend}")
 
-        if success:
-            print("\n" + "=" * 60)
-            print("SUCCESS: All tests passed")
-            print("=" * 60)
-            sys.exit(0)
-        else:
-            print("\n" + "=" * 60)
-            print("FAILURE: Some tests failed")
-            print("=" * 60)
-            sys.exit(1)
-
-    except Exception as e:
-        print(f"\nERROR: Test failed with error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    sys.exit(pytest.main(pytest_args))
 
 
 if __name__ == "__main__":
