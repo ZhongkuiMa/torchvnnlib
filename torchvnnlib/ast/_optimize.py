@@ -3,10 +3,23 @@ __all__ = ["optimize"]
 
 import re
 import warnings
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
+from typing import cast
 
-from ._expr import *
+from torchvnnlib.torchvnnlib.ast._expr import (
+    And,
+    BinaryOp,
+    Cst,
+    Eq,
+    Expr,
+    Geq,
+    Leq,
+    NaryOp,
+    Or,
+    UnaryOp,
+    Var,
+)
 
 # Pre-compile regex patterns for performance
 VAR_LETTER_PATTERN = re.compile(r"([XY])")
@@ -26,24 +39,32 @@ def _else_recursion(expr: Expr, func: Callable) -> Expr:
 
 
 def _remove_single_and_or(expr: Expr) -> Expr:
-    """
-    Remove single and from the expression tree.
-    """
-
-    if isinstance(expr, And) or isinstance(expr, Or):
+    """Remove single and from the expression tree."""
+    if isinstance(expr, (And, Or)):
         if len(expr.args) == 1 and not expr.args[0].has_output_vars:
             return expr.args[0]
-        else:
-            for i in range(len(expr.args)):
-                expr.args[i] = _remove_single_and_or(expr.args[i])
+        for i in range(len(expr.args)):
+            expr.args[i] = _remove_single_and_or(expr.args[i])
 
     return _else_recursion(expr, _remove_single_and_or)
 
 
+def _combine_leq_geq_pairs(leq_pairs: dict, geq_pairs: dict) -> tuple[list[Expr], set]:
+    """Combine matching Leq and Geq pairs into Eq expressions."""
+    combined: list[Expr] = []
+    used = set()
+    for key, le_expr in leq_pairs.items():
+        if key in geq_pairs:
+            combined.append(Eq(le_expr.left, le_expr.right))
+            used.add(key)
+    return combined, used
+
+
 def _simplify_leqgeq(expr: Expr) -> Expr:
-    """
-    If there is "a <= b" and "b <= a" in the same level of an and operation, remove one
-    of them, then combine them into a single expression as a == b.
+    """Simplify <= and >= pairs into == when both are present.
+
+    If there is "a <= b" and "b <= a" in the same level of an and operation,
+    remove one and combine them into a single expression as a == b.
     """
     if not isinstance(expr, And):
         return _else_recursion(expr, _simplify_leqgeq)
@@ -54,30 +75,21 @@ def _simplify_leqgeq(expr: Expr) -> Expr:
 
     for arg in expr.args:
         if isinstance(arg, Leq):
-            # Use expression objects directly as key instead of converting to string
             key = (arg.left, arg.right)
             leq_pairs[key] = arg
         elif isinstance(arg, Geq):
-            # Use expression objects directly as key instead of converting to string
             key = (arg.left, arg.right)
             geq_pairs[key] = arg
         else:
             simplified_args.append(_simplify_leqgeq(arg))
 
     # Combine matching Le and Ge into Eq
-    used = set()
-    for key, le_expr in leq_pairs.items():
-        if key in geq_pairs:
-            simplified_args.append(Eq(le_expr.left, le_expr.right))
-            used.add(key)
+    combined, used = _combine_leq_geq_pairs(leq_pairs, geq_pairs)
+    simplified_args.extend(combined)
 
     # Add remaining Le/Ge that weren't combined
-    for k, v in leq_pairs.items():
-        if k not in used:
-            simplified_args.append(v)
-    for k, v in geq_pairs.items():
-        if k not in used:
-            simplified_args.append(v)
+    simplified_args.extend(v for k, v in leq_pairs.items() if k not in used)
+    simplified_args.extend(v for k, v in geq_pairs.items() if k not in used)
 
     return And(simplified_args)
 
@@ -97,6 +109,7 @@ def _get_priority(var: Var) -> int | float:
         warnings.warn(
             "The number in the variable name is greater than 10000. This will result "
             "in incorrect sorting when printing.",
+            stacklevel=2,
         )
     priority += var.index
 
@@ -104,14 +117,14 @@ def _get_priority(var: Var) -> int | float:
 
 
 def _sort_vars_in_expr(expr: Expr) -> Expr:
-    """
-    Sort the variables in the expression based on the number in Var's name.
+    """Sort the variables in the expression based on the number in Var's name.
+
     If nested structures are found, use the first encountered Var.
     """
     if isinstance(expr, NaryOp):
         # Recursively sort all arguments
         expr.args = [_sort_vars_in_expr(arg) for arg in expr.args]
-        expr.args = sorted(expr.args, key=lambda x: _get_priority(x))
+        expr.args = sorted(expr.args, key=lambda x: _get_priority(cast(Var, x)))  # type: ignore[arg-type]
         return expr
 
     return _else_recursion(expr, _sort_vars_in_expr)
@@ -137,13 +150,14 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
         return epr
 
     t = time.perf_counter()
+    nary_expr = cast(NaryOp, expr)  # Type narrowed by isinstance checks above
     if use_parallel:
         with ThreadPoolExecutor() as executor:
-            expr_list = list(executor.map(simplify, expr.args))
+            expr_list = list(executor.map(simplify, nary_expr.args))
         if verbose:
             print(f"    - Simplify (parallel): {time.perf_counter() - t:.4f}s")
     else:
-        expr_list = [simplify(arg) for arg in expr.args]
+        expr_list = [simplify(arg) for arg in nary_expr.args]
         if verbose:
             print(f"    - Simplify (sequential): {time.perf_counter() - t:.4f}s")
 

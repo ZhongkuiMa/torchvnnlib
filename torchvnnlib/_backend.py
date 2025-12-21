@@ -8,23 +8,23 @@ __docformat__ = "restructuredtext"
 __all__ = ["Backend", "TorchBackend", "NumpyBackend", "get_backend", "TensorLike"]
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeAlias
+
+import numpy as np
 
 try:
     import torch
 
     TORCH_AVAILABLE = True
-    TensorLike = torch.Tensor | Any  # Any for numpy when torch unavailable
 except ImportError:
     TORCH_AVAILABLE = False
-    TensorLike = Any
+    torch = None  # type: ignore[assignment]
 
-import numpy as np
-
-if TORCH_AVAILABLE:
-    TensorLike = torch.Tensor | np.ndarray[Any, Any]
+# TensorLike union type - supports both torch.Tensor and np.ndarray
+if TYPE_CHECKING:
+    TensorLike: TypeAlias = torch.Tensor | np.ndarray[Any, Any]  # type: ignore[name-defined]
 else:
-    TensorLike = np.ndarray[Any, Any]
+    TensorLike: TypeAlias = Any  # Runtime: use Any for compatibility
 
 
 class Backend(ABC):
@@ -38,12 +38,9 @@ class Backend(ABC):
         :param dtype: Data type
         :return: Zero-filled array
         """
-        pass
 
     @abstractmethod
-    def full(
-        self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64"
-    ) -> TensorLike:
+    def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         """Create array filled with value.
 
         :param shape: Shape of the array
@@ -51,7 +48,6 @@ class Backend(ABC):
         :param dtype: Data type
         :return: Filled array
         """
-        pass
 
     @abstractmethod
     def tensor(self, data: list | Any, dtype: str = "float64") -> TensorLike:
@@ -61,7 +57,6 @@ class Backend(ABC):
         :param dtype: Data type
         :return: Array
         """
-        pass
 
     @abstractmethod
     def stack(self, arrays: list[TensorLike], axis: int = 0) -> TensorLike:
@@ -71,7 +66,6 @@ class Backend(ABC):
         :param axis: Axis to stack along
         :return: Stacked array
         """
-        pass
 
     @abstractmethod
     def isnan(self, arr: TensorLike) -> TensorLike:
@@ -80,7 +74,6 @@ class Backend(ABC):
         :param arr: Input array
         :return: Boolean array
         """
-        pass
 
     @abstractmethod
     def where(self, condition: TensorLike) -> tuple[TensorLike, ...]:
@@ -89,7 +82,6 @@ class Backend(ABC):
         :param condition: Boolean array
         :return: Tuple of indices
         """
-        pass
 
     @abstractmethod
     def save(self, data: dict[str, Any], file_path: str) -> None:
@@ -98,7 +90,6 @@ class Backend(ABC):
         :param data: Data dictionary
         :param file_path: Output file path
         """
-        pass
 
     @property
     @abstractmethod
@@ -107,7 +98,6 @@ class Backend(ABC):
 
         :return: Name of the backend
         """
-        pass
 
     @property
     @abstractmethod
@@ -116,7 +106,6 @@ class Backend(ABC):
 
         :return: File extension
         """
-        pass
 
 
 class TorchBackend(Backend):
@@ -130,9 +119,7 @@ class TorchBackend(Backend):
         }
         return torch.zeros(shape, dtype=dtype_map.get(dtype, torch.float64))
 
-    def full(
-        self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64"
-    ) -> TensorLike:
+    def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         dtype_map = {
             "float64": torch.float64,
             "float32": torch.float32,
@@ -149,13 +136,17 @@ class TorchBackend(Backend):
         return torch.tensor(data, dtype=dtype_map.get(dtype, torch.float64))
 
     def stack(self, arrays: list[TensorLike], axis: int = 0) -> TensorLike:
-        return torch.stack(arrays, dim=axis)
+        return torch.stack(
+            [a if isinstance(a, torch.Tensor) else torch.tensor(a) for a in arrays], dim=axis
+        )  # type: ignore[arg-type]
 
     def isnan(self, arr: TensorLike) -> TensorLike:
-        return torch.isnan(arr)
+        tensor = arr if isinstance(arr, torch.Tensor) else torch.tensor(arr)
+        return torch.isnan(tensor)  # type: ignore[arg-type]
 
     def where(self, condition: TensorLike) -> tuple[TensorLike, ...]:
-        return torch.where(condition)
+        tensor = condition if isinstance(condition, torch.Tensor) else torch.tensor(condition)
+        return torch.where(tensor)  # type: ignore[arg-type]
 
     def save(self, data: dict[str, Any], file_path: str) -> None:
         torch.save(data, file_path)
@@ -175,9 +166,7 @@ class NumpyBackend(Backend):
     def zeros(self, shape: tuple[int, ...], dtype: str = "float64") -> TensorLike:
         return np.zeros(shape, dtype=dtype)
 
-    def full(
-        self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64"
-    ) -> TensorLike:
+    def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         return np.full(shape, fill_value, dtype=dtype)
 
     def tensor(self, data: list | Any, dtype: str = "float64") -> TensorLike:
@@ -213,10 +202,10 @@ def get_backend(backend_name: str = "torch") -> Backend:
     if backend_name == "torch":
         if not TORCH_AVAILABLE:
             raise ImportError(
-                "PyTorch is not installed. Install it with 'pip install torch' or use backend='numpy'"
+                "PyTorch is not installed. Install it with "
+                "'pip install torch' or use backend='numpy'"
             )
         return TorchBackend()
-    elif backend_name == "numpy":
+    if backend_name == "numpy":
         return NumpyBackend()
-    else:
-        raise ValueError(f"Unknown backend: {backend_name}. Use 'torch' or 'numpy'")
+    raise ValueError(f"Unknown backend: {backend_name}. Use 'torch' or 'numpy'")

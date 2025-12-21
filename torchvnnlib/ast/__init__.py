@@ -29,26 +29,26 @@ __all__ = [
     "tokenize",
 ]
 
-from ._expr import (
-    Expr,
-    Cst,
-    Var,
-    UnaryOp,
-    BinaryOp,
-    NaryOp,
+from torchvnnlib.torchvnnlib.ast._expr import (
     Add,
-    Sub,
-    Mul,
+    And,
+    BinaryOp,
+    Cst,
     Div,
     Eq,
-    Leq,
+    Expr,
     Geq,
-    And,
+    Leq,
+    Mul,
+    NaryOp,
     Or,
+    Sub,
+    UnaryOp,
+    Var,
 )
-from ._flatten import flatten
-from ._optimize import optimize
-from ._parse import parse
-from ._preprocess import preprocess_vnnlib
-from ._print import print_expr
-from ._tokenize import tokenize
+from torchvnnlib.torchvnnlib.ast._flatten import flatten
+from torchvnnlib.torchvnnlib.ast._optimize import optimize
+from torchvnnlib.torchvnnlib.ast._parse import parse
+from torchvnnlib.torchvnnlib.ast._preprocess import preprocess_vnnlib
+from torchvnnlib.torchvnnlib.ast._print import print_expr
+from torchvnnlib.torchvnnlib.ast._tokenize import tokenize

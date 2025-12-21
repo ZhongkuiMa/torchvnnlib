@@ -1,15 +1,25 @@
 __docformat__ = "restructuredtext"
 __all__ = ["TorchVNNLIB"]
 
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from pathlib import Path
+from typing import cast
 
-from ._backend import Backend, get_backend, TensorLike
-from ._to_tensor import convert_to_tensor
-from .ast import preprocess_vnnlib, tokenize, parse, optimize, flatten
-from .fast_type import (
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike, get_backend
+from torchvnnlib.torchvnnlib._to_tensor import convert_to_tensor
+from torchvnnlib.torchvnnlib.ast import (
+    And,
+    Or,
+    flatten,
+    optimize,
+    parse,
+    preprocess_vnnlib,
+    tokenize,
+)
+from torchvnnlib.torchvnnlib.fast_type import (
+    VNNLIBType,
     fast_detect_type,
     parse_simple_patterns,
     process_type1,
@@ -17,7 +27,6 @@ from .fast_type import (
     process_type3,
     process_type4,
     process_type5,
-    VNNLIBType,
 )
 
 
@@ -36,12 +45,12 @@ def _save_property_file(
     """
     for j, and_property in enumerate(or_properties):
         if verbose:
-            print(f"Converting {j+1}/{len(or_properties)} properties")
+            print(f"Converting {j + 1}/{len(or_properties)} properties")
 
         input_bounds, output_constrs = and_property
         data = {"input": input_bounds, "output": output_constrs}
         file_name = f"sub_prop_{j}{backend.file_extension}"
-        file_path = os.path.join(or_folder_path, file_name)
+        file_path = str(Path(or_folder_path) / file_name)
         backend.save(data, file_path)
 
 
@@ -61,15 +70,16 @@ def _write_property(
     :param verbose: Print progress messages
     """
     if target_folder_path is None:
-        target_folder_path = vnnlib_path.replace(".vnnlib", "")
+        target_folder_path = str(Path(vnnlib_path).with_suffix(""))
 
-    os.makedirs(target_folder_path, exist_ok=True)
+    target_path = Path(target_folder_path)
+    target_path.mkdir(parents=True, exist_ok=True)
 
     or_folder_paths = []
-    for i, or_properties in enumerate(and_properties):
-        or_folder_path = os.path.join(target_folder_path, f"or_group_{i}")
+    for i, _or_properties in enumerate(and_properties):
+        or_folder_path = str(target_path / f"or_group_{i}")
         or_folder_paths.append(or_folder_path)
-        os.makedirs(or_folder_path, exist_ok=True)
+        Path(or_folder_path).mkdir(parents=True, exist_ok=True)
 
     save = partial(_save_property_file, backend=backend, verbose=verbose)
     with ThreadPoolExecutor() as executor:
@@ -100,6 +110,54 @@ class TorchVNNLIB:
         self.backend = get_backend(output_format)
         self.conversion_stats: dict[str, dict] = {}
 
+    def _process_type1(
+        self, lines: list[str], n_inputs: int, n_outputs: int, t: float
+    ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
+        """Process TYPE1 VNNLIB."""
+        parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
+        and_properties = process_type1(
+            parsed_data["simple_input_bounds"],
+            parsed_data["simple_output_constrs"],
+            parsed_data["complex_lines"],
+            n_inputs,
+            n_outputs,
+            self.backend,
+            verbose=self.verbose,
+            simple_output_bounds=parsed_data["simple_output_bounds"],
+        )
+        if self.verbose:
+            print(f"Type1 processing: {time.perf_counter() - t:.4f}s")
+        return and_properties
+
+    def _process_type234(
+        self,
+        processor_func,
+        lines: list[str],
+        n_inputs: int,
+        n_outputs: int,
+        type_name: str,
+        t: float,
+        use_parsed_data: bool = False,
+    ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
+        """Process TYPE2, TYPE3, or TYPE4 VNNLIB."""
+        if use_parsed_data:
+            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
+            and_properties = processor_func(
+                lines,
+                n_inputs,
+                n_outputs,
+                self.backend,
+                verbose=self.verbose,
+                parsed_data=parsed_data,
+            )
+        else:
+            and_properties = processor_func(
+                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
+            )
+        if self.verbose:
+            print(f"{type_name} processing: {time.perf_counter() - t:.4f}s")
+        return and_properties
+
     def _process_by_type(
         self,
         vnnlib_type: VNNLIBType,
@@ -107,80 +165,67 @@ class TorchVNNLIB:
         n_inputs: int,
         n_outputs: int,
     ) -> list[list[tuple[TensorLike, list[TensorLike]]]] | None:
-        """Process VNN-LIB file using type-specific processor.
-
-        :param vnnlib_type: Detected VNN-LIB type
-        :param lines: Preprocessed assertion lines
-        :param n_inputs: Number of input variables
-        :param n_outputs: Number of output variables
-        :return: Processed properties or None if type requires AST processing
-        """
+        """Process VNN-LIB file using type-specific processor."""
         t = time.perf_counter()
 
         if vnnlib_type == VNNLIBType.TYPE1:
-            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-            and_properties = process_type1(
-                parsed_data["simple_input_bounds"],
-                parsed_data["simple_output_constrs"],
-                parsed_data["complex_lines"],
-                n_inputs,
-                n_outputs,
-                self.backend,
-                verbose=self.verbose,
-                simple_output_bounds=parsed_data["simple_output_bounds"],
+            return self._process_type1(lines, n_inputs, n_outputs, t)
+        if vnnlib_type == VNNLIBType.TYPE2:
+            return self._process_type234(
+                process_type2, lines, n_inputs, n_outputs, "Type2", t, use_parsed_data=True
             )
-            if self.verbose:
-                print(f"Type1 processing: {time.perf_counter() - t:.4f}s")
-            return and_properties
-
-        elif vnnlib_type == VNNLIBType.TYPE2:
-            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-            and_properties = process_type2(
-                lines,
-                n_inputs,
-                n_outputs,
-                self.backend,
-                verbose=self.verbose,
-                parsed_data=parsed_data,
+        if vnnlib_type == VNNLIBType.TYPE3:
+            return self._process_type234(
+                process_type3, lines, n_inputs, n_outputs, "Type3", t, use_parsed_data=True
             )
-            if self.verbose:
-                print(f"Type2 processing: {time.perf_counter() - t:.4f}s")
-            return and_properties
+        if vnnlib_type == VNNLIBType.TYPE4:
+            return self._process_type234(process_type4, lines, n_inputs, n_outputs, "Type4", t)
+        if vnnlib_type == VNNLIBType.TYPE5:
+            return self._process_type234(process_type5, lines, n_inputs, n_outputs, "Type5", t)
 
-        elif vnnlib_type == VNNLIBType.TYPE3:
-            parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-            and_properties = process_type3(
-                lines,
-                n_inputs,
-                n_outputs,
-                self.backend,
-                verbose=self.verbose,
-                parsed_data=parsed_data,
-            )
-            if self.verbose:
-                print(f"Type3 processing: {time.perf_counter() - t:.4f}s")
-            return and_properties
+        if self.verbose:
+            print("Complex structure detected, using AST processing")
+        return None
 
-        elif vnnlib_type == VNNLIBType.TYPE4:
-            and_properties = process_type4(
-                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
-            )
-            if self.verbose:
-                print(f"Type4 processing: {time.perf_counter() - t:.4f}s")
-            return and_properties
+    def _process_ast(
+        self, lines: list[str], n_inputs: int, n_outputs: int
+    ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
+        """Process using AST pipeline (tokenize, parse, optimize, flatten, convert)."""
+        t = time.perf_counter()
+        tokens_list = tokenize(lines, verbose=self.verbose, use_parallel=self.use_parallel)
+        if self.verbose:
+            print(f"Tokenization: {time.perf_counter() - t:.4f}s")
 
-        elif vnnlib_type == VNNLIBType.TYPE5:
-            and_properties = process_type5(
-                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
-            )
-            if self.verbose:
-                print(f"Type5 processing: {time.perf_counter() - t:.4f}s")
-            return and_properties
+        t = time.perf_counter()
+        expr = parse(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
+        if self.verbose:
+            nary_expr = cast(And | Or, expr)
+            print(f"Parsing: {len(nary_expr.args)} expressions, {time.perf_counter() - t:.4f}s")
 
-        else:
-            if self.verbose:
-                print("Complex structure detected, using AST processing")
-            return None
+        t = time.perf_counter()
+        expr = optimize(expr, verbose=self.verbose, use_parallel=self.use_parallel)
+        if self.verbose:
+            print(f"Optimization: {time.perf_counter() - t:.4f}s")
+
+        t = time.perf_counter()
+        expr = flatten(expr)
+        if self.verbose:
+            print(f"Flattening: {time.perf_counter() - t:.4f}s")
+
+        t = time.perf_counter()
+        and_properties = convert_to_tensor(
+            expr,
+            n_inputs,
+            n_outputs,
+            self.backend,
+            verbose=self.verbose,
+            use_parallel=self.use_parallel,
+        )
+        if self.verbose:
+            elapsed = time.perf_counter() - t
+            num_props = len(and_properties)
+            print(f"Tensor conversion: {num_props} AND properties, {elapsed:.4f}s")
+        return and_properties
 
     def convert(self, vnnlib_path: str, target_folder_path: str | None = None) -> None:
         """Convert VNN-LIB file to tensor data.
@@ -194,7 +239,8 @@ class TorchVNNLIB:
         t_start = time.perf_counter()
 
         t = time.perf_counter()
-        with open(vnnlib_path, "r") as f:
+        vnnlib_file = Path(vnnlib_path)
+        with vnnlib_file.open() as f:
             lines = f.readlines()
         if self.verbose:
             print(f"Read file: {time.perf_counter() - t:.4f}s")
@@ -202,9 +248,8 @@ class TorchVNNLIB:
         t = time.perf_counter()
         lines, n_inputs, n_outputs = preprocess_vnnlib(lines)
         if self.verbose:
-            print(
-                f"Preprocessing: {n_inputs} inputs, {n_outputs} outputs, {time.perf_counter() - t:.4f}s"
-            )
+            elapsed = time.perf_counter() - t
+            print(f"Preprocessing: {n_inputs} inputs, {n_outputs} outputs, {elapsed:.4f}s")
 
         use_type_processor = False
         detected_type = VNNLIBType.COMPLEX
@@ -214,9 +259,7 @@ class TorchVNNLIB:
             detected_type = vnnlib_type
 
             try:
-                and_properties = self._process_by_type(
-                    vnnlib_type, lines, n_inputs, n_outputs
-                )
+                and_properties = self._process_by_type(vnnlib_type, lines, n_inputs, n_outputs)
                 use_type_processor = and_properties is not None
             except (ValueError, RuntimeError) as e:
                 if self.verbose:
@@ -224,50 +267,14 @@ class TorchVNNLIB:
                 use_type_processor = False
 
         if not use_type_processor:
-            t = time.perf_counter()
-            tokens_list = tokenize(
-                lines, verbose=self.verbose, use_parallel=self.use_parallel
-            )
-            if self.verbose:
-                print(f"Tokenization: {time.perf_counter() - t:.4f}s")
+            and_properties = self._process_ast(lines, n_inputs, n_outputs)
 
-            t = time.perf_counter()
-            expr = parse(
-                tokens_list, verbose=self.verbose, use_parallel=self.use_parallel
-            )
-            if self.verbose:
-                print(
-                    f"Parsing: {len(expr.args)} expressions, {time.perf_counter() - t:.4f}s"
-                )
-
-            t = time.perf_counter()
-            expr = optimize(expr, verbose=self.verbose, use_parallel=self.use_parallel)
-            if self.verbose:
-                print(f"Optimization: {time.perf_counter() - t:.4f}s")
-
-            t = time.perf_counter()
-            expr = flatten(expr)
-            if self.verbose:
-                print(f"Flattening: {time.perf_counter() - t:.4f}s")
-
-            t = time.perf_counter()
-            and_properties = convert_to_tensor(
-                expr,
-                n_inputs,
-                n_outputs,
-                self.backend,
-                verbose=self.verbose,
-                use_parallel=self.use_parallel,
-            )
-            if self.verbose:
-                print(
-                    f"Tensor conversion: {len(and_properties)} AND properties, {time.perf_counter() - t:.4f}s"
-                )
-
-        t = time.perf_counter()
-        _write_property(
-            and_properties, target_folder_path, vnnlib_path, self.backend, self.verbose
+        # Type narrowing: ensure and_properties is not None
+        assert and_properties is not None, (
+            "and_properties should be assigned by either type processor or AST processing"
         )
+        t = time.perf_counter()
+        _write_property(and_properties, target_folder_path, vnnlib_path, self.backend, self.verbose)
         if self.verbose:
             print(f"Writing to disk: {time.perf_counter() - t:.4f}s")
 

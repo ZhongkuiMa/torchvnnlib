@@ -5,8 +5,8 @@ __all__ = ["process_type2"]
 
 import time
 
-from .._backend import Backend, TensorLike
-from ._utils import convert_simple_input_bounds, parse_or_block
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib.fast_type._utils import convert_simple_input_bounds, parse_or_block
 
 
 def process_type2(
@@ -30,7 +30,7 @@ def process_type2(
     t_start = time.perf_counter() if verbose else None
 
     if parsed_data is None:
-        from ._fast_type_detect import parse_simple_patterns
+        from torchvnnlib.torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
 
         t = time.perf_counter() if verbose else None
         parsed_data = parse_simple_patterns(lines, verbose=False)
@@ -41,7 +41,7 @@ def process_type2(
     or_block_lines = parsed_data["complex_lines"]
 
     if verbose:
-        print(f"  Type2 processing:")
+        print("  Type2 processing:")
         print(f"    Simple input bounds: {len(simple_input_bounds)}")
         print(f"    OR block lines: {len(or_block_lines)}")
 

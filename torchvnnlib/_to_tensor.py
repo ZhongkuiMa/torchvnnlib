@@ -12,9 +12,10 @@ __all__ = [
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+from typing import cast
 
-from ._backend import Backend, TensorLike
-from .ast import And, Or, Expr, Var, Cst, Leq, Geq, Eq, Add, Sub, Mul, Div
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib.ast import Add, And, Cst, Div, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 
 def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLike:
@@ -31,8 +32,8 @@ def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLi
         if not isinstance(sub_expr, (Leq, Geq, Eq)):
             raise ValueError(f"Invalid input bound expression: {sub_expr}")
 
-        idx = sub_expr.left.index
-        value = float(sub_expr.right.value)
+        idx = cast(Var, sub_expr.left).index
+        value = float(cast(Cst, sub_expr.right).value)
 
         if isinstance(sub_expr, Leq):
             input_bounds[idx, 1] = value
@@ -46,10 +47,21 @@ def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLi
 
     if backend.isnan(input_bounds).any():
         nan_indices = backend.where(backend.isnan(input_bounds))
-        indices_list = list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))
+        indices_list = list(zip(nan_indices[0].tolist(), nan_indices[1].tolist(), strict=False))
         raise ValueError(f"Missing input bounds at indices: {indices_list}")
 
     return input_bounds
+
+
+def _update_constr_for_var(constr: TensorLike, var: Var, y_dim: int, coeff: float) -> None:
+    """Update constraint for a variable with given coefficient."""
+    idx = var.index
+    if var.var_type == "Y":
+        constr[idx + 1] += coeff
+    elif var.var_type == "X":
+        constr[idx + y_dim + 1] += coeff
+    else:
+        raise ValueError(f"Invalid variable type: {var.var_type}")
 
 
 def convert_linear_poly(
@@ -67,16 +79,12 @@ def convert_linear_poly(
     :param is_add: Whether to add or subtract coefficients
     :return: Updated constraint tensor
     """
+    coeff_sign = 1 if is_add else -1
+
     if isinstance(expr, Var):
-        idx = expr.index
-        if expr.var_type == "Y":
-            constr[idx + 1] += 1 if is_add else -1
-        elif expr.var_type == "X":
-            constr[idx + y_dim + 1] += 1 if is_add else -1
-        else:
-            raise ValueError(f"Invalid variable type: {expr.var_type}")
+        _update_constr_for_var(constr, expr, y_dim, coeff_sign)
     elif isinstance(expr, Cst):
-        constr[0] += expr.value if is_add else -expr.value
+        constr[0] += expr.value * coeff_sign
     elif isinstance(expr, Add):
         for sub_expr in expr.args:
             convert_linear_poly(constr, sub_expr, y_dim, x_dim, is_add)
@@ -84,18 +92,10 @@ def convert_linear_poly(
         left = expr.left
         right = expr.right
         if isinstance(left, Cst) and isinstance(right, Var):
-            idx = right.index
-            if right.var_type == "Y":
-                constr[idx + 1] += left.value if is_add else -left.value
-            elif right.var_type == "X":
-                constr[idx + y_dim + 1] += left.value if is_add else -left.value
-            else:
-                raise ValueError(f"Invalid variable type: {right.var_type}")
+            _update_constr_for_var(constr, right, y_dim, left.value * coeff_sign)
     elif isinstance(expr, Sub):
-        left = expr.left
-        right = expr.right
-        convert_linear_poly(constr, left, y_dim, x_dim)
-        convert_linear_poly(constr, right, y_dim, x_dim, is_add=False)
+        convert_linear_poly(constr, expr.left, y_dim, x_dim, is_add)
+        convert_linear_poly(constr, expr.right, y_dim, x_dim, is_add=not is_add)
 
     return constr
 
@@ -134,8 +134,8 @@ def convert_linear_constr(
         constr[0] += right.value
     elif _is_arithmetic(right):
         extended_constr = backend.zeros((y_dim + x_dim + 1,), dtype="float64")
-        extended_constr[: y_dim + 1] = constr
-        constr = extended_constr
+        extended_constr[: y_dim + 1] = constr  # type: ignore[assignment]
+        constr = extended_constr  # type: ignore[assignment]
         constr = convert_linear_poly(constr, right, y_dim, x_dim)
     else:
         raise NotImplementedError(f"Only Var and Cst supported for right: {right}")
@@ -195,8 +195,8 @@ def convert_output_constrs(
     or_output_constrs = []
     for and_expr in expr.args:
         and_output_constrs = convert_and_output_constrs(
-            and_expr, n_outputs, n_inputs, backend
-        )
+            cast(And, and_expr), n_outputs, n_inputs, backend
+        )  # type: ignore[arg-type]
         or_output_constrs.append(and_output_constrs)
 
     return or_output_constrs
@@ -219,10 +219,10 @@ def convert_one_property(
     input_bounds_expr = expr.args[0]
     output_constrs_expr = expr.args[1]
 
-    input_bounds = convert_input_bounds(input_bounds_expr, n_inputs, backend)
+    input_bounds = convert_input_bounds(cast(And, input_bounds_expr), n_inputs, backend)  # type: ignore[arg-type]
     output_constrs = convert_output_constrs(
-        output_constrs_expr, n_outputs, n_inputs, backend
-    )
+        cast(Or, output_constrs_expr), n_outputs, n_inputs, backend
+    )  # type: ignore[arg-type]
 
     return input_bounds, output_constrs
 
@@ -266,31 +266,27 @@ def convert_to_tensor(
 
         if use_parallel:
             with ThreadPoolExecutor() as executor:
-                or_groups = list(executor.map(convert, or_expr.args))
+                or_groups = list(executor.map(lambda x: convert(cast(And, x)), or_expr.args))  # type: ignore[arg-type]
         else:
-            or_groups = [convert(arg) for arg in or_expr.args]
+            or_groups = [convert(cast(And, arg)) for arg in or_expr.args]  # type: ignore[arg-type]
 
         return or_groups
 
     def convert_all_properties(
         expr: And, n_inputs: int, n_outputs: int, backend: Backend
     ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
-        process = partial(
-            _process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs, backend=backend
-        )
+        process = partial(_process_or_expr, n_inputs=n_inputs, n_outputs=n_outputs, backend=backend)
 
         t = time.perf_counter()
         if use_parallel:
             with ThreadPoolExecutor() as executor:
-                and_properties = list(executor.map(process, expr.args))
+                and_properties = list(executor.map(lambda x: process(cast(Or, x)), expr.args))  # type: ignore[arg-type]
             if verbose:
                 print(f"Convert properties (parallel): {time.perf_counter() - t:.4f}s")
         else:
-            and_properties = [process(arg) for arg in expr.args]
+            and_properties = [process(cast(Or, arg)) for arg in expr.args]  # type: ignore[arg-type]
             if verbose:
-                print(
-                    f"Convert properties (sequential): {time.perf_counter() - t:.4f}s"
-                )
+                print(f"Convert properties (sequential): {time.perf_counter() - t:.4f}s")
 
         return and_properties
 

@@ -30,31 +30,30 @@ __all__ = [
     "OUTPUT_CONSTRAINT_INNER_PATTERN",
 ]
 
-from ._fast_type_detect import (
+from torchvnnlib.torchvnnlib.fast_type._fast_type_detect import (
     VNNLIBType,
-    fast_detect_type,
     fast_detect_and_parse,
+    fast_detect_type,
     parse_simple_patterns,
 )
-from ._type1_processor import process_type1
-from ._type2_processor import process_type2
-from ._type3_processor import process_type3
-from ._type4_processor import process_type4
-from ._type5_processor import process_type5
-from ._utils import (
-    convert_simple_input_bounds,
-    parse_input_bounds_block,
-    parse_output_and_block,
-    parse_or_block,
-    parse_and_block,
-    parse_input_or_block,
-    parse_output_or_block,
-    parse_dual_or_blocks,
-
-    SIMPLE_INPUT_BOUND_PATTERN,
-    SIMPLE_OUTPUT_BOUND_PATTERN,
-    SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
+from torchvnnlib.torchvnnlib.fast_type._type1_processor import process_type1
+from torchvnnlib.torchvnnlib.fast_type._type2_processor import process_type2
+from torchvnnlib.torchvnnlib.fast_type._type3_processor import process_type3
+from torchvnnlib.torchvnnlib.fast_type._type4_processor import process_type4
+from torchvnnlib.torchvnnlib.fast_type._type5_processor import process_type5
+from torchvnnlib.torchvnnlib.fast_type._utils import (
     INPUT_BOUND_INNER_PATTERN,
     OUTPUT_BOUND_INNER_PATTERN,
     OUTPUT_CONSTRAINT_INNER_PATTERN,
+    SIMPLE_INPUT_BOUND_PATTERN,
+    SIMPLE_OUTPUT_BOUND_PATTERN,
+    SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
+    convert_simple_input_bounds,
+    parse_and_block,
+    parse_dual_or_blocks,
+    parse_input_bounds_block,
+    parse_input_or_block,
+    parse_or_block,
+    parse_output_and_block,
+    parse_output_or_block,
 )

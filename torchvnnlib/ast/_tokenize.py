@@ -37,7 +37,7 @@ def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
         match = TOKEN_PATTERN.match(line, pos)
         if not match:
             raise ValueError(
-                f"Invalid token at line {i+1}, position {pos}: '{line[pos:].strip()}'"
+                f"Invalid token at line {i + 1}, position {pos}: '{line[pos:].strip()}'"
             )
         token = match.group(1)
         tokens.append(token)
@@ -49,7 +49,8 @@ def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
 def tokenize(
     lines: list[str], verbose: bool = False, use_parallel: bool = True
 ) -> list[deque[str]]:
-    """
+    """Tokenize lines from a VNNLIB file in parallel.
+
     The input is a list of lines from a VNNLIB file and this function tokenizes each
     line in parallel for improved performance.
 

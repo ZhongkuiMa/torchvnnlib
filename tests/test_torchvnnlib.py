@@ -3,6 +3,9 @@
 Tests the TorchVNNLib converter on all VNNComp benchmark vnnlib files
 and collects conversion statistics including type detection and performance metrics.
 
+Outputs are saved to results/{benchmark_name}/{property_name}/ for later comparison
+with baselines.
+
 Usage::
 
     # Run all benchmarks (pytest style)
@@ -15,7 +18,6 @@ Usage::
     python test_torchvnnlib.py
 """
 
-import shutil
 import sys
 import time
 from collections import defaultdict
@@ -24,7 +26,11 @@ from pathlib import Path
 import pytest
 
 from torchvnnlib import TorchVNNLIB
-from torchvnnlib.tests.utils import find_all_vnnlib_files, find_benchmarks_folders
+from torchvnnlib.tests.utils import (
+    find_all_vnnlib_files,
+    find_benchmarks_folders,
+    get_benchmark_name,
+)
 
 
 def get_all_benchmarks():
@@ -56,11 +62,14 @@ _overall_stats = {"success_count": 0, "total_count": 0, "overall_time": 0.0}
 
 
 @pytest.mark.parametrize("benchmark_dir", get_all_benchmarks())
-def test_benchmark_conversion(benchmark_dir, test_dir):
+def test_benchmark_conversion(benchmark_dir, test_dir, results_dir):
     """Test conversion for one benchmark directory.
+
+    Outputs are saved to results/{benchmark_name}/{property_name}/
 
     :param benchmark_dir: Path to benchmark directory
     :param test_dir: Test directory fixture
+    :param results_dir: Results directory fixture
     """
     benchmark_name = Path(benchmark_dir).name
     vnnlib_files = find_all_vnnlib_files([benchmark_dir])
@@ -83,14 +92,11 @@ def test_benchmark_conversion(benchmark_dir, test_dir):
         file_start = time.perf_counter()
 
         try:
-            # Convert to temporary output folder
-            output_folder = f"_temp_test_output_{benchmark_name}_{i}"
-            converter.convert(vnnlib_path, target_folder_path=output_folder)
-
-            # Clean up temporary output
-            output_path = Path(output_folder)
-            if output_path.exists():
-                shutil.rmtree(output_path)
+            # Output to results/{benchmark_name}/{property_name}/
+            vnnlib_file = Path(vnnlib_path)
+            property_name = vnnlib_file.stem
+            output_folder = results_dir / benchmark_name / property_name
+            converter.convert(vnnlib_path, target_folder_path=str(output_folder))
 
             success_count += 1
 

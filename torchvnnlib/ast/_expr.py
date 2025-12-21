@@ -77,11 +77,7 @@ class Var(Expr):
     def __init__(self, name: str):
         super().__init__()
         self.name = name
-        if not (
-            (name.startswith("X") or name.startswith("Y"))
-            and name[1] == "_"
-            and name[2:].isdigit()
-        ):
+        if not ((name.startswith(("X", "Y"))) and name[1] == "_" and name[2:].isdigit()):
             raise ValueError(f"Variable name must start with 'X' or 'Y' but {name}.")
 
         # Cache variable type and index for performance
@@ -170,10 +166,7 @@ class NaryOp(Expr):
             return False
         if len(self.args) != len(other.args):
             return False
-        for i in range(len(self.args)):
-            if self.args[i] != other.args[i]:
-                return False
-        return True
+        return all(self.args[i] == other.args[i] for i in range(len(self.args)))
 
     def __hash__(self):
         return hash(tuple(self.args))

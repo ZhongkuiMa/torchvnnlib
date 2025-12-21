@@ -5,10 +5,95 @@ __all__ = ["process_type1"]
 
 import time
 
-from .._backend import Backend, TensorLike
-from .._to_tensor import convert_and_output_constrs
-from ..ast import tokenize, parse, optimize, And, Or
-from ._utils import convert_simple_input_bounds
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib._to_tensor import convert_and_output_constrs
+from torchvnnlib.torchvnnlib.ast import And, Or, optimize, parse, tokenize
+from torchvnnlib.torchvnnlib.fast_type._utils import convert_simple_input_bounds
+
+
+def _process_simple_output_constrs_and_bounds(
+    simple_output_constrs: list[tuple],
+    simple_output_bounds: list[tuple] | None,
+    n_outputs: int,
+    backend: Backend,
+) -> list[TensorLike]:
+    """Process simple output constraints and bounds into tensors.
+
+    :param simple_output_constrs: List of simple output constraint tuples
+    :param simple_output_bounds: List of simple output bound tuples
+    :param n_outputs: Number of output variables
+    :param backend: Backend instance for tensor operations
+    :return: List of constraint tensors
+    """
+    output_constrs_list = []
+
+    if simple_output_constrs:
+        output_constrs_tensor = _convert_simple_output_constraints_batched(
+            simple_output_constrs, n_outputs, backend
+        )
+        if output_constrs_tensor is not None:
+            output_constrs_list.append(output_constrs_tensor)
+
+    if simple_output_bounds:
+        output_bounds_tensor = _convert_simple_output_bounds_batched(
+            simple_output_bounds, n_outputs, backend
+        )
+        if output_bounds_tensor is not None:
+            output_constrs_list.append(output_bounds_tensor)
+
+    return output_constrs_list
+
+
+def _ensure_non_empty_constraints(
+    all_output_constrs: list[TensorLike], n_outputs: int, backend: Backend
+) -> list[TensorLike]:
+    """Ensure constraint list is non-empty by adding default zeros.
+
+    :param all_output_constrs: List of constraint tensors
+    :param n_outputs: Number of output variables
+    :param backend: Backend instance for tensor operations
+    :return: Non-empty constraint list
+    """
+    if not all_output_constrs:
+        return [backend.zeros((1, n_outputs + 1), dtype="float64")]
+    return all_output_constrs
+
+
+def _extract_complex_output_constraints(
+    expr_complex, n_outputs: int, n_inputs: int, backend: Backend
+) -> list[TensorLike]:
+    """Extract output constraints from complex expression tree."""
+    complex_output_constrs = []
+
+    if isinstance(expr_complex, Or):
+        for or_arg in expr_complex.args:
+            if isinstance(or_arg, And):
+                constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs, backend)
+            else:
+                constr = convert_and_output_constrs(And([or_arg]), n_outputs, n_inputs, backend)
+            complex_output_constrs.append(constr)
+    elif isinstance(expr_complex, And) and len(expr_complex.args) > 0:
+        for arg in expr_complex.args:
+            if isinstance(arg, Or):
+                for or_arg in arg.args:
+                    if isinstance(or_arg, And):
+                        constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs, backend)
+                    else:
+                        constr = convert_and_output_constrs(
+                            And([or_arg]), n_outputs, n_inputs, backend
+                        )
+                    complex_output_constrs.append(constr)
+            else:
+                constr = convert_and_output_constrs(And([arg]), n_outputs, n_inputs, backend)
+                complex_output_constrs.append(constr)
+    elif isinstance(expr_complex, And):
+        constr = convert_and_output_constrs(expr_complex, n_outputs, n_inputs, backend)
+        complex_output_constrs.append(constr)
+    else:
+        constr = convert_and_output_constrs(And([expr_complex]), n_outputs, n_inputs, backend)
+        complex_output_constrs.append(constr)
+
+    return complex_output_constrs
 
 
 def process_type1(
@@ -36,7 +121,7 @@ def process_type1(
     t_start = time.perf_counter() if verbose else None
 
     if verbose:
-        print(f"  Type1 fast processing:")
+        print("  Type1 fast processing:")
         print(f"    Simple input bounds: {len(simple_input_bounds)}")
         print(f"    Simple output constraints: {len(simple_output_constrs)}")
         if simple_output_bounds:
@@ -49,21 +134,9 @@ def process_type1(
         print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
     t = time.perf_counter() if verbose else None
-    output_constrs_list = []
-
-    if simple_output_constrs:
-        output_constrs_tensor = _convert_simple_output_constraints_batched(
-            simple_output_constrs, n_outputs, backend
-        )
-        if output_constrs_tensor is not None:
-            output_constrs_list.append(output_constrs_tensor)
-
-    if simple_output_bounds:
-        output_bounds_tensor = _convert_simple_output_bounds_batched(
-            simple_output_bounds, n_outputs, backend
-        )
-        if output_bounds_tensor is not None:
-            output_constrs_list.append(output_bounds_tensor)
+    output_constrs_list = _process_simple_output_constrs_and_bounds(
+        simple_output_constrs, simple_output_bounds, n_outputs, backend
+    )
 
     if verbose and t is not None:
         print(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
@@ -80,62 +153,19 @@ def process_type1(
             print(f"    Complex expression processing: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter() if verbose else None
-        complex_output_constrs = []
-
-        if isinstance(expr_complex, Or):
-            for or_arg in expr_complex.args:
-                if isinstance(or_arg, And):
-                    constr = convert_and_output_constrs(
-                        or_arg, n_outputs, n_inputs, backend
-                    )
-                else:
-                    constr = convert_and_output_constrs(
-                        And([or_arg]), n_outputs, n_inputs, backend
-                    )
-                complex_output_constrs.append(constr)
-        elif isinstance(expr_complex, And) and len(expr_complex.args) > 0:
-            for arg in expr_complex.args:
-                if isinstance(arg, Or):
-                    for or_arg in arg.args:
-                        if isinstance(or_arg, And):
-                            constr = convert_and_output_constrs(
-                                or_arg, n_outputs, n_inputs, backend
-                            )
-                        else:
-                            constr = convert_and_output_constrs(
-                                And([or_arg]), n_outputs, n_inputs, backend
-                            )
-                        complex_output_constrs.append(constr)
-                else:
-                    constr = convert_and_output_constrs(
-                        And([arg]), n_outputs, n_inputs, backend
-                    )
-                    complex_output_constrs.append(constr)
-        elif isinstance(expr_complex, And):
-            constr = convert_and_output_constrs(
-                expr_complex, n_outputs, n_inputs, backend
-            )
-            complex_output_constrs.append(constr)
-        else:
-            constr = convert_and_output_constrs(
-                And([expr_complex]), n_outputs, n_inputs, backend
-            )
-            complex_output_constrs.append(constr)
+        complex_output_constrs = _extract_complex_output_constraints(
+            expr_complex, n_outputs, n_inputs, backend
+        )
 
         if verbose and t is not None:
             print(f"    Complex output extraction: {time.perf_counter() - t:.4f}s")
-            print(
-                f"    Extracted {len(complex_output_constrs)} complex output constraints"
-            )
+            print(f"    Extracted {len(complex_output_constrs)} complex output constraints")
 
         all_output_constrs = output_constrs_list + complex_output_constrs
-        if not all_output_constrs:
-            all_output_constrs = [backend.zeros((1, n_outputs + 1), dtype="float64")]
     else:
         all_output_constrs = output_constrs_list
-        if not all_output_constrs:
-            all_output_constrs = [backend.zeros((1, n_outputs + 1), dtype="float64")]
 
+    all_output_constrs = _ensure_non_empty_constraints(all_output_constrs, n_outputs, backend)
     and_properties = [[(input_bounds, all_output_constrs)]]
 
     if verbose and t_start is not None:
@@ -160,9 +190,7 @@ def _convert_simple_output_constraints_batched(
     n_constrs = len(simple_output_constrs)
     constraints = backend.zeros((n_constrs, n_outputs + 1), dtype="float64")
 
-    for i, (op, var_prefix1, idx1, var_prefix2, idx2) in enumerate(
-        simple_output_constrs
-    ):
+    for i, (op, _var_prefix1, idx1, _var_prefix2, idx2) in enumerate(simple_output_constrs):
         if op == "<=":
             constraints[i, idx1 + 1] = -1.0
             constraints[i, idx2 + 1] = 1.0
@@ -190,7 +218,7 @@ def _convert_simple_output_bounds_batched(
     constraints = backend.zeros((n_constrs, n_outputs + 1), dtype="float64")
 
     row_idx = 0
-    for op, var_prefix, idx, value in simple_output_bounds:
+    for op, _var_prefix, idx, value in simple_output_bounds:
         if op == "<=":
             constraints[row_idx, 0] = float(value)
             constraints[row_idx, idx + 1] = -1.0

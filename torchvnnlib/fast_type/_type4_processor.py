@@ -5,8 +5,8 @@ __all__ = ["process_type4"]
 
 import time
 
-from .._backend import Backend, TensorLike
-from ._utils import parse_dual_or_blocks
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib.fast_type._utils import parse_dual_or_blocks
 
 
 def process_type4(
@@ -32,14 +32,12 @@ def process_type4(
         lines, n_inputs, n_outputs, backend
     )
     if verbose and t is not None:
-        print(f"  Type4 detection:")
+        print("  Type4 detection:")
         print(f"    Input OR groups: {len(input_bounds_list)}")
         print(f"    Output OR options: {len(output_constrs_list)}")
         print(f"    Parsing: {time.perf_counter() - t:.4f}s")
 
-    or_properties = [
-        (input_bounds, output_constrs_list) for input_bounds in input_bounds_list
-    ]
+    or_properties = [(input_bounds, output_constrs_list) for input_bounds in input_bounds_list]
     and_properties = [or_properties]
 
     if verbose and t_start is not None:

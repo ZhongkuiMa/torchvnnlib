@@ -5,7 +5,7 @@ import re
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
-from ._expr import *
+from torchvnnlib.torchvnnlib.ast._expr import Add, And, Cst, Div, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 # Pre-compiled pattern (defined but not used - kept for compatibility)
 number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
@@ -70,33 +70,29 @@ def parse_tokens(tokens: deque[str]) -> Expr:
                     args.append(parse_tokens(tokens))
                 tokens.popleft()  # Expecting ')'
                 return op_class(args)
-            else:
-                # Binary operator (<=, >=, -, *, /)
-                # Check if arguments are wrapped in extra parentheses
-                if tokens[0] == "(":
-                    tokens.popleft()  # Expecting '('
-                    a = parse_tokens(tokens)
-                    b = parse_tokens(tokens)
-                    tokens.popleft()  # Expecting ')'
-                else:
-                    a = parse_tokens(tokens)
-                    b = parse_tokens(tokens)
+            # Binary operator (<=, >=, -, *, /)
+            # Check if arguments are wrapped in extra parentheses
+            if tokens[0] == "(":
+                tokens.popleft()  # Expecting '('
+                a = parse_tokens(tokens)
+                b = parse_tokens(tokens)
                 tokens.popleft()  # Expecting ')'
-                return op_class(a, b)
-        else:
-            raise ValueError(f"Unknown operator: {op}")
+            else:
+                a = parse_tokens(tokens)
+                b = parse_tokens(tokens)
+            tokens.popleft()  # Expecting ')'
+            return op_class(a, b)
+        raise ValueError(f"Unknown operator: {op}")
 
-    else:
-        # Optimized: Try float conversion directly (faster than regex)
-        try:
-            return Cst(float(tok))
-        except ValueError:
-            return Var(tok)
+    # Optimized: Try float conversion directly (faster than regex)
+    try:
+        return Cst(float(tok))
+    except ValueError:
+        return Var(tok)
 
 
 def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
-    """
-    Merges all expressions in the list into a single expression using logical AND.
+    """Merge all expressions in the list into a single expression using logical AND.
 
     :param exprs_list: A list of Expr objects.
     :return: A single Expr object representing the conjunction of all expressions.
@@ -106,11 +102,8 @@ def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
     return And(exprs_list)
 
 
-def parse(
-    tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True
-) -> Expr:
-    """
-    Parses a VNNLIB file and returns a list of tokens.
+def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> Expr:
+    """Parse a VNNLIB file and return an expression object.
 
     :param tokens_list: A list of lists of tokens, where each inner list represents a
         line of tokens.
@@ -120,9 +113,7 @@ def parse(
     """
     import time
 
-    exprs_list = parse_tokens_list(
-        tokens_list, verbose=verbose, use_parallel=use_parallel
-    )
+    exprs_list = parse_tokens_list(tokens_list, verbose=verbose, use_parallel=use_parallel)
 
     t = time.perf_counter()
     # Merge all expressions into a single And expression

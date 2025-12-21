@@ -7,4 +7,4 @@ or NumPy array representations for neural network verification.
 __docformat__ = "restructuredtext"
 __all__ = ["TorchVNNLIB"]
 
-from ._torchvnnlib import TorchVNNLIB
+from torchvnnlib.torchvnnlib._torchvnnlib import TorchVNNLIB

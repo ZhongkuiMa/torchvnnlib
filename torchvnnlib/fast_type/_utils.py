@@ -27,7 +27,7 @@ __all__ = [
 import re
 from enum import Enum
 
-from .._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
 
 
 class VNNLIBType(Enum):
@@ -57,9 +57,7 @@ SIMPLE_OUTPUT_BOUND_PATTERN = re.compile(
     r"^\s*\(\s*assert\s+\(\s*(<=|>=|=)\s+(Y_)(\d+)\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)\s*\)\s*\)\s*$"
 )
 
-OUTPUT_CONSTRAINT_INNER_PATTERN = re.compile(
-    r"\(\s*(<=|>=)\s+(Y_)(\d+)\s+(Y_)(\d+)\s*\)"
-)
+OUTPUT_CONSTRAINT_INNER_PATTERN = re.compile(r"\(\s*(<=|>=)\s+(Y_)(\d+)\s+(Y_)(\d+)\s*\)")
 
 OUTPUT_BOUND_INNER_PATTERN = re.compile(
     r"\(\s*(<=|>=|=)\s+(Y_)(\d+)\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?)\s*\)"
@@ -70,18 +68,14 @@ INPUT_BOUND_INNER_PATTERN = re.compile(
 )
 
 
-def convert_simple_input_bounds(
-    simple_bounds: list[tuple], n_inputs: int, backend: Backend
-) -> TensorLike:
-    """Convert simple input bounds to tensor format.
+def _categorize_bounds_by_operator(
+    simple_bounds: list[tuple],
+) -> tuple[list[int], list[float], list[int], list[float], list[int], list[float]]:
+    """Categorize bounds by operator type (<=, >=, =).
 
-    :param simple_bounds: List of tuples (op, var_prefix, idx, value) from regex parsing
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
-    :return: Tensor of shape (n_inputs, 2) where [:, 0] is lower bounds and [:, 1] is upper bounds
+    :param simple_bounds: List of tuples (op, var_prefix, idx, value)
+    :return: Tuple of (leq_indices, leq_values, geq_indices, geq_values, eq_indices, eq_values)
     """
-    input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
-
     n_bounds = len(simple_bounds)
     leq_indices = [0] * n_bounds
     leq_values = [0.0] * n_bounds
@@ -89,7 +83,6 @@ def convert_simple_input_bounds(
     geq_values = [0.0] * n_bounds
     eq_indices = [0] * n_bounds
     eq_values = [0.0] * n_bounds
-
     leq_count = geq_count = eq_count = 0
 
     for op, var_type, idx, value in simple_bounds:
@@ -109,30 +102,85 @@ def convert_simple_input_bounds(
             eq_values[eq_count] = value
             eq_count += 1
 
-    if leq_count > 0:
-        leq_idx_array = leq_indices[:leq_count]
-        leq_val_array = backend.tensor(leq_values[:leq_count], dtype="float64")
-        for i, idx in enumerate(leq_idx_array):
+    return (
+        leq_indices[:leq_count],
+        leq_values[:leq_count],
+        geq_indices[:geq_count],
+        geq_values[:geq_count],
+        eq_indices[:eq_count],
+        eq_values[:eq_count],
+    )
+
+
+def _apply_bound_constraints(
+    input_bounds: TensorLike,
+    leq_indices: list[int],
+    leq_values: list[float],
+    geq_indices: list[int],
+    geq_values: list[float],
+    eq_indices: list[int],
+    eq_values: list[float],
+    backend: Backend,
+) -> None:
+    """Apply bound constraints to input_bounds tensor in-place.
+
+    :param input_bounds: Tensor to update in-place
+    :param leq_indices: Indices for <= bounds
+    :param leq_values: Values for <= bounds
+    :param geq_indices: Indices for >= bounds
+    :param geq_values: Values for >= bounds
+    :param eq_indices: Indices for = bounds
+    :param eq_values: Values for = bounds
+    :param backend: Backend instance
+    """
+    if leq_indices:
+        leq_val_array = backend.tensor(leq_values, dtype="float64")
+        for i, idx in enumerate(leq_indices):
             input_bounds[idx, 1] = leq_val_array[i]
 
-    if geq_count > 0:
-        geq_idx_array = geq_indices[:geq_count]
-        geq_val_array = backend.tensor(geq_values[:geq_count], dtype="float64")
-        for i, idx in enumerate(geq_idx_array):
+    if geq_indices:
+        geq_val_array = backend.tensor(geq_values, dtype="float64")
+        for i, idx in enumerate(geq_indices):
             input_bounds[idx, 0] = geq_val_array[i]
 
-    if eq_count > 0:
-        eq_idx_array = eq_indices[:eq_count]
-        eq_val_array = backend.tensor(eq_values[:eq_count], dtype="float64")
-        for i, idx in enumerate(eq_idx_array):
+    if eq_indices:
+        eq_val_array = backend.tensor(eq_values, dtype="float64")
+        for i, idx in enumerate(eq_indices):
             input_bounds[idx, 0] = eq_val_array[i]
             input_bounds[idx, 1] = eq_val_array[i]
 
+
+def convert_simple_input_bounds(
+    simple_bounds: list[tuple], n_inputs: int, backend: Backend
+) -> TensorLike:
+    """Convert simple input bounds to tensor format.
+
+    :param simple_bounds: List of tuples (op, var_prefix, idx, value) from regex parsing
+    :param n_inputs: Number of input variables
+    :param backend: Backend instance for tensor operations
+    :return: Tensor of shape (n_inputs, 2) where [:, 0] is lower bounds and [:, 1] is upper bounds
+    """
+    input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
+
+    leq_indices, leq_values, geq_indices, geq_values, eq_indices, eq_values = (
+        _categorize_bounds_by_operator(simple_bounds)
+    )
+
+    _apply_bound_constraints(
+        input_bounds,
+        leq_indices,
+        leq_values,
+        geq_indices,
+        geq_values,
+        eq_indices,
+        eq_values,
+        backend,
+    )
+
     if backend.isnan(input_bounds).any():
         nan_indices = backend.where(backend.isnan(input_bounds))
-        raise ValueError(
-            f"Missing input bounds at indices: {list(zip(nan_indices[0].tolist(), nan_indices[1].tolist()))}"
-        )
+        nan_list = list(zip(nan_indices[0].tolist(), nan_indices[1].tolist(), strict=False))
+        raise ValueError(f"Missing input bounds at indices: {nan_list}")
 
     return input_bounds
 
@@ -198,9 +246,7 @@ def parse_output_or_block(
             output_constrs.append(constr)
 
     return (
-        output_constrs
-        if output_constrs
-        else [backend.zeros((1, n_outputs + 1), dtype="float64")]
+        output_constrs if output_constrs else [backend.zeros((1, n_outputs + 1), dtype="float64")]
     )
 
 
@@ -342,8 +388,7 @@ def parse_output_and_block(block: str, n_outputs: int, backend: Backend) -> Tens
 
     if constraints:
         return backend.stack(constraints, axis=0)
-    else:
-        return backend.zeros((1, n_outputs + 1), dtype="float64")
+    return backend.zeros((1, n_outputs + 1), dtype="float64")
 
 
 def parse_dual_or_blocks(
@@ -370,8 +415,6 @@ def parse_dual_or_blocks(
     output_or_lines = ["(assert (or " + or_parts[2]]
 
     input_bounds_list = parse_input_or_block(input_or_lines, n_inputs, backend)
-    output_constrs_list = parse_output_or_block(
-        output_or_lines, n_inputs, n_outputs, backend
-    )
+    output_constrs_list = parse_output_or_block(output_or_lines, n_inputs, n_outputs, backend)
 
     return input_bounds_list, output_constrs_list

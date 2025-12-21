@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Update baseline outputs for torchvnnlib regression testing.
 
-This script regenerates all baseline outputs using AST-only conversion
-(no fast-type optimizations) to ensure consistent golden references.
+This script copies outputs from results/ to baselines/ to update golden references.
+
+Workflow:
+    1. Run test_torchvnnlib.py to generate results/
+    2. Run this script to copy results/ -> baselines/
+    3. Run test_torchvnnlib_regression.py to verify
 
 Usage:
-    python update_baselines.py                    # Update all benchmarks
-    python update_baselines.py --benchmark acasxu # Update specific benchmark
-    python update_baselines.py --dry-run          # Show what would be updated
+    python update_baselines.py                     # Copy all results to baselines
+    python update_baselines.py --benchmark acasxu  # Copy specific benchmark
+    python update_baselines.py --dry-run           # Show what would be copied
 """
 
 import argparse
@@ -15,48 +19,90 @@ import shutil
 import sys
 from pathlib import Path
 
-from torchvnnlib import TorchVNNLIB
 
-# Import utilities (reuse existing code)
-sys.path.insert(0, str(Path(__file__).parent))
-from utils import find_all_vnnlib_files, get_benchmark_name
+def copy_baseline(
+    result_path: Path, baseline_path: Path, dry_run: bool = False
+) -> tuple[bool, int]:
+    """Copy a single result folder to baseline.
 
-
-def update_baseline(vnnlib_path: str, baselines_dir: Path, dry_run: bool = False):
-    """Update baseline for a single vnnlib file.
-
-    :param vnnlib_path: Path to vnnlib file
-    :param baselines_dir: Baselines directory path
-    :param dry_run: If True, only show what would be updated
+    :param result_path: Source path in results/
+    :param baseline_path: Destination path in baselines/
+    :param dry_run: If True, only show what would be copied
+    :return: Tuple of (success, file_count)
     """
-    benchmark_name = get_benchmark_name(vnnlib_path)
-    vnnlib_file = Path(vnnlib_path)
-
-    # Baseline path: baselines/[benchmark]/[property_name]/
-    baseline_path = baselines_dir / benchmark_name / vnnlib_file.stem
-
     if dry_run:
-        print(f"  [DRY-RUN] Would update: {baseline_path}")
-        return
+        if result_path.exists():
+            pth_count = sum(1 for _ in result_path.rglob("*.pth"))
+            print(f"  [DRY-RUN] Would copy: {result_path} -> {baseline_path} ({pth_count} .pth files)")
+            return True, pth_count
+        print(f"  [DRY-RUN] Would skip (missing): {result_path}")
+        return False, 0
+
+    # Check source exists
+    if not result_path.exists():
+        print(f"  [SKIP] Missing result: {result_path}")
+        return False, 0
 
     # Remove old baseline if exists
     if baseline_path.exists():
         shutil.rmtree(baseline_path)
 
-    # Create new baseline using AST-only conversion (no fast optimizations)
-    converter = TorchVNNLIB(detect_fast_type=False, verbose=False)
-    converter.convert(vnnlib_path, str(baseline_path))
+    # Copy result to baseline
+    shutil.copytree(result_path, baseline_path)
 
-    # Count .pth files created
+    # Count .pth files copied
     pth_count = sum(1 for _ in baseline_path.rglob("*.pth"))
-    print(f"  ✓ Updated: {baseline_path} ({pth_count} .pth files)")
+    print(f"  [OK] Copied: {baseline_path} ({pth_count} .pth files)")
+    return True, pth_count
+
+
+def update_benchmark(
+    benchmark_name: str,
+    results_dir: Path,
+    baselines_dir: Path,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Update baselines for one benchmark.
+
+    :param benchmark_name: Name of benchmark
+    :param results_dir: Root results directory
+    :param baselines_dir: Root baselines directory
+    :param dry_run: If True, only show what would be copied
+    :return: Tuple of (success_count, total_count)
+    """
+    result_bench_dir = results_dir / benchmark_name
+    baseline_bench_dir = baselines_dir / benchmark_name
+
+    if not result_bench_dir.exists():
+        print(f"  [SKIP] No results: {benchmark_name}")
+        return 0, 0
+
+    # Create baseline benchmark directory
+    if not dry_run:
+        baseline_bench_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy each property subdirectory
+    success = 0
+    total = 0
+
+    for property_dir in sorted(result_bench_dir.iterdir()):
+        if not property_dir.is_dir():
+            continue
+
+        total += 1
+        baseline_property_path = baseline_bench_dir / property_dir.name
+        copied, _ = copy_baseline(property_dir, baseline_property_path, dry_run)
+        if copied:
+            success += 1
+
+    return success, total
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Update baseline outputs for torchvnnlib regression testing",
-        epilog="Example: python update_baselines.py --benchmark acasxu_2023 --limit 5",
+        description="Update baselines by copying results/ to baselines/",
+        epilog="Example: python update_baselines.py --benchmark acasxu_2023",
     )
     parser.add_argument(
         "--benchmark",
@@ -66,56 +112,72 @@ def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be updated without making changes",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=20,
-        help="Max files per benchmark (default: 20)",
+        help="Show what would be copied without making changes",
     )
     args = parser.parse_args()
 
     # Setup paths
     test_dir = Path(__file__).parent
-    benchmarks_dir = test_dir / "benchmarks"
+    results_dir = test_dir / "results"
     baselines_dir = test_dir / "baselines"
+
+    # Check results directory exists
+    if not results_dir.exists():
+        print(f"Error: Results directory not found: {results_dir}")
+        print("\nRun test_torchvnnlib.py first to generate results/")
+        return 1
 
     # Create baselines directory if missing
     if not args.dry_run:
         baselines_dir.mkdir(exist_ok=True)
 
-    # Find vnnlib files
+    # Find benchmarks to update
     if args.benchmark:
-        benchmark_path = benchmarks_dir / args.benchmark
+        benchmark_path = results_dir / args.benchmark
         if not benchmark_path.exists():
-            print(f"Error: Benchmark '{args.benchmark}' not found")
-            print(f"\nAvailable benchmarks in {benchmarks_dir}:")
-            for bench in sorted(benchmarks_dir.iterdir()):
+            print(f"Error: Benchmark '{args.benchmark}' not found in results/")
+            print(f"\nAvailable benchmarks in {results_dir}:")
+            for bench in sorted(results_dir.iterdir()):
                 if bench.is_dir():
                     print(f"  - {bench.name}")
             return 1
-        vnnlib_files = find_all_vnnlib_files([str(benchmark_path)], num_limit=args.limit)
+        benchmarks_to_update = [args.benchmark]
     else:
-        vnnlib_files = find_all_vnnlib_files([str(benchmarks_dir)], num_limit=args.limit)
+        benchmarks_to_update = [
+            bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()
+        ]
 
-    if not vnnlib_files:
-        print("No vnnlib files found")
+    if not benchmarks_to_update:
+        print("No benchmarks found in results/")
         return 1
 
     # Update baselines
-    print(f"{'[DRY-RUN] ' if args.dry_run else ''}Updating {len(vnnlib_files)} baselines...")
+    print(f"{'[DRY-RUN] ' if args.dry_run else ''}Updating baselines from results/")
+    print(f"Benchmarks: {len(benchmarks_to_update)}")
     print("=" * 80)
 
-    for i, vnnlib_path in enumerate(vnnlib_files, 1):
-        print(f"[{i}/{len(vnnlib_files)}] {Path(vnnlib_path).name}")
-        try:
-            update_baseline(vnnlib_path, baselines_dir, dry_run=args.dry_run)
-        except Exception as e:
-            print(f"  ✗ ERROR: {e}")
+    total_success = 0
+    total_count = 0
 
-    print("=" * 80)
-    print(f"\n{'[DRY-RUN] ' if args.dry_run else ''}Baseline update complete!")
+    for benchmark_name in benchmarks_to_update:
+        print(f"\n{benchmark_name}:")
+        success, count = update_benchmark(
+            benchmark_name, results_dir, baselines_dir, dry_run=args.dry_run
+        )
+        total_success += success
+        total_count += count
+
+        if count > 0:
+            print(f"  {success}/{count} properties copied")
+
+    print("\n" + "=" * 80)
+    print(f"{'[DRY-RUN] ' if args.dry_run else ''}Baseline update complete!")
+    print(f"Total: {total_success}/{total_count} properties copied")
+
+    if not args.dry_run and total_success > 0:
+        print(f"\nBaselines updated in: {baselines_dir}")
+        print("Run test_torchvnnlib_regression.py to verify")
+
     return 0
 
 

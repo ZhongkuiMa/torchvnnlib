@@ -5,8 +5,8 @@ __all__ = ["process_type5"]
 
 import time
 
-from .._backend import Backend, TensorLike
-from ._utils import parse_and_block
+from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.torchvnnlib.fast_type._utils import parse_and_block
 
 
 def process_type5(
@@ -30,7 +30,7 @@ def process_type5(
     t = time.perf_counter() if verbose else None
     properties = _parse_top_level_or(lines, n_inputs, n_outputs, backend, verbose)
     if verbose and t is not None:
-        print(f"  Type5 detection:")
+        print("  Type5 detection:")
         print(f"    OR clauses (properties): {len(properties)}")
         print(f"    Parsing: {time.perf_counter() - t:.4f}s")
 
