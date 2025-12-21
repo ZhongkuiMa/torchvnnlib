@@ -1,13 +1,13 @@
 """Pytest configuration and fixtures for torchvnnlib tests."""
 
-from pathlib import Path
-import pytest
+import importlib.util
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add test directory to path for utils import
 sys.path.insert(0, str(Path(__file__).parent))
-
-from utils import find_benchmarks_folders, find_all_vnnlib_files
 
 
 @pytest.fixture(scope="session")
@@ -41,11 +41,7 @@ def baselines_dir(test_dir):
 @pytest.fixture(scope="session")
 def torch_available():
     """Check if torch is available."""
-    try:
-        import torch
-        return True
-    except ImportError:
-        return False
+    return importlib.util.find_spec("torch") is not None
 
 
 def pytest_addoption(parser):
@@ -54,14 +50,14 @@ def pytest_addoption(parser):
         "--backend",
         action="store",
         default=None,
-        help="Backend to use: torch, numpy, or both (default: both)"
+        help="Backend to use: torch, numpy, or both (default: both)",
     )
     parser.addoption(
         "--sample-size",
         action="store",
         type=int,
         default=None,
-        help="Number of files to sample for testing"
+        help="Number of files to sample for testing",
     )
 
 

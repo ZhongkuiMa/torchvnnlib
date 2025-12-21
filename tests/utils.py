@@ -3,7 +3,7 @@
 Extracted helper functions used across multiple test files.
 """
 
-import os
+from pathlib import Path
 
 import torch
 
@@ -14,13 +14,9 @@ def find_benchmarks_folders(base_dir):
     :param base_dir: Root directory containing benchmark subdirectories
     :return: List of benchmark directory paths
     """
-    benchmark_dirs = []
     # Only consider first-level subdirectories
-    for entry in os.listdir(base_dir):
-        subdir = os.path.normpath(os.path.join(base_dir, entry))
-        if os.path.isdir(subdir):
-            benchmark_dirs.append(subdir)
-    return benchmark_dirs
+    base_path = Path(base_dir)
+    return [str(subdir) for subdir in base_path.iterdir() if subdir.is_dir()]
 
 
 def find_vnnlib_folders(benchmark_dirs):
@@ -31,9 +27,9 @@ def find_vnnlib_folders(benchmark_dirs):
     """
     vnnlib_dirs = []
     for bdir in benchmark_dirs:
-        vnnlib_subdir = os.path.join(bdir, "vnnlib")
-        if os.path.isdir(vnnlib_subdir):
-            vnnlib_dirs.append(vnnlib_subdir)
+        vnnlib_subdir = Path(bdir) / "vnnlib"
+        if vnnlib_subdir.is_dir():
+            vnnlib_dirs.append(str(vnnlib_subdir))
     return vnnlib_dirs
 
 
@@ -52,27 +48,22 @@ def find_all_vnnlib_files(benchmark_dirs, num_limit: int = 20):
     for bdir in benchmark_dirs:
         # Try new structure first (vnnlib files directly in benchmark dir)
         i = 0
-        for entry in os.listdir(bdir):
-            if entry.endswith(".vnnlib"):
-                vnnlib_path = os.path.normpath(os.path.join(bdir, entry))
-                vnnlib_files.append(vnnlib_path)
-                i += 1
-                if i >= num_limit:
-                    break
+        bdir_path = Path(bdir)
+        for entry in bdir_path.glob("*.vnnlib"):
+            vnnlib_files.append(str(entry))
+            i += 1
+            if i >= num_limit:
+                break
 
         # If no vnnlib files found, try old structure (vnnlib subdirectory)
         if i == 0:
-            vnnlib_subdir = os.path.join(bdir, "vnnlib")
-            if os.path.isdir(vnnlib_subdir):
-                for entry in os.listdir(vnnlib_subdir):
-                    if entry.endswith(".vnnlib"):
-                        vnnlib_path = os.path.normpath(
-                            os.path.join(vnnlib_subdir, entry)
-                        )
-                        vnnlib_files.append(vnnlib_path)
-                        i += 1
-                        if i >= num_limit:
-                            break
+            vnnlib_subdir = bdir_path / "vnnlib"
+            if vnnlib_subdir.is_dir():
+                for entry in vnnlib_subdir.glob("*.vnnlib"):
+                    vnnlib_files.append(str(entry))
+                    i += 1
+                    if i >= num_limit:
+                        break
     return vnnlib_files
 
 
@@ -84,10 +75,10 @@ def get_benchmark_name(vnnlib_path: str, benchmarks_dir: str = "benchmarks") -> 
     :return: Benchmark name (subdirectory name)
     """
     # Normalize path
-    vnnlib_path = os.path.normpath(vnnlib_path)
+    vnnlib_path_obj = Path(vnnlib_path)
 
     # Find benchmarks_dir in the path
-    path_parts = vnnlib_path.split(os.sep)
+    path_parts = vnnlib_path_obj.parts
 
     # Find the index of benchmarks_dir
     try:
@@ -99,7 +90,7 @@ def get_benchmark_name(vnnlib_path: str, benchmarks_dir: str = "benchmarks") -> 
         pass
 
     # Fallback: use the parent directory name
-    return os.path.basename(os.path.dirname(vnnlib_path))
+    return vnnlib_path_obj.parent.name
 
 
 def compare_tensors(
@@ -118,9 +109,37 @@ def compare_tensors(
     return torch.allclose(tensor1, tensor2, rtol=rtol, atol=atol)
 
 
-def compare_pth_files(
-    file1: str, file2: str, rtol: float = 1e-5, atol: float = 1e-8
-) -> bool:
+def _compare_pth_values(val1, val2, rtol: float, atol: float) -> bool:
+    """Compare two values from pth files.
+
+    :param val1: First value
+    :param val2: Second value
+    :param rtol: Relative tolerance for tensors
+    :param atol: Absolute tolerance for tensors
+    :return: True if values match, False otherwise
+    """
+    # Handle tensor values
+    if isinstance(val1, torch.Tensor) and isinstance(val2, torch.Tensor):
+        return compare_tensors(val1, val2, rtol, atol)
+
+    # Handle list of tensors
+    if isinstance(val1, list) and isinstance(val2, list):
+        if len(val1) != len(val2):
+            return False
+        for t1, t2 in zip(val1, val2, strict=False):
+            if isinstance(t1, torch.Tensor) and isinstance(t2, torch.Tensor):
+                if not compare_tensors(t1, t2, rtol, atol):
+                    return False
+            else:
+                if t1 != t2:
+                    return False
+        return True
+
+    # Direct comparison for other types
+    return val1 == val2
+
+
+def compare_pth_files(file1: str, file2: str, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
     """Compare two .pth files containing tensor dictionaries.
 
     :param file1: Path to first .pth file
@@ -137,31 +156,7 @@ def compare_pth_files(
         return False
 
     # Compare each value
-    for key in data1.keys():
-        val1 = data1[key]
-        val2 = data2[key]
-
-        # Handle tensor values
-        if isinstance(val1, torch.Tensor) and isinstance(val2, torch.Tensor):
-            if not compare_tensors(val1, val2, rtol, atol):
-                return False
-        # Handle list of tensors
-        elif isinstance(val1, list) and isinstance(val2, list):
-            if len(val1) != len(val2):
-                return False
-            for t1, t2 in zip(val1, val2):
-                if isinstance(t1, torch.Tensor) and isinstance(t2, torch.Tensor):
-                    if not compare_tensors(t1, t2, rtol, atol):
-                        return False
-                else:
-                    if t1 != t2:
-                        return False
-        # Direct comparison for other types
-        else:
-            if val1 != val2:
-                return False
-
-    return True
+    return all(_compare_pth_values(data1[key], data2[key], rtol, atol) for key in data1)
 
 
 def compare_output_folders(
@@ -178,25 +173,25 @@ def compare_output_folders(
     mismatches = []
 
     # Check both folders exist
-    if not os.path.exists(folder1):
+    folder1_path = Path(folder1)
+    folder2_path = Path(folder2)
+    if not folder1_path.exists():
         mismatches.append(f"Missing folder: {folder1}")
         return False, mismatches
-    if not os.path.exists(folder2):
+    if not folder2_path.exists():
         mismatches.append(f"Missing folder: {folder2}")
         return False, mismatches
 
     # Get all .pth files in both folders (recursively)
-    def get_pth_files(folder):
+    def get_pth_files(folder_path):
         pth_files = []
-        for root, dirs, files in os.walk(folder):
-            for file in files:
-                if file.endswith(".pth"):
-                    rel_path = os.path.relpath(os.path.join(root, file), folder)
-                    pth_files.append(rel_path)
+        for pth_file in folder_path.rglob("*.pth"):
+            rel_path = pth_file.relative_to(folder_path)
+            pth_files.append(str(rel_path))
         return sorted(pth_files)
 
-    files1 = get_pth_files(folder1)
-    files2 = get_pth_files(folder2)
+    files1 = get_pth_files(folder1_path)
+    files2 = get_pth_files(folder2_path)
 
     # Check file lists match
     if set(files1) != set(files2):
@@ -210,8 +205,8 @@ def compare_output_folders(
 
     # Compare each file
     for rel_path in files1:
-        path1 = os.path.join(folder1, rel_path)
-        path2 = os.path.join(folder2, rel_path)
+        path1 = str(folder1_path / rel_path)
+        path2 = str(folder2_path / rel_path)
         if not compare_pth_files(path1, path2, rtol, atol):
             mismatches.append(f"Mismatch: {rel_path}")
 

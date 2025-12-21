@@ -1,22 +1,22 @@
-"""Baseline management for TorchVNNLib regression testing.
+"""TorchVNNLib Regression Testing Suite.
 
-This module provides functions to create and compare conversion baselines.
-Each vnnlib file is converted to a folder structure containing .pth files.
+Baseline management for regression testing - creates and verifies golden reference
+outputs to ensure code changes don't break existing functionality.
+
+Baselines are created using AST-only conversion (detect_fast_type=False) to ensure
+correctness. Verification compares current outputs against these baselines.
 
 Usage::
 
     # Verify baselines (default, safe, read-only)
-    pytest test_baselines.py -v
+    pytest test_torchvnnlib_regression.py -v
+    python test_torchvnnlib_regression.py
 
-    # Update baselines (requires explicit marker)
-    pytest test_baselines.py -v -m update
-
-    # Backward compatible script execution
-    python test_baselines.py           # verify (default)
-    python test_baselines.py update    # update
+    # Update baselines (requires explicit marker - be careful!)
+    pytest test_torchvnnlib_regression.py -v -m update
+    python test_torchvnnlib_regression.py update
 """
 
-import os
 import shutil
 import sys
 import time
@@ -25,11 +25,11 @@ from pathlib import Path
 import pytest
 
 from torchvnnlib import TorchVNNLIB
-from utils import (
-    find_benchmarks_folders,
-    find_all_vnnlib_files,
-    get_benchmark_name,
+from torchvnnlib.tests.utils import (
     compare_output_folders,
+    find_all_vnnlib_files,
+    find_benchmarks_folders,
+    get_benchmark_name,
 )
 
 
@@ -47,12 +47,11 @@ def get_baseline_path(vnnlib_path: str, baselines_dir: str = "baselines") -> str
     benchmark_name = get_benchmark_name(vnnlib_path)
 
     # Get vnnlib basename without .vnnlib extension
-    basename = os.path.basename(vnnlib_path)
-    if basename.endswith(".vnnlib"):
-        basename = basename[:-7]
+    basename = Path(vnnlib_path).name
+    basename = basename.removesuffix(".vnnlib")
 
     # Create path with benchmark subdirectory
-    return os.path.join(baselines_dir, benchmark_name, basename)
+    return str(Path(baselines_dir) / benchmark_name / basename)
 
 
 def get_results_path(vnnlib_path: str, results_dir: str = "results") -> str:
@@ -66,19 +65,19 @@ def get_results_path(vnnlib_path: str, results_dir: str = "results") -> str:
     benchmark_name = get_benchmark_name(vnnlib_path)
 
     # Get vnnlib basename without .vnnlib extension
-    basename = os.path.basename(vnnlib_path)
-    if basename.endswith(".vnnlib"):
-        basename = basename[:-7]
+    basename = Path(vnnlib_path).name
+    basename = basename.removesuffix(".vnnlib")
 
     # Create path with benchmark subdirectory
-    return os.path.join(results_dir, benchmark_name, basename)
+    return str(Path(results_dir) / benchmark_name / basename)
 
 
 def update_baseline(vnnlib_path: str, baselines_dir: str = "baselines"):
     """Create or update baseline for ONE vnnlib file.
 
-    Runs TorchVNNLib.convert() with AST-only (detect_fast_type=False) and saves output to baselines directory.
-    This ensures baselines are created using the known-correct AST method.
+    Runs TorchVNNLib.convert() with AST-only (detect_fast_type=False) and saves
+    output to baselines directory. This ensures baselines are created using the
+    known-correct AST method.
 
     :param vnnlib_path: Path to vnnlib file
     :param baselines_dir: Root directory to store baseline folders
@@ -89,21 +88,18 @@ def update_baseline(vnnlib_path: str, baselines_dir: str = "baselines"):
     baseline_path = get_baseline_path(vnnlib_path, baselines_dir)
 
     # Remove existing baseline if it exists
-    if os.path.exists(baseline_path):
-        shutil.rmtree(baseline_path)
+    baseline_path_obj = Path(baseline_path)
+    if baseline_path_obj.exists():
+        shutil.rmtree(baseline_path_obj)
 
     # Run conversion
     converter.convert(vnnlib_path, target_folder_path=baseline_path)
 
     # Count .pth files
-    pth_count = 0
-    for root, dirs, files in os.walk(baseline_path):
-        pth_count += sum(1 for f in files if f.endswith(".pth"))
+    pth_count = sum(1 for f in baseline_path_obj.rglob("*.pth"))
 
     benchmark_name = get_benchmark_name(vnnlib_path)
-    print(
-        f"OK - [{benchmark_name}] {os.path.basename(vnnlib_path)} ({pth_count} files)"
-    )
+    print(f"OK - [{benchmark_name}] {Path(vnnlib_path).name} ({pth_count} files)")
 
     return baseline_path
 
@@ -123,12 +119,14 @@ def compare_baseline(
     baseline_path = get_baseline_path(vnnlib_path, baselines_dir)
     results_path = get_results_path(vnnlib_path, results_dir)
 
-    if not os.path.exists(baseline_path):
+    baseline_path_obj = Path(baseline_path)
+    if not baseline_path_obj.exists():
         return False
 
     # Remove existing results if they exist
-    if os.path.exists(results_path):
-        shutil.rmtree(results_path)
+    results_path_obj = Path(results_path)
+    if results_path_obj.exists():
+        shutil.rmtree(results_path_obj)
 
     # Run conversion
     converter = TorchVNNLIB()
@@ -145,7 +143,7 @@ def update_all_benchmarks(
     baselines_dir: str = "baselines",
     max_per_benchmark: int = 20,
 ):
-    """Helper to create/update baselines for all vnnlib files.
+    """Create/update baselines for all vnnlib files.
 
     :param benchmarks_dir: Root directory of benchmarks
     :param baselines_dir: Root directory to store baseline folders
@@ -168,7 +166,7 @@ def update_all_benchmarks(
             success += 1
             elapsed = time.perf_counter() - file_start
             print(f"({elapsed:.2f}s)")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             elapsed = time.perf_counter() - file_start
             print(f"ERROR ({elapsed:.2f}s): {e}")
             failed.append(vnnlib_path)
@@ -182,12 +180,12 @@ def update_all_benchmarks(
     print(f"Success: {success}")
     print(f"Failed: {len(failed)}")
     print(f"Total time: {total_time:.2f}s")
-    print(f"Average time: {total_time/len(vnnlib_files):.4f}s per file")
+    print(f"Average time: {total_time / len(vnnlib_files):.4f}s per file")
 
     if failed:
         print("\nFailed files:")
         for f in failed:
-            print(f"  {os.path.basename(f)}")
+            print(f"  {Path(f).name}")
 
 
 def verify_all_benchmarks(
@@ -196,7 +194,7 @@ def verify_all_benchmarks(
     results_dir: str = "results",
     max_per_benchmark: int = 20,
 ):
-    """Helper to verify all vnnlib files against baselines.
+    """Verify all vnnlib files against baselines.
 
     :param benchmarks_dir: Root directory of benchmarks
     :param baselines_dir: Root directory containing baseline folders
@@ -218,12 +216,12 @@ def verify_all_benchmarks(
         print(f"[{i}/{len(vnnlib_files)}] ", end="", flush=True)
         try:
             baseline_path = get_baseline_path(vnnlib_path, baselines_dir)
-            if not os.path.exists(baseline_path):
-                print(f"SKIP (no baseline) - {os.path.basename(vnnlib_path)}")
+            if not Path(baseline_path).exists():
+                print(f"SKIP (no baseline) - {Path(vnnlib_path).name}")
                 missing.append(vnnlib_path)
                 continue
 
-            basename = os.path.basename(vnnlib_path)
+            basename = Path(vnnlib_path).name
             if compare_baseline(vnnlib_path, baselines_dir, results_dir):
                 passed += 1
                 elapsed = time.perf_counter() - file_start
@@ -232,7 +230,7 @@ def verify_all_benchmarks(
                 failed.append(vnnlib_path)
                 elapsed = time.perf_counter() - file_start
                 print(f"MISMATCH ({elapsed:.2f}s) - {basename}")
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             elapsed = time.perf_counter() - file_start
             print(f"ERROR ({elapsed:.2f}s): {e}")
             failed.append(vnnlib_path)
@@ -250,12 +248,12 @@ def verify_all_benchmarks(
     if missing:
         print(f"Skipped (no baseline): {len(missing)}")
     print(f"Total time: {total_time:.2f}s")
-    print(f"Average time: {total_time/tested:.4f}s per file" if tested > 0 else "")
+    print(f"Average time: {total_time / tested:.4f}s per file" if tested > 0 else "")
 
     if failed:
         print("\nFailed files:")
         for f in failed:
-            print(f"  {os.path.basename(f)}")
+            print(f"  {Path(f).name}")
 
 
 def get_all_benchmarks():
@@ -286,8 +284,7 @@ def test_update_baseline(benchmark_name, test_dir, baselines_dir):
     :param baselines_dir: Baselines directory fixture
     """
     vnnlib_files = find_all_vnnlib_files(
-        [str(test_dir / "benchmarks" / benchmark_name)],
-        num_limit=20
+        [str(test_dir / "benchmarks" / benchmark_name)], num_limit=20
     )
 
     if not vnnlib_files:
@@ -300,7 +297,7 @@ def test_update_baseline(benchmark_name, test_dir, baselines_dir):
         try:
             update_baseline(vnnlib_path, str(baselines_dir))
             success += 1
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             failed.append((vnnlib_path, str(e)))
 
     assert success > 0, f"No baselines updated for {benchmark_name}"
@@ -321,8 +318,7 @@ def test_verify_baseline(benchmark_name, test_dir, baselines_dir, results_dir):
     :param results_dir: Results directory fixture
     """
     vnnlib_files = find_all_vnnlib_files(
-        [str(test_dir / "benchmarks" / benchmark_name)],
-        num_limit=20
+        [str(test_dir / "benchmarks" / benchmark_name)], num_limit=20
     )
 
     if not vnnlib_files:
@@ -334,26 +330,25 @@ def test_verify_baseline(benchmark_name, test_dir, baselines_dir, results_dir):
 
     for vnnlib_path in vnnlib_files:
         baseline_path = get_baseline_path(vnnlib_path, str(baselines_dir))
-        if not os.path.exists(baseline_path):
-            missing.append(os.path.basename(vnnlib_path))
+        if not Path(baseline_path).exists():
+            missing.append(Path(vnnlib_path).name)
             continue
 
         try:
             if compare_baseline(vnnlib_path, str(baselines_dir), str(results_dir)):
                 passed += 1
             else:
-                failed.append(os.path.basename(vnnlib_path))
-        except Exception as e:
-            failed.append(f"{os.path.basename(vnnlib_path)} (ERROR: {e})")
+                failed.append(Path(vnnlib_path).name)
+        except (OSError, RuntimeError, ValueError) as e:
+            failed.append(f"{Path(vnnlib_path).name} (ERROR: {e})")
 
     # Skip if no baselines exist for this benchmark
-    if not passed and not failed:
-        if missing:
-            pytest.skip(f"No baselines found for {benchmark_name}")
+    if not passed and not failed and missing:
+        pytest.skip(f"No baselines found for {benchmark_name}")
 
     # Assert that verification passed
     if failed:
-        assert False, f"Baseline mismatches for {benchmark_name}: {', '.join(failed[:3])}"
+        raise AssertionError(f"Baseline mismatches for {benchmark_name}: {', '.join(failed[:3])}")
 
     assert passed > 0 or len(missing) > 0, f"No tests run for {benchmark_name}"
 

@@ -1,20 +1,21 @@
-"""VNNComp Benchmark Test Runner for TorchVNNLib.
+"""TorchVNNLib Converter Test Suite.
 
-Runs conversion on all VNNComp benchmark vnnlib files and validates results.
+Tests the TorchVNNLib converter on all VNNComp benchmark vnnlib files
+and collects conversion statistics including type detection and performance metrics.
 
 Usage::
 
-    # Run all benchmarks
-    pytest test_benchmarks.py -v -s
+    # Run all benchmarks (pytest style)
+    pytest test_torchvnnlib.py -v -s
 
     # Run specific benchmark
-    pytest test_benchmarks.py::test_benchmark_conversion -k acasxu -v -s
+    pytest test_torchvnnlib.py::test_benchmark_conversion -k acasxu -v -s
 
     # Backward compatible script execution
-    python test_benchmarks.py
+    python test_torchvnnlib.py
 """
 
-import os
+import shutil
 import sys
 import time
 from collections import defaultdict
@@ -23,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from torchvnnlib import TorchVNNLIB
-from utils import find_benchmarks_folders, find_all_vnnlib_files
+from torchvnnlib.tests.utils import find_all_vnnlib_files, find_benchmarks_folders
 
 
 def get_all_benchmarks():
@@ -42,7 +43,7 @@ def get_all_benchmarks():
 
 
 # Global statistics for session summary
-_benchmark_stats = defaultdict(
+_benchmark_stats: defaultdict[str, dict[str, int | float | defaultdict[str, int]]] = defaultdict(
     lambda: {
         "total": 0,
         "success": 0,
@@ -87,10 +88,9 @@ def test_benchmark_conversion(benchmark_dir, test_dir):
             converter.convert(vnnlib_path, target_folder_path=output_folder)
 
             # Clean up temporary output
-            import shutil
-
-            if os.path.exists(output_folder):
-                shutil.rmtree(output_folder)
+            output_path = Path(output_folder)
+            if output_path.exists():
+                shutil.rmtree(output_path)
 
             success_count += 1
 
@@ -101,17 +101,16 @@ def test_benchmark_conversion(benchmark_dir, test_dir):
                 _benchmark_stats[benchmark_name]["total_time"] += stats["time"]
                 _benchmark_stats[benchmark_name]["type_counts"][stats["type"].name] += 1
                 if stats["used_fast"]:
-                    _benchmark_stats[benchmark_name]["fast_type_counts"][
-                        stats["type"].name
-                    ] += 1
+                    _benchmark_stats[benchmark_name]["fast_type_counts"][stats["type"].name] += 1
 
             elapsed = time.perf_counter() - file_start
-            print(f"  [{i}/{len(vnnlib_files)}] OK ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}")
+            print(f"  [{i}/{len(vnnlib_files)}] OK ({elapsed:.2f}s) - {Path(vnnlib_path).name}")
 
-        except Exception as e:
-            failed.append(os.path.basename(vnnlib_path))
+        except (OSError, RuntimeError, ValueError) as e:
+            failed.append(Path(vnnlib_path).name)
             elapsed = time.perf_counter() - file_start
-            print(f"  [{i}/{len(vnnlib_files)}] FAILED ({elapsed:.2f}s) - {os.path.basename(vnnlib_path)}: {e}")
+            filename = Path(vnnlib_path).name
+            print(f"  [{i}/{len(vnnlib_files)}] FAILED ({elapsed:.2f}s) - {filename}: {e}")
 
         _benchmark_stats[benchmark_name]["total"] += 1
 
@@ -124,20 +123,19 @@ def test_benchmark_conversion(benchmark_dir, test_dir):
     total = _benchmark_stats[benchmark_name]["total"]
     print(f"\n  Success: {success_count}/{total}")
     print(f"  Total time: {bench_elapsed:.2f}s")
-    print(f"  Average time: {bench_elapsed/total:.4f}s per file")
+    print(f"  Average time: {bench_elapsed / total:.4f}s per file")
 
     # Print type distribution
     type_counts = _benchmark_stats[benchmark_name]["type_counts"]
     fast_counts = _benchmark_stats[benchmark_name]["fast_type_counts"]
     if type_counts:
-        print(f"  Type distribution:")
+        print("  Type distribution:")
         for type_name in sorted(type_counts.keys()):
             count = type_counts[type_name]
             fast_count = fast_counts.get(type_name, 0)
             fast_rate = 100.0 * fast_count / count if count > 0 else 0
-            print(
-                f"    {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)"
-            )
+            stat_str = f"{type_name:12s}: {count:4d} files ({fast_count:4d} used fast,"
+            print(f"    {stat_str} {fast_rate:5.1f}%)")
 
     assert success_count > 0 or not vnnlib_files, f"No files converted in {benchmark_name}"
     if failed:
@@ -159,14 +157,13 @@ def print_summary():
         print(f"  Total files: {stats['total']}")
         print(f"  Success: {stats['success']}")
         print(f"  Total time: {stats['total_time']:.2f}s")
-        print(f"  Avg time: {stats['total_time']/max(stats['total'], 1):.4f}s")
-        print(f"  Type distribution:")
+        print(f"  Avg time: {stats['total_time'] / max(stats['total'], 1):.4f}s")
+        print("  Type distribution:")
         for type_name, count in sorted(stats["type_counts"].items()):
             fast_count = stats["fast_type_counts"].get(type_name, 0)
             fast_rate = 100.0 * fast_count / count if count > 0 else 0
-            print(
-                f"    {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)"
-            )
+            stat_str = f"{type_name:12s}: {count:4d} files ({fast_count:4d} used fast,"
+            print(f"    {stat_str} {fast_rate:5.1f}%)")
 
     # Overall summary
     print(f"\n{'=' * 80}")
@@ -184,14 +181,15 @@ def print_summary():
         count = total_by_type[type_name]
         fast_count = total_fast_by_type[type_name]
         fast_rate = 100.0 * fast_count / count if count > 0 else 0
-        print(
-            f"  {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)"
-        )
+        print(f"  {type_name:12s}: {count:4d} files ({fast_count:4d} used fast, {fast_rate:5.1f}%)")
 
     if _overall_stats["total_count"] > 0:
         print(f"\nTotal conversion time: {_overall_stats['overall_time']:.2f}s")
-        print(f"Average time: {_overall_stats['overall_time']/_overall_stats['total_count']:.4f}s per file")
-        print(f"Overall success: {_overall_stats['success_count']}/{_overall_stats['total_count']}")
+        avg_time = _overall_stats["overall_time"] / _overall_stats["total_count"]
+        print(f"Average time: {avg_time:.4f}s per file")
+        success = _overall_stats["success_count"]
+        total = _overall_stats["total_count"]
+        print(f"Overall success: {success}/{total}")
 
 
 def main():
