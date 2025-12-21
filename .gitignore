@@ -38,6 +38,7 @@ coverage.xml
 # === pytest / unittest ===
 .pytest_cache/
 tests/.pytest_cache/
+tests/baselines/
 tests/results/
 tests/_temp_test_output_*/
 tests/__pycache__/
