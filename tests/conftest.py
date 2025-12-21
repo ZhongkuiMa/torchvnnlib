@@ -26,7 +26,7 @@ def benchmarks_dir(test_dir):
 def results_dir(test_dir):
     """Results directory path."""
     results = test_dir / "results"
-    results.mkdir(exist_ok=True)
+    results.mkdir(parents=True, exist_ok=True)
     return results
 
 
@@ -34,7 +34,7 @@ def results_dir(test_dir):
 def baselines_dir(test_dir):
     """Baselines directory path."""
     baselines = test_dir / "baselines"
-    baselines.mkdir(exist_ok=True)
+    baselines.mkdir(parents=True, exist_ok=True)
     return baselines
 
 
