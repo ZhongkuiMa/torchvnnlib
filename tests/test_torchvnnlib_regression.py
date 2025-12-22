@@ -60,9 +60,7 @@ def test_verify_baseline(benchmark_name, test_dir, baselines_dir, results_dir):
 
     # Check results exist
     if not results_bench_dir.exists():
-        pytest.fail(
-            f"No results found for {benchmark_name}. Run test_torchvnnlib.py first."
-        )
+        pytest.fail(f"No results found for {benchmark_name}. Run test_torchvnnlib.py first.")
 
     # Find all property subdirectories in results
     property_dirs = [d for d in results_bench_dir.iterdir() if d.is_dir()]

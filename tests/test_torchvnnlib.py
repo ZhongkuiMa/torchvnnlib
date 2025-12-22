@@ -29,7 +29,6 @@ from torchvnnlib import TorchVNNLIB
 from torchvnnlib.tests.utils import (
     find_all_vnnlib_files,
     find_benchmarks_folders,
-    get_benchmark_name,
 )
 
 

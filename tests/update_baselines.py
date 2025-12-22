@@ -33,7 +33,9 @@ def copy_baseline(
     if dry_run:
         if result_path.exists():
             pth_count = sum(1 for _ in result_path.rglob("*.pth"))
-            print(f"  [DRY-RUN] Would copy: {result_path} -> {baseline_path} ({pth_count} .pth files)")
+            print(
+                f"  [DRY-RUN] Would copy: {result_path} -> {baseline_path} ({pth_count} .pth files)"
+            )
             return True, pth_count
         print(f"  [DRY-RUN] Would skip (missing): {result_path}")
         return False, 0
