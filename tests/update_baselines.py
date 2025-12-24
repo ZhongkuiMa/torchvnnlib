@@ -129,7 +129,7 @@ def find_benchmarks_to_update(
 
 
 def main():
-    """Main entry point."""
+    """Update baselines from results directory."""
     parser = argparse.ArgumentParser(
         description="Update baselines by copying results/ to baselines/",
         epilog="Example: python update_baselines.py --benchmark acasxu_2023",
