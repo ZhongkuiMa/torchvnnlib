@@ -100,6 +100,34 @@ def update_benchmark(
     return success, total
 
 
+def find_benchmarks_to_update(
+    results_dir: Path, benchmark_arg: str | None
+) -> tuple[list[str], int]:
+    """Find which benchmarks to update.
+
+    :param results_dir: Root results directory
+    :param benchmark_arg: Specific benchmark name or None for all
+    :return: Tuple of (benchmark_list, exit_code) where exit_code is 0 on success
+    """
+    if benchmark_arg:
+        benchmark_path = results_dir / benchmark_arg
+        if not benchmark_path.exists():
+            print(f"Error: Benchmark '{benchmark_arg}' not found in results/")
+            print(f"\\nAvailable benchmarks in {results_dir}:")
+            for bench in sorted(results_dir.iterdir()):
+                if bench.is_dir():
+                    print(f"  - {bench.name}")
+            return [], 1
+        return [benchmark_arg], 0
+
+    benchmarks = [bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()]
+    if not benchmarks:
+        print("No benchmarks found in results/")
+        return [], 1
+
+    return benchmarks, 0
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -126,7 +154,7 @@ def main():
     # Check results directory exists
     if not results_dir.exists():
         print(f"Error: Results directory not found: {results_dir}")
-        print("\nRun test_torchvnnlib.py first to generate results/")
+        print("\\nRun test_torchvnnlib.py first to generate results/")
         return 1
 
     # Create baselines directory if missing
@@ -134,24 +162,9 @@ def main():
         baselines_dir.mkdir(exist_ok=True)
 
     # Find benchmarks to update
-    if args.benchmark:
-        benchmark_path = results_dir / args.benchmark
-        if not benchmark_path.exists():
-            print(f"Error: Benchmark '{args.benchmark}' not found in results/")
-            print(f"\nAvailable benchmarks in {results_dir}:")
-            for bench in sorted(results_dir.iterdir()):
-                if bench.is_dir():
-                    print(f"  - {bench.name}")
-            return 1
-        benchmarks_to_update = [args.benchmark]
-    else:
-        benchmarks_to_update = [
-            bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()
-        ]
-
-    if not benchmarks_to_update:
-        print("No benchmarks found in results/")
-        return 1
+    benchmarks_to_update, exit_code = find_benchmarks_to_update(results_dir, args.benchmark)
+    if exit_code != 0:
+        return exit_code
 
     # Update baselines
     print(f"{'[DRY-RUN] ' if args.dry_run else ''}Updating baselines from results/")
@@ -162,7 +175,7 @@ def main():
     total_count = 0
 
     for benchmark_name in benchmarks_to_update:
-        print(f"\n{benchmark_name}:")
+        print(f"\\n{benchmark_name}:")
         success, count = update_benchmark(
             benchmark_name, results_dir, baselines_dir, dry_run=args.dry_run
         )
@@ -172,12 +185,12 @@ def main():
         if count > 0:
             print(f"  {success}/{count} properties copied")
 
-    print("\n" + "=" * 80)
+    print("\\n" + "=" * 80)
     print(f"{'[DRY-RUN] ' if args.dry_run else ''}Baseline update complete!")
     print(f"Total: {total_success}/{total_count} properties copied")
 
     if not args.dry_run and total_success > 0:
-        print(f"\nBaselines updated in: {baselines_dir}")
+        print(f"\\nBaselines updated in: {baselines_dir}")
         print("Run test_torchvnnlib_regression.py to verify")
 
     return 0

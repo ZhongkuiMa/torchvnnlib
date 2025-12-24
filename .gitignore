@@ -78,3 +78,5 @@ Thumbs.db
 # === GitHub Codespaces ===
 .devcontainer/
 
+# === Claude Code / Serena tool cache ===
+.serena/
