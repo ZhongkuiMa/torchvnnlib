@@ -5,7 +5,7 @@ import re
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
-from torchvnnlib.torchvnnlib.ast._expr import Add, And, Cst, Div, Expr, Geq, Leq, Mul, Or, Sub, Var
+from torchvnnlib.ast._expr import Add, And, Cst, Div, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 # Pre-compiled pattern (defined but not used - kept for compatibility)
 number_pattern = re.compile(r"^-?\d+(\.\d+)?$")

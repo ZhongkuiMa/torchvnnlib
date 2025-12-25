@@ -5,8 +5,8 @@ __all__ = ["process_type3"]
 
 import time
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
-from torchvnnlib.torchvnnlib.fast_type._utils import parse_input_or_block
+from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.fast_type._utils import parse_input_or_block
 
 
 def _process_output_constraints_type3(
@@ -97,7 +97,7 @@ def process_type3(
     t_start = time.perf_counter() if verbose else None
 
     if parsed_data is None:
-        from torchvnnlib.torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
+        from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
 
         t = time.perf_counter() if verbose else None
         parsed_data = parse_simple_patterns(lines, verbose=False)

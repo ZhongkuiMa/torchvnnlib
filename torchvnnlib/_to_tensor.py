@@ -14,8 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import cast
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
-from torchvnnlib.torchvnnlib.ast import Add, And, Cst, Div, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
+from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.ast import Add, And, Cst, Div, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 
 def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLike:

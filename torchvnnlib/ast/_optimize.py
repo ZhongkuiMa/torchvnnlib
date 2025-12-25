@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import cast
 
-from torchvnnlib.torchvnnlib.ast._expr import (
+from torchvnnlib.ast._expr import (
     And,
     BinaryOp,
     Cst,

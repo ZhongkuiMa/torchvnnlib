@@ -1,7 +1,7 @@
 __docformat__ = ["restructuredtext"]
 __all__ = ["print_expr"]
 
-from torchvnnlib.torchvnnlib.ast._expr import (
+from torchvnnlib.ast._expr import (
     Add,
     And,
     Cst,

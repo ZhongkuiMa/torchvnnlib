@@ -5,10 +5,10 @@ __all__ = ["process_type1"]
 
 import time
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
-from torchvnnlib.torchvnnlib._to_tensor import convert_and_output_constrs
-from torchvnnlib.torchvnnlib.ast import And, Or, optimize, parse, tokenize
-from torchvnnlib.torchvnnlib.fast_type._utils import convert_simple_input_bounds
+from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._to_tensor import convert_and_output_constrs
+from torchvnnlib.ast import And, Or, optimize, parse, tokenize
+from torchvnnlib.fast_type._utils import convert_simple_input_bounds
 
 
 def _process_simple_output_constrs_and_bounds(

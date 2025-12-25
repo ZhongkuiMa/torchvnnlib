@@ -5,8 +5,8 @@ __all__ = ["process_type5"]
 
 import time
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
-from torchvnnlib.torchvnnlib.fast_type._utils import parse_and_block
+from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib.fast_type._utils import parse_and_block
 
 
 def process_type5(

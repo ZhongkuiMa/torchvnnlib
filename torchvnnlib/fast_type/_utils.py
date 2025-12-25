@@ -27,7 +27,7 @@ __all__ = [
 import re
 from enum import Enum
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._backend import Backend, TensorLike
 
 
 class VNNLIBType(Enum):

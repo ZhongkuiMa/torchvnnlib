@@ -4,7 +4,7 @@ __all__ = ["flatten"]
 import itertools
 from typing import cast
 
-from torchvnnlib.torchvnnlib.ast._expr import And, Cst, Eq, Expr, Geq, Leq, Or, Var
+from torchvnnlib.ast._expr import And, Cst, Eq, Expr, Geq, Leq, Or, Var
 
 
 def _check_input_bound_expr(expr: Expr):

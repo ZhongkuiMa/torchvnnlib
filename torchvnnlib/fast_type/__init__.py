@@ -30,18 +30,18 @@ __all__ = [
     "OUTPUT_CONSTRAINT_INNER_PATTERN",
 ]
 
-from torchvnnlib.torchvnnlib.fast_type._fast_type_detect import (
+from torchvnnlib.fast_type._fast_type_detect import (
     VNNLIBType,
     fast_detect_and_parse,
     fast_detect_type,
     parse_simple_patterns,
 )
-from torchvnnlib.torchvnnlib.fast_type._type1_processor import process_type1
-from torchvnnlib.torchvnnlib.fast_type._type2_processor import process_type2
-from torchvnnlib.torchvnnlib.fast_type._type3_processor import process_type3
-from torchvnnlib.torchvnnlib.fast_type._type4_processor import process_type4
-from torchvnnlib.torchvnnlib.fast_type._type5_processor import process_type5
-from torchvnnlib.torchvnnlib.fast_type._utils import (
+from torchvnnlib.fast_type._type1_processor import process_type1
+from torchvnnlib.fast_type._type2_processor import process_type2
+from torchvnnlib.fast_type._type3_processor import process_type3
+from torchvnnlib.fast_type._type4_processor import process_type4
+from torchvnnlib.fast_type._type5_processor import process_type5
+from torchvnnlib.fast_type._utils import (
     INPUT_BOUND_INNER_PATTERN,
     OUTPUT_BOUND_INNER_PATTERN,
     OUTPUT_CONSTRAINT_INNER_PATTERN,

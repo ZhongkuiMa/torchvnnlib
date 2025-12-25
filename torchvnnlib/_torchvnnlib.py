@@ -7,9 +7,9 @@ from functools import partial
 from pathlib import Path
 from typing import cast
 
-from torchvnnlib.torchvnnlib._backend import Backend, TensorLike, get_backend
-from torchvnnlib.torchvnnlib._to_tensor import convert_to_tensor
-from torchvnnlib.torchvnnlib.ast import (
+from torchvnnlib._backend import Backend, TensorLike, get_backend
+from torchvnnlib._to_tensor import convert_to_tensor
+from torchvnnlib.ast import (
     And,
     Or,
     flatten,
@@ -18,7 +18,7 @@ from torchvnnlib.torchvnnlib.ast import (
     preprocess_vnnlib,
     tokenize,
 )
-from torchvnnlib.torchvnnlib.fast_type import (
+from torchvnnlib.fast_type import (
     VNNLIBType,
     fast_detect_type,
     parse_simple_patterns,

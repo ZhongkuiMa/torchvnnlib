@@ -22,12 +22,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "numpy==2.2.4",
+    "numpy==1.26.4",
 ]
 
 [project.optional-dependencies]
 torch = [
-    "torch==2.5.1",
+    "torch==2.3.1",
 ]
 dev = [
     "pytest>=7.0",
@@ -37,8 +37,10 @@ dev = [
     "pyright>=1.1.0",
 ]
 
-[tool.setuptools]
-packages = ["torchvnnlib"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["torchvnnlib*"]
+exclude = ["tests*", "docs*"]
 
 [tool.setuptools.package-data]
 torchvnnlib = ["py.typed"]

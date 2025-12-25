@@ -3,4 +3,4 @@
 __docformat__ = "restructuredtext"
 __all__ = ["TorchVNNLIB"]
 
-from torchvnnlib.torchvnnlib import TorchVNNLIB
+from torchvnnlib import TorchVNNLIB

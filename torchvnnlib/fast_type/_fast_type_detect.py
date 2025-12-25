@@ -15,7 +15,7 @@ __all__ = [
 import re
 import time
 
-from torchvnnlib.torchvnnlib.fast_type._utils import (
+from torchvnnlib.fast_type._utils import (
     SIMPLE_INPUT_BOUND_PATTERN,
     SIMPLE_OUTPUT_BOUND_PATTERN,
     SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
