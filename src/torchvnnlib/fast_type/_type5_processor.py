@@ -71,13 +71,9 @@ def _parse_top_level_or(
         if prop:
             properties.append(prop)
 
-    return (
-        properties
-        if properties
-        else [
-            (
-                backend.full((n_inputs, 2), float("nan"), dtype="float64"),
-                [backend.zeros((1, n_outputs + 1), dtype="float64")],
-            )
-        ]
-    )
+    return properties or [
+        (
+            backend.full((n_inputs, 2), float("nan"), dtype="float64"),
+            [backend.zeros((1, n_outputs + 1), dtype="float64")],
+        )
+    ]

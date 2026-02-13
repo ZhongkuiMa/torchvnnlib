@@ -211,11 +211,7 @@ def parse_input_or_block(
         if not backend.isnan(bounds).all():
             input_bounds_list.append(bounds)
 
-    return (
-        input_bounds_list
-        if input_bounds_list
-        else [backend.full((n_inputs, 2), float("nan"), dtype="float64")]
-    )
+    return input_bounds_list or [backend.full((n_inputs, 2), float("nan"), dtype="float64")]
 
 
 def parse_output_or_block(
@@ -245,9 +241,7 @@ def parse_output_or_block(
         if constr is not None and constr.shape[0] > 0:
             output_constrs.append(constr)
 
-    return (
-        output_constrs if output_constrs else [backend.zeros((1, n_outputs + 1), dtype="float64")]
-    )
+    return output_constrs or [backend.zeros((1, n_outputs + 1), dtype="float64")]
 
 
 parse_or_block = parse_output_or_block
