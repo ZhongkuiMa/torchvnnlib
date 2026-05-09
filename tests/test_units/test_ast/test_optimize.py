@@ -9,97 +9,66 @@ import warnings
 
 import pytest
 
-from torchvnnlib.ast._expr import Add, And, Cst, Geq, Leq, Mul, Or, Var
+from torchvnnlib.ast._expr import Add, And, Cst, Expr, Geq, Leq, Mul, Or, Var
 from torchvnnlib.ast._optimize import optimize
 
 
 class TestOptimizeBasic:
     """Test basic optimization functionality."""
 
-    def test_optimize_simple_and(self):
-        """Test optimization of simple AND."""
-        expr = And([Leq(Var("X_0"), Cst(1.0))])
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            And([Leq(Var("X_0"), Cst(1.0))]),
+            Or([Leq(Var("X_0"), Cst(1.0))]),
+        ],
+    )
+    def test_optimize_single_constraint(self, expr):
+        """Test optimization of single-constraint expressions."""
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
-    def test_optimize_simple_or(self):
-        """Test optimization of simple OR."""
-        expr = Or([Leq(Var("X_0"), Cst(1.0))])
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))]),
+            Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))]),
+        ],
+    )
+    def test_optimize_multi_constraint(self, expr):
+        """Test optimization of expressions with multiple constraints."""
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
-    def test_optimize_and_with_constraints(self):
-        """Test optimization of AND with multiple constraints."""
-        expr = And(
-            [
-                Leq(Var("X_0"), Cst(1.0)),
-                Geq(Var("X_0"), Cst(0.0)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
-
-    def test_optimize_or_with_constraints(self):
-        """Test optimization of OR with multiple constraints."""
-        expr = Or(
-            [
-                Leq(Var("X_0"), Cst(0.5)),
-                Geq(Var("X_0"), Cst(0.75)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_simple_and, test_optimize_simple_or,
+    # test_optimize_and_with_constraints, test_optimize_or_with_constraints.
+    # STR2: merged 4+2+2+2 duplicates into parametrized tests.
 
 
 class TestOptimizeSingleElementOperators:
     """Test optimization of single-element operators."""
 
-    def test_optimize_single_constraint_in_and(self):
-        """Test optimization of AND with single constraint."""
-        # (and (<= X_0 1.0)) should simplify to just the constraint
-        expr = And([Leq(Var("X_0"), Cst(1.0))])
-        result = optimize(expr)
-        assert result is not None
-
-    def test_optimize_single_constraint_in_or(self):
-        """Test optimization of OR with single constraint."""
-        # (or (<= X_0 1.0)) should simplify to just the constraint
-        expr = Or([Leq(Var("X_0"), Cst(1.0))])
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_single_constraint_in_and,
+    # test_optimize_single_constraint_in_or. STR2: merged into
+    # TestOptimizeBasic.test_optimize_single_constraint.
 
     def test_optimize_and_with_nested_single_element(self):
         """Test optimization of AND containing single-element AND."""
         # (and (and (<= X_0 1.0))) should simplify
         expr = And([And([Leq(Var("X_0"), Cst(1.0))])])
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeLogicalOperators:
     """Test optimization of logical operators."""
 
-    def test_optimize_and_two_constraints(self):
-        """Test optimization of AND with two constraints."""
-        expr = And(
-            [
-                Leq(Var("X_0"), Cst(1.0)),
-                Geq(Var("X_0"), Cst(0.0)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
-
-    def test_optimize_or_two_constraints(self):
-        """Test optimization of OR with two constraints."""
-        expr = Or(
-            [
-                Leq(Var("X_0"), Cst(0.5)),
-                Geq(Var("X_0"), Cst(0.75)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_and_two_constraints,
+    # test_optimize_or_two_constraints. STR2: merged into
+    # TestOptimizeBasic.test_optimize_multi_constraint.
 
     def test_optimize_nested_and(self):
         """Test optimization of nested AND."""
@@ -111,7 +80,8 @@ class TestOptimizeLogicalOperators:
         )
         outer = And([inner, Leq(Var("X_1"), Cst(1.0))])
         result = optimize(outer)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_nested_or(self):
         """Test optimization of nested OR."""
@@ -123,7 +93,8 @@ class TestOptimizeLogicalOperators:
         )
         outer = Or([inner, Leq(Var("X_1"), Cst(0.5))])
         result = optimize(outer)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeArithmeticInConstraints:
@@ -138,7 +109,8 @@ class TestOptimizeArithmeticInConstraints:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_and_with_product_constraint(self):
         """Test optimization of AND with product in constraint."""
@@ -149,7 +121,8 @@ class TestOptimizeArithmeticInConstraints:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_and_with_complex_arithmetic(self):
         """Test optimization of AND with complex arithmetic."""
@@ -160,7 +133,8 @@ class TestOptimizeArithmeticInConstraints:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_or_with_arithmetic(self):
         """Test optimization of OR with arithmetic constraints."""
@@ -171,7 +145,8 @@ class TestOptimizeArithmeticInConstraints:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeLeqGeqPairs:
@@ -186,18 +161,11 @@ class TestOptimizeLeqGeqPairs:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
-    def test_optimize_leq_geq_pair_different_bounds(self):
-        """Test optimization of LEQ and GEQ on same variable with different bounds."""
-        expr = And(
-            [
-                Leq(Var("X_0"), Cst(1.0)),
-                Geq(Var("X_0"), Cst(0.0)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_leq_geq_pair_different_bounds. STR2: merged into
+    # TestOptimizeBasic.test_optimize_multi_constraint (identical expression and asserts).
 
     def test_optimize_multiple_leq_geq_pairs(self):
         """Test optimization with multiple LEQ/GEQ pairs."""
@@ -210,7 +178,8 @@ class TestOptimizeLeqGeqPairs:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_mixed_constraints(self):
         """Test optimization with mixed constraints."""
@@ -222,7 +191,8 @@ class TestOptimizeLeqGeqPairs:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeProperties:
@@ -263,7 +233,8 @@ class TestOptimizeComplexExpressions:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_nested_and_or(self):
         """Test optimization of nested AND and OR."""
@@ -274,7 +245,8 @@ class TestOptimizeComplexExpressions:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
     def test_optimize_deeply_nested_and(self):
         """Test optimization of deeply nested AND."""
@@ -282,7 +254,8 @@ class TestOptimizeComplexExpressions:
         for _ in range(3):
             expr = And([expr, Leq(Var("X_1"), Cst(1.0))])
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeMultipleTimes:
@@ -299,8 +272,9 @@ class TestOptimizeMultipleTimes:
         result1 = optimize(expr)
         result2 = optimize(result1)
         # Both should be valid results
-        assert result1 is not None
-        assert result2 is not None
+        assert isinstance(result1, Expr)
+        assert isinstance(result2, Expr)
+        assert str(result1) == str(result2)
 
     def test_optimize_multiple_rounds(self):
         """Test multiple rounds of optimization."""
@@ -313,23 +287,16 @@ class TestOptimizeMultipleTimes:
         result = expr
         for _ in range(3):
             result = optimize(result)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeEdgeCases:
     """Test edge cases in optimization."""
 
-    def test_optimize_single_constraint_and(self):
-        """Test optimization of AND with single constraint."""
-        expr = And([Leq(Var("X_0"), Cst(1.0))])
-        result = optimize(expr)
-        assert result is not None
-
-    def test_optimize_single_constraint_or(self):
-        """Test optimization of OR with single constraint."""
-        expr = Or([Leq(Var("X_0"), Cst(1.0))])
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_single_constraint_and,
+    # test_optimize_single_constraint_or. STR2: merged into
+    # TestOptimizeBasic.test_optimize_single_constraint.
 
     def test_optimize_output_variable_constraints(self):
         """Test optimization with output variable constraints."""
@@ -352,7 +319,9 @@ class TestOptimizeEdgeCases:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
+        assert result.has_output_vars is True
 
 
 class TestOptimizeVerboseMode:
@@ -370,7 +339,7 @@ class TestOptimizeVerboseMode:
         captured = capsys.readouterr()
         assert "Simplify (sequential)" in captured.out
         assert "Sort vars" in captured.out
-        assert result is not None
+        assert isinstance(result, Expr)
 
     def test_optimize_verbose_parallel(self, capsys):
         """Test verbose output with parallel optimization."""
@@ -385,7 +354,7 @@ class TestOptimizeVerboseMode:
         captured = capsys.readouterr()
         assert "Simplify (parallel)" in captured.out
         assert "Sort vars" in captured.out
-        assert result is not None
+        assert isinstance(result, Expr)
 
 
 class TestOptimizeErrorHandling:
@@ -401,7 +370,8 @@ class TestOptimizeErrorHandling:
         """Test optimization of constants only."""
         expr = And([Cst(1.0), Cst(2.0)])
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is False
 
 
 class TestOptimizeLeqGeqPairCombination:
@@ -421,25 +391,16 @@ class TestOptimizeLeqGeqPairCombination:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
         # Verify the structure was optimized - should have nested And with Eq
         assert isinstance(result, And)
         # Check if Eq was created (might be in nested And)
         result_str = str(result)
         assert "=" in result_str
 
-    def test_optimize_multiple_leq_geq_pairs(self):
-        """Test optimization with multiple Leq/Geq pairs."""
-        expr = And(
-            [
-                Leq(Var("X_0"), Cst(1.0)),
-                Geq(Var("X_0"), Cst(0.0)),
-                Leq(Var("X_1"), Cst(2.0)),
-                Geq(Var("X_1"), Cst(1.0)),
-            ]
-        )
-        result = optimize(expr)
-        assert result is not None
+    # [REVIEW] Deleted: test_optimize_multiple_leq_geq_pairs (duplicate in
+    # TestOptimizeLeqGeqPairs). STR2: merged pair of same-named tests.
 
     def test_optimize_unmatched_leq_geq(self):
         """Test optimization with unmatched Leq and Geq."""
@@ -450,7 +411,8 @@ class TestOptimizeLeqGeqPairCombination:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeVariablePriority:
@@ -465,7 +427,9 @@ class TestOptimizeVariablePriority:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
+        assert result.has_output_vars is True
         # Y variables should be sorted after X variables
 
     def test_optimize_large_variable_numbers_warning(self):
@@ -493,7 +457,8 @@ class TestOptimizeVariablePriority:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
         # After sorting, X_0 should come before X_1, X_2
 
 
@@ -522,7 +487,8 @@ class TestOptimizeOrExpressions:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_input_vars is True
 
 
 class TestOptimizeVariableSortingWithOutput:
@@ -539,7 +505,7 @@ class TestOptimizeVariableSortingWithOutput:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
         # Y variables should appear after X variables in sorted order
         result_str = str(result)
         x_pos = result_str.find("X_")
@@ -556,7 +522,8 @@ class TestOptimizeVariableSortingWithOutput:
             ]
         )
         result = optimize(expr)
-        assert result is not None
+        assert isinstance(result, Expr)
+        assert result.has_output_vars is True
         # Result should be sorted with Y_2 before Y_5 before Y_10
         result_str = str(result)
         assert "Y_2" in result_str
@@ -573,5 +540,5 @@ class TestOptimizeVariableSortingWithOutput:
             ]
         )
         result = optimize(expr)
-        assert result is not None
         assert isinstance(result, And)
+        assert result.has_input_vars is True

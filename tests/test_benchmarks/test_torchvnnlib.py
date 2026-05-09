@@ -61,7 +61,6 @@ _benchmark_stats: defaultdict[str, dict[str, int | float | defaultdict[str, int]
 _overall_stats = {"success_count": 0, "total_count": 0, "overall_time": 0.0}
 
 
-@pytest.mark.benchmark
 @pytest.mark.parametrize("benchmark_dir", get_all_benchmarks())
 def test_benchmark_conversion(benchmark_dir, test_dir, results_dir):
     """Test conversion for one benchmark directory.

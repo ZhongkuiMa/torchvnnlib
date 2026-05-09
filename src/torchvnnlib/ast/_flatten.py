@@ -1,3 +1,5 @@
+"""Flattening of nested VNN-LIB AST into disjunctive normal form."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["flatten"]
 

@@ -31,14 +31,8 @@ def temp_dir(tmp_path_factory):
 def pytest_configure(config):
     """Register custom markers."""
     config.addinivalue_line(
-        "markers",
-        "benchmark: mark test as slow benchmark test (deselect with '-m \"not benchmark\"')",
-    )
-    config.addinivalue_line(
         "markers", "update: mark test as baseline update test (requires explicit -m update)"
     )
-    config.addinivalue_line("markers", "torch: mark test as requiring PyTorch")
-    config.addinivalue_line("markers", "numpy: mark test as requiring NumPy")
 
 
 def pytest_collection_modifyitems(config, items):

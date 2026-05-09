@@ -39,35 +39,21 @@ from torchvnnlib.ast._expr import (
 class TestCstConstantComprehensive:
     """Comprehensive tests for Cst (Constant) expression class."""
 
-    def test_cst_creation_positive(self):
-        """Test creating positive constant."""
-        c = Cst(5.0)
-        assert c.value == 5.0
-
-    def test_cst_creation_negative(self):
-        """Test creating negative constant."""
-        c = Cst(-3.5)
-        assert c.value == -3.5
-
-    def test_cst_creation_zero(self):
-        """Test creating zero constant."""
-        c = Cst(0.0)
-        assert c.value == 0.0
-
-    def test_cst_creation_float(self):
-        """Test creating float constant with precision."""
-        c = Cst(3.14159)
-        assert c.value == pytest.approx(3.14159)
-
-    def test_cst_creation_large_value(self):
-        """Test creating constant with large value."""
-        c = Cst(1e10)
-        assert c.value == pytest.approx(1e10)
-
-    def test_cst_creation_small_value(self):
-        """Test creating constant with very small value."""
-        c = Cst(1e-10)
-        assert c.value == pytest.approx(1e-10)
+    @pytest.mark.parametrize(
+        "value",
+        [
+            pytest.param(5.0, id="positive"),
+            pytest.param(-3.5, id="negative"),
+            pytest.param(0.0, id="zero"),
+            pytest.param(3.14159, id="float"),
+            pytest.param(1e10, id="large"),
+            pytest.param(1e-10, id="small"),
+        ],
+    )
+    def test_cst_creation(self, value):
+        """Test creating constants with various values."""
+        c = Cst(value)
+        assert c.value == pytest.approx(value)
 
     def test_cst_equality_same_value(self):
         """Test equality comparison between constants with same value."""
@@ -124,6 +110,23 @@ class TestCstConstantComprehensive:
         repr_str = repr(c)
         assert "3.14" in repr_str or "3" in repr_str
 
+    @pytest.mark.parametrize(
+        "prop_name",
+        [
+            pytest.param("has_input_vars", id="input"),
+            pytest.param("has_output_vars", id="output"),
+        ],
+    )
+    def test_cst_caching(self, prop_name):
+        """Test that has_input_vars / has_output_vars is cached (STR2: merged pair)."""
+        c = Cst(5.0)
+        result1 = getattr(c, prop_name)
+        result2 = getattr(c, prop_name)
+        assert result1 is False
+        assert result1 is result2
+        internal = "_" + prop_name
+        assert getattr(c, internal) is False
+
     def test_cst_repr_zero(self):
         """Test repr of zero constant."""
         c = Cst(0.0)
@@ -134,45 +137,23 @@ class TestCstConstantComprehensive:
         c = Cst(-5.5)
         assert repr(c) == "-5.5"
 
-    def test_cst_caching_input_vars(self):
-        """Test that has_input_vars is cached."""
-        c = Cst(5.0)
-        # Access twice to verify caching
-        result1 = c.has_input_vars
-        result2 = c.has_input_vars
-        assert result1 is False
-        assert result1 is result2
-        assert c._has_input_vars is False  # noqa: SLF001
-
-    def test_cst_caching_output_vars(self):
-        """Test that has_output_vars is cached."""
-        c = Cst(5.0)
-        # Access twice to verify caching
-        result1 = c.has_output_vars
-        result2 = c.has_output_vars
-        assert result1 is False
-        assert result1 is result2
-        assert c._has_output_vars is False  # noqa: SLF001
-
 
 class TestVarVariableComprehensive:
     """Comprehensive tests for Var (Variable) expression class."""
 
-    def test_var_creation_input(self):
-        """Test creating input variable."""
-        v = Var("X_0")
-        assert v.name == "X_0"
-
-    def test_var_creation_output(self):
-        """Test creating output variable."""
-        v = Var("Y_0")
-        assert v.name == "Y_0"
-
-    def test_var_creation_large_index(self):
-        """Test creating variable with large index."""
-        v = Var("X_9999")
-        assert v.name == "X_9999"
-        assert v.index == 9999
+    @pytest.mark.parametrize(
+        ("name", "expected_index"),
+        [
+            pytest.param("X_0", 0, id="input"),
+            pytest.param("Y_0", 0, id="output"),
+            pytest.param("X_9999", 9999, id="large_index"),
+        ],
+    )
+    def test_var_creation(self, name, expected_index):
+        """Test creating variables with various names and indices."""
+        v = Var(name)
+        assert v.name == name
+        assert v.index == expected_index
 
     def test_var_invalid_name_no_underscore(self):
         """Test that variable without underscore raises ValueError."""
@@ -284,23 +265,22 @@ class TestVarVariableComprehensive:
         v = Var("Y_99")
         assert repr(v) == "Y_99"
 
-    def test_var_caching_input_vars(self):
-        """Test that has_input_vars is cached."""
-        v = Var("X_0")
-        result1 = v.has_input_vars
-        result2 = v.has_input_vars
+    @pytest.mark.parametrize(
+        ("name", "prop_name"),
+        [
+            pytest.param("X_0", "has_input_vars", id="input"),
+            pytest.param("Y_0", "has_output_vars", id="output"),
+        ],
+    )
+    def test_var_caching(self, name, prop_name):
+        """Test that has_input_vars / has_output_vars is cached (STR2: merged pair)."""
+        v = Var(name)
+        result1 = getattr(v, prop_name)
+        result2 = getattr(v, prop_name)
         assert result1 is True
         assert result1 is result2
-        assert v._has_input_vars is True  # noqa: SLF001
-
-    def test_var_caching_output_vars(self):
-        """Test that has_output_vars is cached."""
-        v = Var("Y_0")
-        result1 = v.has_output_vars
-        result2 = v.has_output_vars
-        assert result1 is True
-        assert result1 is result2
-        assert v._has_output_vars is True  # noqa: SLF001
+        internal = "_" + prop_name
+        assert getattr(v, internal) is True
 
 
 class TestBinaryOperatorsComprehensive:
@@ -330,11 +310,20 @@ class TestBinaryOperatorsComprehensive:
         expr2 = Sub(Cst(1.0), Var("X_0"))
         assert expr1 != expr2
 
-    def test_sub_hash_consistency(self):
-        """Test that equal sub expressions have equal hashes."""
-        expr1 = Sub(Var("X_0"), Cst(1.0))
-        expr2 = Sub(Var("X_0"), Cst(1.0))
-        assert hash(expr1) == hash(expr2)
+    @pytest.mark.parametrize(
+        ("op_class", "left", "right"),
+        [
+            pytest.param(Sub, Var("X_0"), Cst(1.0), id="sub"),
+            pytest.param(Mul, Cst(2.0), Var("X_0"), id="mul"),
+            pytest.param(Div, Var("X_0"), Cst(2.0), id="div"),
+            pytest.param(Eq, Var("X_0"), Cst(0.5), id="eq"),
+            pytest.param(Leq, Var("X_0"), Cst(1.0), id="leq"),
+            pytest.param(Geq, Var("X_0"), Cst(0.0), id="geq"),
+        ],
+    )
+    def test_hash_consistency(self, op_class, left, right):
+        """Test that equal binary op expressions have equal hashes."""
+        assert hash(op_class(left, right)) == hash(op_class(left, right))
 
     def test_sub_has_input_vars_from_left(self):
         """Test variable propagation from left operand."""
@@ -363,12 +352,6 @@ class TestBinaryOperatorsComprehensive:
         assert expr.left.value == 2.0
         assert expr.right.name == "X_0"
 
-    def test_mul_hash_consistency(self):
-        """Test that equal mul expressions have equal hashes."""
-        expr1 = Mul(Cst(2.0), Var("X_0"))
-        expr2 = Mul(Cst(2.0), Var("X_0"))
-        assert hash(expr1) == hash(expr2)
-
     def test_mul_zero(self):
         """Test multiplication by zero."""
         expr = Mul(Cst(0.0), Var("X_0"))
@@ -379,12 +362,6 @@ class TestBinaryOperatorsComprehensive:
         expr = Div(Var("X_0"), Cst(2.0))
         assert expr.left.name == "X_0"
         assert expr.right.value == 2.0
-
-    def test_div_hash_consistency(self):
-        """Test that equal div expressions have equal hashes."""
-        expr1 = Div(Var("X_0"), Cst(2.0))
-        expr2 = Div(Var("X_0"), Cst(2.0))
-        assert hash(expr1) == hash(expr2)
 
     def test_div_by_one(self):
         """Test division by one."""
@@ -402,23 +379,11 @@ class TestBinaryOperatorsComprehensive:
         assert expr.left.name == "X_0"
         assert expr.right.value == 0.5
 
-    def test_eq_hash_consistency(self):
-        """Test that equal eq expressions have equal hashes."""
-        expr1 = Eq(Var("X_0"), Cst(0.5))
-        expr2 = Eq(Var("X_0"), Cst(0.5))
-        assert hash(expr1) == hash(expr2)
-
     def test_leq_basic(self):
         """Test less than or equal constraint."""
         expr = Leq(Var("X_0"), Cst(1.0))
         assert expr.left.name == "X_0"
         assert expr.right.value == 1.0
-
-    def test_leq_hash_consistency(self):
-        """Test that equal leq expressions have equal hashes."""
-        expr1 = Leq(Var("X_0"), Cst(1.0))
-        expr2 = Leq(Var("X_0"), Cst(1.0))
-        assert hash(expr1) == hash(expr2)
 
     def test_leq_with_zero(self):
         """Test Leq with zero value."""
@@ -435,12 +400,6 @@ class TestBinaryOperatorsComprehensive:
         expr = Geq(Var("X_0"), Cst(0.0))
         assert expr.left.name == "X_0"
         assert expr.right.value == 0.0
-
-    def test_geq_hash_consistency(self):
-        """Test that equal geq expressions have equal hashes."""
-        expr1 = Geq(Var("X_0"), Cst(0.0))
-        expr2 = Geq(Var("X_0"), Cst(0.0))
-        assert hash(expr1) == hash(expr2)
 
     def test_binary_op_repr_sub(self):
         """Test repr of subtraction."""
@@ -498,10 +457,41 @@ class TestBinaryOperatorsComprehensive:
 class TestNaryOperatorsComprehensive:
     """Comprehensive tests for n-ary operator expressions."""
 
-    def test_add_two_constants(self):
-        """Test adding two constants."""
-        expr = Add([Cst(2.0), Cst(3.0)])
-        assert len(expr.args) == 2
+    @pytest.mark.parametrize(
+        ("op_class", "args"),
+        [
+            pytest.param(Add, [Cst(1.0), Cst(2.0)], id="add"),
+            pytest.param(And, [Cst(1.0), Cst(2.0)], id="and"),
+            pytest.param(Or, [Cst(1.0), Cst(2.0)], id="or"),
+        ],
+    )
+    def test_hash_consistency(self, op_class, args):
+        """Test that equal n-ary expressions have equal hashes."""
+        assert hash(op_class(args)) == hash(op_class(args))
+
+    @pytest.mark.parametrize(
+        ("op_class", "args"),
+        [
+            pytest.param(Add, [Cst(1.0), Cst(2.0)], id="add"),
+            pytest.param(And, [Cst(1.0), Cst(2.0)], id="and"),
+            pytest.param(Or, [Cst(1.0), Cst(2.0)], id="or"),
+        ],
+    )
+    def test_equality(self, op_class, args):
+        """Test equality of n-ary expressions."""
+        assert op_class(args) == op_class(args)
+
+    @pytest.mark.parametrize(
+        ("op_class", "args", "symbol"),
+        [
+            pytest.param(Add, [Cst(1.0), Cst(2.0)], "+", id="add"),
+            pytest.param(And, [Cst(1.0), Cst(2.0)], "and", id="and"),
+            pytest.param(Or, [Cst(1.0), Cst(2.0)], "or", id="or"),
+        ],
+    )
+    def test_repr(self, op_class, args, symbol):
+        """Test string representation of n-ary expressions."""
+        assert symbol in repr(op_class(args))
 
     def test_add_single_element(self):
         """Test Add with single element."""
@@ -513,18 +503,6 @@ class TestNaryOperatorsComprehensive:
         """Test Add with many elements."""
         expr = Add([Cst(1.0), Cst(2.0), Cst(3.0), Cst(4.0), Cst(5.0)])
         assert len(expr.args) == 5
-
-    def test_add_hash_consistency(self):
-        """Test that equal add expressions have equal hashes."""
-        expr1 = Add([Cst(1.0), Cst(2.0)])
-        expr2 = Add([Cst(1.0), Cst(2.0)])
-        assert hash(expr1) == hash(expr2)
-
-    def test_add_equality(self):
-        """Test equality of Add expressions."""
-        expr1 = Add([Cst(1.0), Cst(2.0)])
-        expr2 = Add([Cst(1.0), Cst(2.0)])
-        assert expr1 == expr2
 
     def test_add_inequality_different_order(self):
         """Test inequality when argument order differs."""
@@ -539,15 +517,17 @@ class TestNaryOperatorsComprehensive:
         expr2 = Add([Cst(1.0), Cst(2.0), Cst(3.0)])
         assert expr1 != expr2
 
-    def test_add_has_input_vars_any_operand(self):
-        """Test that Add has input vars if any operand does."""
-        expr = Add([Cst(1.0), Var("X_0"), Cst(2.0)])
-        assert expr.has_input_vars is True
-
-    def test_add_no_input_vars_all_constants(self):
-        """Test Add with no input variables."""
-        expr = Add([Cst(1.0), Cst(2.0)])
-        assert expr.has_input_vars is False
+    @pytest.mark.parametrize(
+        ("args", "expect_input"),
+        [
+            pytest.param([Cst(1.0), Var("X_0"), Cst(2.0)], True, id="with_var"),
+            pytest.param([Cst(1.0), Cst(2.0)], False, id="all_constants"),
+        ],
+    )
+    def test_add_has_input_vars(self, args, expect_input):
+        """Test that Add has_input_vars detection (STR2: merged pair)."""
+        expr = Add(args)
+        assert expr.has_input_vars is expect_input
 
     def test_add_has_output_vars_any_operand(self):
         """Test that Add has output vars if any operand does."""
@@ -567,17 +547,6 @@ class TestNaryOperatorsComprehensive:
         result = list(expr)
         assert result == operands
 
-    def test_add_repr(self):
-        """Test repr of Add expression."""
-        expr = Add([Cst(1.0), Cst(2.0)])
-        repr_str = repr(expr)
-        assert "+" in repr_str
-
-    def test_and_basic(self):
-        """Test And with two constraints."""
-        expr = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        assert len(expr.args) == 2
-
     def test_and_single_element(self):
         """Test And with single element."""
         expr = And([Leq(Var("X_0"), Cst(1.0))])
@@ -594,33 +563,23 @@ class TestNaryOperatorsComprehensive:
         expr = And(constraints)
         assert len(expr.args) == 3
 
-    def test_and_hash_consistency(self):
-        """Test that equal and expressions have equal hashes."""
-        expr1 = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        expr2 = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        assert hash(expr1) == hash(expr2)
-
-    def test_and_equality(self):
-        """Test equality of And expressions."""
-        expr1 = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        expr2 = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        assert expr1 == expr2
-
     def test_and_inequality_different_operands(self):
         """Test inequality with different operands."""
         expr1 = And([Leq(Var("X_0"), Cst(1.0))])
         expr2 = And([Leq(Var("X_0"), Cst(2.0))])
         assert expr1 != expr2
 
-    def test_and_has_input_vars(self):
-        """Test that And detects input variables."""
-        expr = And([Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))])
-        assert expr.has_input_vars is True
-
-    def test_and_has_output_vars(self):
-        """Test that And detects output variables."""
-        expr = And([Leq(Var("Y_0"), Cst(1.0)), Geq(Var("Y_0"), Cst(0.0))])
-        assert expr.has_output_vars is True
+    @pytest.mark.parametrize(
+        ("var_name", "prop_name"),
+        [
+            pytest.param("X_0", "has_input_vars", id="input"),
+            pytest.param("Y_0", "has_output_vars", id="output"),
+        ],
+    )
+    def test_and_has_vars(self, var_name, prop_name):
+        """Test that And detects input/output variables (STR2: merged pair)."""
+        expr = And([Leq(Var(var_name), Cst(1.0)), Geq(Var(var_name), Cst(0.0))])
+        assert getattr(expr, prop_name) is True
 
     def test_and_mixed_vars(self):
         """Test And with mixed input and output variables."""
@@ -634,17 +593,6 @@ class TestNaryOperatorsComprehensive:
         expr = And(constraints)
         result = list(expr)
         assert result == constraints
-
-    def test_and_repr(self):
-        """Test repr of And expression."""
-        expr = And([Leq(Var("X_0"), Cst(1.0))])
-        repr_str = repr(expr)
-        assert "and" in repr_str
-
-    def test_or_basic(self):
-        """Test Or with two constraints."""
-        expr = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        assert len(expr.args) == 2
 
     def test_or_single_element(self):
         """Test Or with single element."""
@@ -662,27 +610,17 @@ class TestNaryOperatorsComprehensive:
         expr = Or(constraints)
         assert len(expr.args) == 3
 
-    def test_or_hash_consistency(self):
-        """Test that equal or expressions have equal hashes."""
-        expr1 = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        expr2 = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        assert hash(expr1) == hash(expr2)
-
-    def test_or_equality(self):
-        """Test equality of Or expressions."""
-        expr1 = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        expr2 = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        assert expr1 == expr2
-
-    def test_or_has_input_vars(self):
-        """Test that Or detects input variables."""
-        expr = Or([Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))])
-        assert expr.has_input_vars is True
-
-    def test_or_has_output_vars(self):
-        """Test that Or detects output variables."""
-        expr = Or([Leq(Var("Y_0"), Cst(0.5)), Geq(Var("Y_0"), Cst(0.75))])
-        assert expr.has_output_vars is True
+    @pytest.mark.parametrize(
+        ("var_name", "prop_name"),
+        [
+            pytest.param("X_0", "has_input_vars", id="input"),
+            pytest.param("Y_0", "has_output_vars", id="output"),
+        ],
+    )
+    def test_or_has_vars(self, var_name, prop_name):
+        """Test that Or detects input/output variables (STR2: merged pair)."""
+        expr = Or([Leq(Var(var_name), Cst(0.5)), Geq(Var(var_name), Cst(0.75))])
+        assert getattr(expr, prop_name) is True
 
     def test_or_iteration(self):
         """Test iterating over Or operands."""
@@ -691,25 +629,17 @@ class TestNaryOperatorsComprehensive:
         result = list(expr)
         assert result == constraints
 
-    def test_or_repr(self):
-        """Test repr of Or expression."""
-        expr = Or([Leq(Var("X_0"), Cst(0.5))])
-        repr_str = repr(expr)
-        assert "or" in repr_str
-
-    def test_nary_op_caching_input_vars(self):
-        """Test variable caching in nary operations."""
-        expr = Add([Var("X_0"), Cst(1.0)])
-        result1 = expr.has_input_vars
-        result2 = expr.has_input_vars
-        assert result1 is True
-        assert result1 is result2
-
-    def test_nary_op_caching_output_vars(self):
-        """Test variable caching in nary operations."""
-        expr = And([Leq(Var("Y_0"), Cst(1.0))])
-        result1 = expr.has_output_vars
-        result2 = expr.has_output_vars
+    @pytest.mark.parametrize(
+        ("expr", "prop_name"),
+        [
+            pytest.param(Add([Var("X_0"), Cst(1.0)]), "has_input_vars", id="input"),
+            pytest.param(And([Leq(Var("Y_0"), Cst(1.0))]), "has_output_vars", id="output"),
+        ],
+    )
+    def test_nary_op_caching(self, expr, prop_name):
+        """Test variable caching in nary operations (STR2: merged pair)."""
+        result1 = getattr(expr, prop_name)
+        result2 = getattr(expr, prop_name)
         assert result1 is True
         assert result1 is result2
 

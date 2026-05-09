@@ -15,11 +15,11 @@ __all__ = [
 import re
 import time
 
+from torchvnnlib.fast_type._enums import VNNLIBType
 from torchvnnlib.fast_type._utils import (
     SIMPLE_INPUT_BOUND_PATTERN,
     SIMPLE_OUTPUT_BOUND_PATTERN,
     SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
-    VNNLIBType,
 )
 
 # Top-level OR pattern
@@ -154,28 +154,21 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
 
 
 def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
-    """
-    Parse simple input bounds and output constraints without type detection.
+    """Parse simple input bounds and output constraints without type detection.
 
     This function only parses simple patterns (no OR/AND structures):
-    - Simple input bounds: (assert (<=/>=|= X_5 0.123))
-    - Simple output constraints: (assert (<=/>= Y_0 Y_1))
-    - Simple output bounds: (assert (<=/>=|= Y_5 0.123))
+
+    - Simple input bounds: ``(assert (<=/>=|= X_5 0.123))``
+    - Simple output constraints: ``(assert (<=/>= Y_0 Y_1))``
+    - Simple output bounds: ``(assert (<=/>=|= Y_5 0.123))``
 
     Use this when you already know the type and only need to extract simple patterns.
-    For combined detection and parsing, use fast_detect_and_parse() instead.
+    For combined detection and parsing, use :func:`fast_detect_and_parse` instead.
 
-    Args:
-        lines: Preprocessed assertion lines
-        verbose: Print timing information
-
-    Returns:
-        Dictionary with:
-        - simple_input_bounds: List of (op, var_prefix, idx, value)
-        - simple_output_constrs: List of (op, var_prefix1, idx1, var_prefix2, idx2)
-        - simple_output_bounds: List of (op, var_prefix, idx, value)
-        - complex_lines: Lines that don't match simple patterns
-        - complex_indices: Line indices for complex lines
+    :param lines: Preprocessed assertion lines.
+    :param verbose: Print timing information.
+    :return: Dictionary with keys ``simple_input_bounds``, ``simple_output_constrs``,
+        ``simple_output_bounds``, ``complex_lines``, and ``complex_indices``.
     """
     start_time = time.perf_counter() if verbose else None
 
@@ -338,27 +331,24 @@ def fast_detect_and_parse(
     """Detect VNNLib type and parse data in a single pass.
 
     Type detection is based on checking characteristic patterns:
-    (1) "(assert X_" - simple input bound (only X, no Y)
-    (2) "(assert Y_" - simple output constraint (only Y, no X)
-    (3) "(assert (or (and X_" - OR of AND blocks for inputs (only X, no Y)
-    (4) "(assert (or (and Y_" - OR of AND blocks for outputs (only Y, no X)
-    (5) "(assert (or (and" with both X and Y - TYPE5 pattern
 
-    Type1: has only (1) and (2)
-    Type2: has only (3) and (2)
-    Type3: has only (1) and (4)
-    Type4: has only (3) and (4)
-    Type5: has only (5)
+    - (1) ``(assert X_`` -- simple input bound (only X, no Y)
+    - (2) ``(assert Y_`` -- simple output constraint (only Y, no X)
+    - (3) ``(assert (or (and X_`` -- OR of AND blocks for inputs (only X, no Y)
+    - (4) ``(assert (or (and Y_`` -- OR of AND blocks for outputs (only Y, no X)
+    - (5) ``(assert (or (and`` with both X and Y -- TYPE5 pattern
 
-    Args:
-        lines: Preprocessed assertion lines
-        n_inputs: Number of input variables
-        n_outputs: Number of output variables
-        verbose: Print timing information
+    Type1: has only (1) and (2).
+    Type2: has only (3) and (2).
+    Type3: has only (1) and (4).
+    Type4: has only (3) and (4).
+    Type5: has only (5).
 
-    Returns:
-        - type: VNNLIBType enum value
-        - data: Dictionary with parsed data
+    :param lines: Preprocessed assertion lines.
+    :param n_inputs: Number of input variables.
+    :param n_outputs: Number of output variables.
+    :param verbose: Print timing information.
+    :return: Tuple of (VNNLIBType enum value, dictionary with parsed data).
     """
     start_time = time.perf_counter() if verbose else None
 
@@ -454,22 +444,19 @@ def _classify_type_by_patterns(
 ) -> VNNLIBType:
     """Classify VNN-LIB type using pattern matching lookup table.
 
-    Type1: Simple inputs + Simple outputs
-    Type2: OR(AND) inputs + Simple outputs
-    Type3: Simple inputs + OR(AND) outputs
-    Type4: OR(AND) inputs + OR(AND) outputs
-    Type5: Mixed OR(AND) with both X and Y
-    COMPLEX: Everything else
+    Type1: Simple inputs + Simple outputs.
+    Type2: OR(AND) inputs + Simple outputs.
+    Type3: Simple inputs + OR(AND) outputs.
+    Type4: OR(AND) inputs + OR(AND) outputs.
+    Type5: Mixed OR(AND) with both X and Y.
+    COMPLEX: Everything else.
 
-    Args:
-        has_simple_input: Pattern (1) - (assert X_
-        has_simple_output: Pattern (2) - (assert Y_
-        has_or_and_input: Pattern (3) - (assert (or (and X_
-        has_or_and_output: Pattern (4) - (assert (or (and Y_
-        has_or_and_mixed: Pattern (5) - (assert (or (and with both X and Y
-
-    Returns:
-        VNNLIBType enum value
+    :param has_simple_input: Pattern (1) -- ``(assert X_``.
+    :param has_simple_output: Pattern (2) -- ``(assert Y_``.
+    :param has_or_and_input: Pattern (3) -- ``(assert (or (and X_``.
+    :param has_or_and_output: Pattern (4) -- ``(assert (or (and Y_``.
+    :param has_or_and_mixed: Pattern (5) -- ``(assert (or (and`` with both X and Y.
+    :return: VNNLIBType enum value.
     """
     # Pattern lookup: (simple_in, simple_out, or_in, or_out, mixed) -> Type
     pattern_key = (

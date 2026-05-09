@@ -8,6 +8,8 @@ TYPE3 features OR-branching on input constraints with simple output constraints/
 Target coverage: All 20 missed statements in _type3_processor.py (73% -> >92%)
 """
 
+import pytest
+
 from torchvnnlib.fast_type import process_type3
 from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
 
@@ -217,17 +219,21 @@ class TestType3ParsedData:
 class TestType3OutputConstraintProcessing:
     """Test _process_output_constraints_type3 function."""
 
-    def test_output_constraints_geq_constraint(self, backend):
-        """Test >= constraint processing.
-
-        (>= Y_0 Y_1) should set row[Y_0 index] = 1.0, row[Y_1 index] = -1.0
-        """
+    @pytest.mark.parametrize(
+        ("lines_suffix", "operator"),
+        [
+            (["            (>= Y_0 Y_1)))"], ">="),
+            (["            (<= Y_0 Y_1)))"], "<="),
+        ],
+    )
+    def test_output_constraints(self, lines_suffix, operator, backend):
+        """Test output constraint processing for comparison operators."""
         lines = [
             "(declare-const X_0 Real)",
             "(declare-const Y_0 Real)",
             "(declare-const Y_1 Real)",
             "(assert (and (or (and (<= X_0 1.0) (>= X_0 0.0)))",
-            "            (>= Y_0 Y_1)))",
+            *lines_suffix,
         ]
         n_inputs = 1
         n_outputs = 2
@@ -240,28 +246,8 @@ class TestType3OutputConstraintProcessing:
         _input_bounds, _output_constrs = result[0][0]
         assert len(_output_constrs) >= 1
 
-    def test_output_constraints_leq_constraint(self, backend):
-        """Test <= constraint processing.
-
-        (<= Y_0 Y_1) should set row[Y_0 index] = -1.0, row[Y_1 index] = 1.0
-        """
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(declare-const Y_1 Real)",
-            "(assert (and (or (and (<= X_0 1.0) (>= X_0 0.0)))",
-            "            (<= Y_0 Y_1)))",
-        ]
-        n_inputs = 1
-        n_outputs = 2
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
-        )
-
-        _input_bounds, _output_constrs = result[0][0]
-        assert len(_output_constrs) >= 1
+    # [REVIEW] Deleted: test_output_constraints_geq_constraint,
+    # test_output_constraints_leq_constraint. STR1: merged 2 of 5 group members.
 
     def test_output_constraints_empty(self, backend):
         """Test processing with no output constraints."""
@@ -286,17 +272,20 @@ class TestType3OutputConstraintProcessing:
 class TestType3OutputBoundsProcessing:
     """Test _process_output_bounds_type3 function."""
 
-    def test_output_bounds_leq(self, backend):
-        """Test <= output bound processing.
-
-        (<= Y_0 0.5) creates constraint: -Y_0 <= -0.5 (i.e., Y_0 >= 0.5 is violated)
-        Stored as: [0.5, -1.0, ...] for (Y_0 <= 0.5)
-        """
+    @pytest.mark.parametrize(
+        ("lines_suffix", "operator"),
+        [
+            (["            (<= Y_0 0.5)))"], "<="),
+            (["            (>= Y_0 -1.0)))"], ">="),
+        ],
+    )
+    def test_output_bounds(self, lines_suffix, operator, backend):
+        """Test output bound processing."""
         lines = [
             "(declare-const X_0 Real)",
             "(declare-const Y_0 Real)",
             "(assert (and (or (and (<= X_0 1.0) (>= X_0 0.0)))",
-            "            (<= Y_0 0.5)))",
+            *lines_suffix,
         ]
         n_inputs = 1
         n_outputs = 1
@@ -309,28 +298,8 @@ class TestType3OutputBoundsProcessing:
         _input_bounds, _output_constrs = result[0][0]
         assert len(_output_constrs) >= 1
 
-    def test_output_bounds_geq(self, backend):
-        """Test >= output bound processing.
-
-        (>= Y_0 -1.0) creates constraint: Y_0 >= -1.0
-        Stored as: [-1.0, 1.0, ...] for (Y_0 >= -1.0)
-        """
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 1.0) (>= X_0 0.0)))",
-            "            (>= Y_0 -1.0)))",
-        ]
-        n_inputs = 1
-        n_outputs = 1
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
-        )
-
-        _input_bounds, _output_constrs = result[0][0]
-        assert len(_output_constrs) >= 1
+    # [REVIEW] Deleted: test_output_bounds_leq, test_output_bounds_geq.
+    # STR1: merged 2 of 5 group members.
 
     def test_output_bounds_equality(self, backend):
         """Test = output bound processing.
@@ -399,11 +368,11 @@ class TestType3OutputBoundsProcessing:
 class TestType3VerboseMode:
     """Test verbose mode output."""
 
-    def test_process_type3_verbose_true(self, backend, capsys):
-        """Test TYPE3 with verbose=True.
-
-        Should print timing and processing information.
-        """
+    @pytest.mark.parametrize(
+        "verbose", [pytest.param(True, id="true"), pytest.param(False, id="false")]
+    )
+    def test_process_type3_verbose(self, verbose, backend, capsys):
+        """Test TYPE3 with verbose=True/False (STR2: merged pair)."""
         lines = [
             "(declare-const X_0 Real)",
             "(declare-const Y_0 Real)",
@@ -415,29 +384,7 @@ class TestType3VerboseMode:
 
         parsed_data = parse_simple_patterns(lines, verbose=False)
         result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=True, parsed_data=parsed_data
-        )
-
-        # Verbose mode should produce output (implementation detail)
-        assert len(result) == 1
-
-    def test_process_type3_verbose_false(self, backend, capsys):
-        """Test TYPE3 with verbose=False.
-
-        Should not print timing information.
-        """
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 1.0) (>= X_0 0.0)))",
-            "            (<= Y_0 0.5)))",
-        ]
-        n_inputs = 1
-        n_outputs = 1
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
+            lines, n_inputs, n_outputs, backend, verbose=verbose, parsed_data=parsed_data
         )
 
         assert len(result) == 1
@@ -553,67 +500,49 @@ class TestType3EdgeCases:
 
         assert len(result) == 1
 
-    def test_type3_negative_bounds(self, backend):
-        """Test TYPE3 with negative bound values."""
+    @pytest.mark.parametrize(
+        ("bound_lines", "scenario"),
+        [
+            pytest.param(
+                [
+                    "(assert (and (or (and (<= X_0 -0.5) (>= X_0 -2.0)))",
+                    "            (>= Y_0 -1.0)))",
+                ],
+                "negative",
+                id="negative",
+            ),
+            pytest.param(
+                [
+                    "(assert (and (or (and (<= X_0 0.0) (>= X_0 0.0)))",
+                    "            (= Y_0 0.0)))",
+                ],
+                "zero",
+                id="zero",
+            ),
+            pytest.param(
+                [
+                    "(assert (and (or (and (<= X_0 1e10) (>= X_0 0.0)))",
+                    "            (<= Y_0 1e10)))",
+                ],
+                "large",
+                id="large",
+            ),
+            pytest.param(
+                [
+                    "(assert (and (or (and (<= X_0 1e-10) (>= X_0 0.0)))",
+                    "            (<= Y_0 1e-10)))",
+                ],
+                "small",
+                id="small",
+            ),
+        ],
+    )
+    def test_type3_bound_values(self, bound_lines, scenario, backend):
+        """Test TYPE3 with various special bound values (STR5: merged group)."""
         lines = [
             "(declare-const X_0 Real)",
             "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 -0.5) (>= X_0 -2.0)))",
-            "            (>= Y_0 -1.0)))",
-        ]
-        n_inputs = 1
-        n_outputs = 1
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
-        )
-
-        assert len(result) == 1
-
-    def test_type3_zero_bounds(self, backend):
-        """Test TYPE3 with zero bound values."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 0.0) (>= X_0 0.0)))",
-            "            (= Y_0 0.0)))",
-        ]
-        n_inputs = 1
-        n_outputs = 1
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
-        )
-
-        assert len(result) == 1
-
-    def test_type3_large_bounds(self, backend):
-        """Test TYPE3 with very large bound values."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 1e10) (>= X_0 0.0)))",
-            "            (<= Y_0 1e10)))",
-        ]
-        n_inputs = 1
-        n_outputs = 1
-
-        parsed_data = parse_simple_patterns(lines, verbose=False)
-        result = process_type3(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
-        )
-
-        assert len(result) == 1
-
-    def test_type3_small_bounds(self, backend):
-        """Test TYPE3 with very small bound values."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (and (<= X_0 1e-10) (>= X_0 0.0)))",
-            "            (<= Y_0 1e-10)))",
+            *bound_lines,
         ]
         n_inputs = 1
         n_outputs = 1
@@ -738,4 +667,4 @@ class TestType3VerboseOutput:
         result = process_type3(lines, n_inputs, n_outputs, backend, verbose=True)
 
         captured = capsys.readouterr()
-        assert "Type3" in captured.out or result is not None
+        assert "Type3" in captured.out or result

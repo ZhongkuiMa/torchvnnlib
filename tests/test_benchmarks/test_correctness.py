@@ -20,6 +20,7 @@ Usage::
 """
 
 import argparse
+import random
 import shutil
 import sys
 import time
@@ -188,8 +189,6 @@ def get_all_vnnlib_files(sample_size=None):
     if not benchmarks_dir.exists():
         return []
 
-    from torchvnnlib.tests.utils import find_all_vnnlib_files, find_benchmarks_folders
-
     benchmark_folders = find_benchmarks_folders(str(benchmarks_dir))
     vnnlib_files = find_all_vnnlib_files(benchmark_folders)
 
@@ -202,7 +201,6 @@ def get_all_vnnlib_files(sample_size=None):
     return [str(f) for f in vnnlib_files]
 
 
-@pytest.mark.benchmark
 @pytest.mark.parametrize("vnnlib_file", get_all_vnnlib_files())
 def test_file_correctness_parametrized(vnnlib_file, backend, torch_available):
     """Test correctness for a single VNN-LIB file and backend.
@@ -247,9 +245,7 @@ def test_file_correctness_parametrized(vnnlib_file, backend, torch_available):
         shutil.rmtree(ast_path_obj)
 
     # Assert results match
-    if not all_match:
-        mismatch_str = "\n  ".join(mismatches[:3])
-        pytest.fail(f"Type-based vs AST mismatch:\n  {mismatch_str}")
+    assert all_match, f"Type-based vs AST mismatch:\n  {chr(10).join(mismatches[:3])}"
 
 
 def _convert_vnnlib(
@@ -340,7 +336,6 @@ def _sample_vnnlib_files(vnnlib_files: list[str], sample_size: int | None) -> li
     """
     if not sample_size:
         return vnnlib_files
-    import random
 
     random.seed(42)
     return random.sample(vnnlib_files, min(sample_size, len(vnnlib_files)))

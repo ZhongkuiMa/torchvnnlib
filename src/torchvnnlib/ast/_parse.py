@@ -1,3 +1,5 @@
+"""Recursive descent parser for tokenized VNN-LIB S-expressions."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["parse"]
 

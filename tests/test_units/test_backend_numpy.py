@@ -5,6 +5,7 @@ NumPy is always available, unlike PyTorch.
 """
 
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -48,29 +49,36 @@ class TestNumpyArrayCreation:
         assert arr.shape == (3, 2)
         assert np.all(arr == 0.0)
 
-    def test_zeros_1d(self):
-        """Test creating 1D zero array."""
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            (5,),
+            (2, 3, 4),
+        ],
+    )
+    def test_zeros_with_shape(self, shape):
+        """Test creating zero arrays with various shapes."""
         backend = NumpyBackend()
-        arr = backend.zeros((5,))
-        assert arr.shape == (5,)
+        arr = backend.zeros(shape)
+        assert arr.shape == shape
 
-    def test_zeros_3d(self):
-        """Test creating 3D zero array."""
-        backend = NumpyBackend()
-        arr = backend.zeros((2, 3, 4))
-        assert arr.shape == (2, 3, 4)
+    # [REVIEW] Deleted: test_zeros_1d, test_zeros_3d. STR2: merged 2 MED_DUP.
 
-    def test_zeros_dtype_float64(self):
-        """Test zeros with float64 dtype."""
+    @pytest.mark.parametrize(
+        ("dtype", "expected_dtype"),
+        [
+            ("float64", np.float64),
+            ("float32", np.float32),
+        ],
+    )
+    def test_zeros_with_dtype(self, dtype, expected_dtype):
+        """Test zeros with dtype specification."""
         backend = NumpyBackend()
-        arr = backend.zeros((2, 2), dtype="float64")
-        assert arr.dtype == np.float64
+        arr = backend.zeros((2, 2), dtype=dtype)
+        assert arr.dtype == expected_dtype
 
-    def test_zeros_dtype_float32(self):
-        """Test zeros with float32 dtype."""
-        backend = NumpyBackend()
-        arr = backend.zeros((2, 2), dtype="float32")
-        assert arr.dtype == np.float32
+    # [REVIEW] Deleted: test_zeros_dtype_float64, test_zeros_dtype_float32.
+    # STR2: merged 2 MED_DUP.
 
     def test_full_basic(self):
         """Test creating array filled with value."""
@@ -108,31 +116,21 @@ class TestNumpyArrayCreation:
 class TestNumpyArrayOperations:
     """Test array operations."""
 
-    def test_stack_2d_arrays(self):
-        """Test stacking 2D arrays."""
+    @pytest.mark.parametrize(
+        ("a1_data", "a2_data", "axis", "expected_shape"),
+        [
+            ([[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]], 0, (2, 2, 2)),
+            ([1.0, 2.0], [3.0, 4.0], 0, (2, 2)),
+            ([[1.0, 2.0]], [[3.0, 4.0]], 1, (1, 2, 2)),
+        ],
+    )
+    def test_stack_operations(self, a1_data, a2_data, axis, expected_shape):
+        """Test stacking arrays along various axes (STR11: merged 3 tests)."""
         backend = NumpyBackend()
-        a1 = backend.tensor([[1.0, 2.0], [3.0, 4.0]])
-        a2 = backend.tensor([[5.0, 6.0], [7.0, 8.0]])
-        stacked = backend.stack([a1, a2], axis=0)
-        assert stacked.shape == (2, 2, 2)
-
-    def test_stack_axis_0(self):
-        """Test stacking along axis 0."""
-        backend = NumpyBackend()
-        a1 = backend.tensor([1.0, 2.0])
-        a2 = backend.tensor([3.0, 4.0])
-        stacked = backend.stack([a1, a2], axis=0)
-        assert stacked.shape == (2, 2)
-        assert stacked[0, 0] == 1.0
-        assert stacked[1, 0] == 3.0
-
-    def test_stack_axis_1(self):
-        """Test stacking along axis 1."""
-        backend = NumpyBackend()
-        a1 = backend.tensor([[1.0, 2.0]])
-        a2 = backend.tensor([[3.0, 4.0]])
-        stacked = backend.stack([a1, a2], axis=1)
-        assert stacked.shape == (1, 2, 2)
+        a1 = backend.tensor(a1_data)
+        a2 = backend.tensor(a2_data)
+        stacked = backend.stack([a1, a2], axis=axis)
+        assert stacked.shape == expected_shape
 
     def test_isnan_detection(self):
         """Test NaN detection in array."""
@@ -237,8 +235,6 @@ class TestNumpyFileIO:
             mtime1 = filepath.stat().st_mtime
 
             # Wait a tiny bit to ensure time difference
-            import time
-
             time.sleep(0.01)
 
             # Save second file (overwrite)
@@ -256,17 +252,9 @@ class TestNumpyFileIO:
 class TestNumpyDtypeHandling:
     """Test dtype handling and conversions."""
 
-    def test_dtype_float64_explicit(self):
-        """Test explicit float64 dtype."""
-        backend = NumpyBackend()
-        arr = backend.zeros((2, 2), dtype="float64")
-        assert arr.dtype == np.float64
-
-    def test_dtype_float32_explicit(self):
-        """Test explicit float32 dtype."""
-        backend = NumpyBackend()
-        arr = backend.zeros((2, 2), dtype="float32")
-        assert arr.dtype == np.float32
+    # [REVIEW] [DELETE_CANDIDATE] test_dtype_float64_explicit and
+    # test_dtype_float32_explicit: truly redundant with test_zeros_with_dtype.
+    # STR2: group=4, but these are exact duplicates.
 
     def test_tensor_dtype_inference(self):
         """Test dtype inference from values."""
@@ -278,17 +266,21 @@ class TestNumpyDtypeHandling:
 class TestNumpyEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_empty_array(self):
-        """Test creating empty array."""
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            (0,),
+            (100, 100),
+        ],
+    )
+    def test_array_shapes(self, shape):
+        """Test creating arrays with various shapes."""
         backend = NumpyBackend()
-        arr = backend.zeros((0,))
-        assert arr.shape == (0,)
+        arr = backend.zeros(shape)
+        assert arr.shape == shape
 
-    def test_large_array(self):
-        """Test creating large array."""
-        backend = NumpyBackend()
-        arr = backend.zeros((100, 100))
-        assert arr.shape == (100, 100)
+    # [REVIEW] Deleted: test_empty_array, test_large_array.
+    # STR2: merged 2 MED_DUP.
 
     def test_negative_values(self):
         """Test array with negative values."""

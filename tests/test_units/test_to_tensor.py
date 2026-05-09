@@ -120,8 +120,6 @@ class TestConvertLinearPoly:
 
     def test_multiplication_conversion(self, backend):
         """Test conversion of constant * variable."""
-        from torchvnnlib.ast import Mul
-
         constr = backend.zeros((3,), dtype="float64")
         expr = Mul(Cst(2.5), Var("Y_1"))
 
@@ -132,8 +130,6 @@ class TestConvertLinearPoly:
 
     def test_addition_conversion(self, backend):
         """Test conversion of addition."""
-        from torchvnnlib.ast import Add, Mul
-
         constr = backend.zeros((4,), dtype="float64")
         expr = Add([Mul(Cst(2.0), Var("Y_0")), Cst(3.0)])
 
@@ -145,8 +141,6 @@ class TestConvertLinearPoly:
 
     def test_subtraction_conversion(self, backend):
         """Test conversion of subtraction."""
-        from torchvnnlib.ast import Mul, Sub
-
         constr = backend.zeros((3,), dtype="float64")
         expr = Sub(Mul(Cst(5.0), Var("Y_0")), Cst(2.0))
 
@@ -327,7 +321,7 @@ class TestConvertToTensor:
             expr, n_inputs=1, n_outputs=1, backend=backend, use_parallel=False, verbose=False
         )
 
-        assert result is not None, "Should return valid result"
+        assert result, "Should return valid result"
 
     def test_convert_with_verbose(self, backend, capsys):
         """Test conversion with verbose mode."""
@@ -351,7 +345,7 @@ class TestConvertToTensor:
         output = captured.out
 
         # Verbose should produce output
-        assert len(output) > 0 or result is not None, "Should have output or result"
+        assert len(output) > 0 or result, "Should have output or result"
 
     def test_multiple_properties(self, backend):
         """Test conversion with multiple properties (OR at root)."""
@@ -462,8 +456,6 @@ class TestConvertLinearConstraComprehensive:
 
     def test_linear_constr_with_arithmetic_right(self, backend):
         """Test constraint with arithmetic on right side."""
-        from torchvnnlib.ast import Add
-
         left = Var("Y_0")
         right = Add([Var("Y_1"), Cst(1.0)])
         result = convert_linear_constr(left, right, y_dim=2, x_dim=0, backend=backend)
@@ -487,18 +479,16 @@ class TestConvertLinearConstraComprehensive:
 
     def test_linear_constr_invalid_left_raises(self, backend):
         """Test that invalid left operand raises error."""
-        from torchvnnlib.ast import Add
-
         left = Add([Var("Y_0"), Cst(1.0)])  # Invalid: arithmetic on left
         right = Cst(1.0)
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError, match=r"Only Var and Cst supported for left"):
             convert_linear_constr(left, right, y_dim=1, x_dim=0, backend=backend)
 
     def test_linear_constr_invalid_right_raises(self, backend):
         """Test that invalid right operand raises error."""
         left = Var("Y_0")
         right = Or([Cst(1.0)])  # Invalid: Or on right
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError, match=r"Only Var and Cst supported for right"):
             convert_linear_constr(left, right, y_dim=1, x_dim=0, backend=backend)
 
 
@@ -721,7 +711,7 @@ class TestConvertToTensorComprehensive:
 
         captured = capsys.readouterr()
         # Verbose should print timing information
-        assert "properties" in captured.out.lower() or result is not None
+        assert "properties" in captured.out.lower() or result
 
     def test_convert_to_tensor_multiple_properties(self, backend):
         """Test convert_to_tensor with multiple properties."""

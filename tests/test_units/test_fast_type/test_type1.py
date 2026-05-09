@@ -564,7 +564,7 @@ class TestType1ComplexExpressions:
             n_outputs=1,
             backend=backend,
         )
-        assert result is not None
+        assert result
         _input_bounds, _output_constrs = result[0][0]
         assert len(_output_constrs) > 0
 
@@ -585,7 +585,7 @@ class TestType1ComplexExpressions:
             n_outputs=1,
             backend=backend,
         )
-        assert result is not None
+        assert result
 
     def test_type1_with_simple_and_complex(self, backend):
         """Test TYPE1 with both simple and complex constraints."""
@@ -608,7 +608,7 @@ class TestType1ComplexExpressions:
             n_outputs=1,
             backend=backend,
         )
-        assert result is not None
+        assert result
 
 
 class TestType1VerboseMode:
@@ -633,7 +633,7 @@ class TestType1VerboseMode:
             backend=backend,
             verbose=True,
         )
-        assert result is not None
+        assert result
 
     def test_type1_verbose_mode(self, backend, capsys):
         """Test verbose output in TYPE1 processing."""
@@ -654,7 +654,7 @@ class TestType1VerboseMode:
             backend=backend,
             verbose=True,
         )
-        assert result is not None
+        assert result
 
 
 class TestType1EmptyAndEdgeCases:
@@ -674,7 +674,7 @@ class TestType1EmptyAndEdgeCases:
             n_outputs=1,
             backend=backend,
         )
-        assert result is not None
+        assert result
         _input_bounds, _output_constrs = result[0][0]
         # Should have default zeros
         assert len(_output_constrs) > 0
@@ -698,7 +698,7 @@ class TestType1EmptyAndEdgeCases:
             n_outputs=1,
             backend=backend,
         )
-        assert result is not None
+        assert result
         _input_bounds, _output_constrs = result[0][0]
         # Should have constraints
         assert len(_output_constrs) > 0

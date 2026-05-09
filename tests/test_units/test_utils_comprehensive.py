@@ -36,90 +36,80 @@ from torchvnnlib.fast_type._utils import (
 class TestInputBoundPattern:
     """Test INPUT_BOUND_INNER_PATTERN regex."""
 
-    def test_leq_pattern(self):
-        """Test <= pattern matching."""
-        text = "(<=  X_0  0.5)"
+    @pytest.mark.parametrize(
+        ("text", "expected_op"),
+        [
+            ("(<=  X_0  0.5)", "<="),
+            ("(>=  X_5  1.0)", ">="),
+            ("(=  X_10  2.5)", "="),
+        ],
+    )
+    def test_operator_patterns(self, text, expected_op):
+        """Test operator pattern matching."""
         matches = INPUT_BOUND_INNER_PATTERN.findall(text)
         assert len(matches) == 1
-        assert matches[0][0] == "<="
-        assert matches[0][2] == "0"
+        assert matches[0][0] == expected_op
 
-    def test_geq_pattern(self):
-        """Test >= pattern matching."""
-        text = "(>=  X_5  1.0)"
-        matches = INPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-        assert matches[0][0] == ">="
+    # [REVIEW] Deleted: test_leq_pattern, test_geq_pattern, test_eq_pattern (InputBoundPattern).
+    # STR1: merged 3 HIGH_DUP into parametrized test_operator_patterns.
 
-    def test_eq_pattern(self):
-        """Test = pattern matching."""
-        text = "(=  X_10  2.5)"
+    @pytest.mark.parametrize(
+        ("text", "expected_count"),
+        [
+            ("(<=  X_0  -1.5)", 1),
+            ("(<=  X_0  1.5e-10)", 1),
+            ("(<=  Y_0  0.5)", 0),
+        ],
+    )
+    def test_pattern_edge_cases(self, text, expected_count):
+        """Test pattern matching with edge case inputs (STR5: merged 3 tests)."""
         matches = INPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-        assert matches[0][0] == "="
-
-    def test_negative_value(self):
-        """Test pattern with negative value."""
-        text = "(<=  X_0  -1.5)"
-        matches = INPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-
-    def test_scientific_notation(self):
-        """Test pattern with scientific notation."""
-        text = "(<=  X_0  1.5e-10)"
-        matches = INPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-
-    def test_no_match_for_output_var(self):
-        """Test no match for output variables."""
-        text = "(<=  Y_0  0.5)"
-        matches = INPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 0
+        assert len(matches) == expected_count
 
 
 class TestOutputBoundPattern:
     """Test OUTPUT_BOUND_INNER_PATTERN regex."""
 
-    def test_leq_pattern(self):
-        """Test <= pattern matching."""
-        text = "(<=  Y_0  0.5)"
+    @pytest.mark.parametrize(
+        ("text", "expected_op"),
+        [
+            ("(<=  Y_0  0.5)", "<="),
+            ("(>=  Y_5  1.0)", ">="),
+            ("(=  Y_10  2.5)", "="),
+        ],
+    )
+    def test_output_bound_operator_patterns(self, text, expected_op):
+        """Test output bound operator pattern matching."""
         matches = OUTPUT_BOUND_INNER_PATTERN.findall(text)
         assert len(matches) == 1
-        assert matches[0][0] == "<="
+        assert matches[0][0] == expected_op
 
-    def test_geq_pattern(self):
-        """Test >= pattern matching."""
-        text = "(>=  Y_5  1.0)"
-        matches = OUTPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-        assert matches[0][0] == ">="
-
-    def test_eq_pattern(self):
-        """Test = pattern matching."""
-        text = "(=  Y_10  2.5)"
-        matches = OUTPUT_BOUND_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-        assert matches[0][0] == "="
+    # [REVIEW] Deleted: test_leq_pattern, test_geq_pattern, test_eq_pattern (OutputBoundPattern).
+    # STR1: merged 3 HIGH_DUP into parametrized test_output_bound_operator_patterns.
 
 
 class TestOutputConstraintPattern:
     """Test OUTPUT_CONSTRAINT_INNER_PATTERN regex."""
 
-    def test_leq_constraint(self):
-        """Test <= constraint (Y_i <= Y_j)."""
-        text = "(<=  Y_0  Y_1)"
+    @pytest.mark.parametrize(
+        ("text", "expected_op", "expected_i", "expected_j"),
+        [
+            ("(<=  Y_0  Y_1)", "<=", "0", "1"),
+            ("(>=  Y_5  Y_3)", ">=", "5", "3"),
+        ],
+    )
+    def test_output_constraint_operators(self, text, expected_op, expected_i, expected_j):
+        """Test output constraint operator pattern matching."""
         matches = OUTPUT_CONSTRAINT_INNER_PATTERN.findall(text)
         assert len(matches) == 1
-        assert matches[0][0] == "<="
-        assert matches[0][2] == "0"
-        assert matches[0][4] == "1"
+        assert matches[0][0] == expected_op
+        if expected_i is not None:
+            assert matches[0][2] == expected_i
+        if expected_j is not None:
+            assert matches[0][4] == expected_j
 
-    def test_geq_constraint(self):
-        """Test >= constraint (Y_i >= Y_j)."""
-        text = "(>=  Y_5  Y_3)"
-        matches = OUTPUT_CONSTRAINT_INNER_PATTERN.findall(text)
-        assert len(matches) == 1
-        assert matches[0][0] == ">="
+    # [REVIEW] Deleted: test_leq_constraint, test_geq_constraint (OutputConstraintPattern).
+    # STR1: merged 2 of 6 group members into parametrized test_output_constraint_operators.
 
 
 class TestParseInputBoundsBlock:
@@ -196,42 +186,38 @@ class TestParseInputBoundsBlock:
 class TestParseOutputAndBlock:
     """Test parse_output_and_block function."""
 
-    def test_output_constraint_leq(self, backend):
-        """Test parsing output constraint (Y_0 <= Y_1)."""
-        block = "(<=  Y_0  Y_1)"
-        result = parse_output_and_block(block, n_outputs=2, backend=backend)
-        assert result.shape == (1, 3)  # bias + 2 outputs
+    @pytest.mark.parametrize(
+        ("block", "n_outputs", "expected_shape"),
+        [
+            ("(<=  Y_0  Y_1)", 2, (1, 3)),
+            ("(>=  Y_0  Y_1)", 2, (1, 3)),
+        ],
+    )
+    def test_output_constraint_types(self, block, n_outputs, expected_shape, backend):
+        """Test parsing output constraint types."""
+        result = parse_output_and_block(block, n_outputs=n_outputs, backend=backend)
+        assert result.shape == expected_shape
 
-    def test_output_constraint_geq(self, backend):
-        """Test parsing output constraint (Y_0 >= Y_1)."""
-        block = "(>=  Y_0  Y_1)"
-        result = parse_output_and_block(block, n_outputs=2, backend=backend)
-        assert result.shape == (1, 3)
+    # [REVIEW] Deleted: test_output_constraint_leq, test_output_constraint_geq.
+    # STR2: merged 2 MED_DUP.
 
-    def test_output_bound_leq(self, backend):
-        """Test parsing output bound (Y_0 <= 0.5)."""
-        block = "(<=  Y_0  0.5)"
-        result = parse_output_and_block(block, n_outputs=1, backend=backend)
-        assert result.shape[0] >= 1
+    @pytest.mark.parametrize(
+        ("block", "n_outputs", "min_rows"),
+        [
+            ("(<=  Y_0  0.5)", 1, 1),
+            ("(>=  Y_0  0.5)", 1, 1),
+            ("(=  Y_0  0.5)", 1, 2),
+            ("(<=  Y_0  Y_1) (>=  Y_1  Y_2) (<=  Y_0  0.5)", 3, 3),
+        ],
+    )
+    def test_output_bounds_and_constraints(self, block, n_outputs, min_rows, backend):
+        """Test parsing output bounds and multiple constraints."""
+        result = parse_output_and_block(block, n_outputs=n_outputs, backend=backend)
+        assert result.shape[0] >= min_rows
 
-    def test_output_bound_geq(self, backend):
-        """Test parsing output bound (Y_0 >= 0.5)."""
-        block = "(>=  Y_0  0.5)"
-        result = parse_output_and_block(block, n_outputs=1, backend=backend)
-        assert result.shape[0] >= 1
-
-    def test_output_bound_eq(self, backend):
-        """Test parsing equality bound (Y_0 = 0.5)."""
-        block = "(=  Y_0  0.5)"
-        result = parse_output_and_block(block, n_outputs=1, backend=backend)
-        # Equality produces 2 constraints
-        assert result.shape[0] == 2
-
-    def test_multiple_constraints(self, backend):
-        """Test parsing multiple output constraints."""
-        block = "(<=  Y_0  Y_1) (>=  Y_1  Y_2) (<=  Y_0  0.5)"
-        result = parse_output_and_block(block, n_outputs=3, backend=backend)
-        assert result.shape[0] >= 3
+    # [REVIEW] Deleted: test_output_bound_leq, test_output_bound_geq,
+    # test_output_bound_eq, test_multiple_constraints.
+    # STR2: merged 4 MED_DUP.
 
     def test_out_of_range_index_skipped(self, backend):
         """Test that out-of-range indices are skipped."""
@@ -438,23 +424,23 @@ class TestConvertSimpleInputBounds:
 class TestSimplePatterns:
     """Test simple pattern regex matching."""
 
-    def test_simple_input_bound_pattern(self):
-        """Test SIMPLE_INPUT_BOUND_PATTERN."""
-        text = "(assert (<=  X_0  1.0))"
-        match = SIMPLE_INPUT_BOUND_PATTERN.match(text)
-        assert match is not None
-
-    def test_simple_output_bound_pattern(self):
-        """Test SIMPLE_OUTPUT_BOUND_PATTERN."""
-        text = "(assert (<=  Y_0  0.5))"
-        match = SIMPLE_OUTPUT_BOUND_PATTERN.match(text)
-        assert match is not None
-
-    def test_simple_output_constraint_pattern(self):
-        """Test SIMPLE_OUTPUT_CONSTRAINT_PATTERN."""
-        text = "(assert (>=  Y_0  Y_1))"
-        match = SIMPLE_OUTPUT_CONSTRAINT_PATTERN.match(text)
-        assert match is not None
+    @pytest.mark.parametrize(
+        ("text", "pattern"),
+        [
+            ("(assert (<=  X_0  1.0))", "SIMPLE_INPUT_BOUND_PATTERN"),
+            ("(assert (<=  Y_0  0.5))", "SIMPLE_OUTPUT_BOUND_PATTERN"),
+            ("(assert (>=  Y_0  Y_1))", "SIMPLE_OUTPUT_CONSTRAINT_PATTERN"),
+        ],
+    )
+    def test_simple_pattern_matching(self, text, pattern):
+        """Test simple pattern regex matching (STR5: merged 3 tests)."""
+        patterns = {
+            "SIMPLE_INPUT_BOUND_PATTERN": SIMPLE_INPUT_BOUND_PATTERN,
+            "SIMPLE_OUTPUT_BOUND_PATTERN": SIMPLE_OUTPUT_BOUND_PATTERN,
+            "SIMPLE_OUTPUT_CONSTRAINT_PATTERN": SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
+        }
+        match = patterns[pattern].match(text)
+        assert match
 
 
 class TestParseOrBlockAlias:

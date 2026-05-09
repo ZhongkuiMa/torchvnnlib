@@ -1,7 +1,8 @@
-__docformat__ = ["restructuredtext"]
+"""Optimization and simplification of VNN-LIB AST expressions."""
+
+__docformat__ = "restructuredtext"
 __all__ = ["optimize"]
 
-import re
 import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -20,10 +21,6 @@ from torchvnnlib.ast._expr import (
     UnaryOp,
     Var,
 )
-
-# Pre-compile regex patterns for performance
-VAR_LETTER_PATTERN = re.compile(r"([XY])")
-VAR_NUMBER_PATTERN = re.compile(r"(\d+)")
 
 
 def _else_recursion(expr: Expr, func: Callable) -> Expr:

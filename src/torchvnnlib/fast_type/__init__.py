@@ -30,8 +30,8 @@ __all__ = [
     "process_type5",
 ]
 
+from torchvnnlib.fast_type._enums import VNNLIBType
 from torchvnnlib.fast_type._fast_type_detect import (
-    VNNLIBType,
     fast_detect_and_parse,
     fast_detect_type,
     parse_simple_patterns,

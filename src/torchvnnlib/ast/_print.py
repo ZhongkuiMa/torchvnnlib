@@ -1,4 +1,6 @@
-__docformat__ = ["restructuredtext"]
+"""Pretty-printing of VNN-LIB AST expressions back to string form."""
+
+__docformat__ = "restructuredtext"
 __all__ = ["print_expr"]
 
 from torchvnnlib.ast._expr import (
@@ -48,6 +50,11 @@ def _print_logical_op(op_symbol: str, args: list[Expr], indent: int, prefix: str
 
 
 def print_expr(expr: Expr, indent: int = 0) -> None:
+    """Pretty-print a VNN-LIB AST expression to stdout.
+
+    :param expr: The expression node to print.
+    :param indent: Current indentation level.
+    """
     prefix = "  " * indent
 
     if isinstance(expr, Cst):

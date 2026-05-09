@@ -150,17 +150,15 @@ class TestTorchVNNLIBInitialization:
         converter = TorchVNNLIB(detect_fast_type=False)
         assert converter.detect_fast_type is False
 
-    def test_init_output_format_numpy(self):
-        """Test initialization with numpy output format."""
-        converter = TorchVNNLIB(output_format="numpy")
-        assert converter.output_format == "numpy"
-        assert converter.backend.name == "numpy"
-
-    def test_init_output_format_torch(self):
-        """Test initialization with torch output format."""
-        converter = TorchVNNLIB(output_format="torch")
-        assert converter.output_format == "torch"
-        assert converter.backend.name == "torch"
+    @pytest.mark.parametrize(
+        "output_format",
+        ["numpy", "torch"],
+    )
+    def test_init_output_format(self, output_format):
+        """Test initialization with output format (STR11: merged pair)."""
+        converter = TorchVNNLIB(output_format=output_format)
+        assert converter.output_format == output_format
+        assert converter.backend.name == output_format
 
     def test_init_all_parameters(self):
         """Test initialization with all parameters."""
@@ -297,15 +295,17 @@ class TestTorchVNNLIBConversion:
 class TestTorchVNNLIBBackendIntegration:
     """Test backend integration in TorchVNNLIB."""
 
-    def test_backend_torch_selection(self):
-        """Test that torch backend is selected correctly."""
-        converter = TorchVNNLIB(output_format="torch")
-        assert converter.backend.name == "torch"
-
-    def test_backend_numpy_selection(self):
-        """Test that numpy backend is selected correctly."""
-        converter = TorchVNNLIB(output_format="numpy")
-        assert converter.backend.name == "numpy"
+    @pytest.mark.parametrize(
+        ("output_format", "expected_backend"),
+        [
+            ("torch", "torch"),
+            ("numpy", "numpy"),
+        ],
+    )
+    def test_backend_selection(self, output_format, expected_backend):
+        """Test that backend is selected correctly (STR11: merged pair)."""
+        converter = TorchVNNLIB(output_format=output_format)
+        assert converter.backend.name == expected_backend
 
     def test_convert_respects_backend_format(self, temp_vnnlib_simple):
         """Test that conversion output respects backend format."""
@@ -356,20 +356,27 @@ class TestTorchVNNLIBFallback:
 class TestTorchVNNLIBPropertySaving:
     """Test property saving functionality."""
 
-    def test_save_properties_with_custom_folder(self, temp_vnnlib_simple):
-        """Test saving properties to custom folder."""
-        converter = TorchVNNLIB()
+    @pytest.mark.parametrize(
+        ("converter_kwargs", "output_subdir"),
+        [
+            ({}, "custom_output"),
+            ({"output_format": "numpy"}, "output_numpy"),
+            ({"verbose": True}, "output_verbose"),
+        ],
+        ids=["custom_folder", "numpy_format", "verbose"],
+    )
+    def test_save_properties_with_config(self, temp_vnnlib_simple, converter_kwargs, output_subdir):
+        """Test saving properties with various converter configurations."""
+        converter = TorchVNNLIB(**converter_kwargs)
         with tempfile.TemporaryDirectory() as tmpdir:
-            custom_output = str(Path(tmpdir) / "custom_output")
-            converter.convert(temp_vnnlib_simple, custom_output)
-            # Check that custom output path was used
-            assert Path(custom_output).exists()
+            output_path = str(Path(tmpdir) / output_subdir)
+            converter.convert(temp_vnnlib_simple, output_path)
+            assert Path(output_path).exists()
 
     def test_save_properties_default_folder(self, temp_vnnlib_simple):
         """Test saving properties to default folder (from vnnlib path)."""
         converter = TorchVNNLIB()
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create vnnlib in temp directory
             vnnlib_path = Path(tmpdir) / "test.vnnlib"
             vnnlib_path.write_text(
                 "(declare-const X_0 Real)\n"
@@ -379,57 +386,34 @@ class TestTorchVNNLIBPropertySaving:
                 "(assert (>= Y_0 0.0))\n"
                 "(assert (<= Y_0 1.0))\n"
             )
-            # Don't provide output path - should use default
             converter.convert(str(vnnlib_path), None)
-            # Default folder should be created
             default_output = Path(tmpdir) / "test"
             assert default_output.exists()
-
-    def test_save_properties_numpy_format(self, temp_vnnlib_simple):
-        """Test saving properties in numpy format."""
-        converter = TorchVNNLIB(output_format="numpy")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output_numpy")
-            converter.convert(temp_vnnlib_simple, output_path)
-            # Check that .npz files were created
-            assert Path(output_path).exists()
-
-    def test_convert_with_verbose_saving(self, temp_vnnlib_simple, capsys):
-        """Test verbose output during property saving."""
-        converter = TorchVNNLIB(verbose=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
-            # Should have created output directory
-            assert Path(output_path).exists()
 
 
 class TestTorchVNNLIBProcessorVariations:
     """Test different processor execution branches."""
 
-    def test_process_without_fast_type_detection(self, temp_vnnlib_simple):
-        """Test processing without fast type detection."""
-        converter = TorchVNNLIB(detect_fast_type=False)
+    @pytest.mark.parametrize(
+        ("converter_kwargs", "fixture_name"),
+        [
+            ({"detect_fast_type": False}, "temp_vnnlib_simple"),
+            ({"use_parallel": False}, "temp_vnnlib_simple"),
+            ({"use_parallel": True}, "temp_vnnlib_type3"),
+        ],
+    )
+    def test_process_with_config(self, converter_kwargs, fixture_name, request):
+        """Test processing with various converter configurations."""
+        vnnlib_path = request.getfixturevalue(fixture_name)
+        converter = TorchVNNLIB(**converter_kwargs)
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
+            converter.convert(vnnlib_path, output_path)
             assert Path(output_path).exists()
 
-    def test_process_with_parallel_disabled(self, temp_vnnlib_simple):
-        """Test processing with parallel execution disabled."""
-        converter = TorchVNNLIB(use_parallel=False)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
-            assert Path(output_path).exists()
-
-    def test_process_with_parallel_enabled(self, temp_vnnlib_type3):
-        """Test processing with parallel execution enabled."""
-        converter = TorchVNNLIB(use_parallel=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_type3, output_path)
-            assert Path(output_path).exists()
+    # [REVIEW] Deleted: test_process_without_fast_type_detection,
+    # test_process_with_parallel_disabled, test_process_with_parallel_enabled.
+    # STR1: merged 3 HIGH_DUP into parametrized test_process_with_config.
 
 
 class TestTorchVNNLIBConversionStats:
@@ -530,23 +514,21 @@ class TestTorchVNNLIBType2Processing:
 class TestTorchVNNLIBVerboseProcessing:
     """Test verbose output for all processing stages."""
 
-    def test_verbose_tokenization(self, temp_vnnlib_simple, capsys):
-        """Test verbose output during tokenization."""
+    @pytest.mark.parametrize(
+        "possible_keywords",
+        [
+            ["Tokenization", "Read file"],
+            ["Parsing", "Optimization"],
+        ],
+    )
+    def test_verbose_processing_stage(self, temp_vnnlib_simple, capsys, possible_keywords):
+        """Test verbose output during processing stages (STR11: merged pair)."""
         converter = TorchVNNLIB(verbose=True, detect_fast_type=False)
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = str(Path(tmpdir) / "output")
             converter.convert(temp_vnnlib_simple, output_path)
             captured = capsys.readouterr()
-            assert "Tokenization" in captured.out or "Read file" in captured.out
-
-    def test_verbose_ast_parsing(self, temp_vnnlib_simple, capsys):
-        """Test verbose output during AST parsing."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=False)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
-            captured = capsys.readouterr()
-            assert "Parsing" in captured.out or "Optimization" in captured.out
+            assert any(kw in captured.out for kw in possible_keywords)
 
     def test_verbose_optimization(self, temp_vnnlib_simple, capsys):
         """Test verbose output during optimization stage."""

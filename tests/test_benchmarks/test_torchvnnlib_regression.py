@@ -41,7 +41,6 @@ def get_all_benchmarks():
     return [Path(b).name for b in benchmarks]
 
 
-@pytest.mark.benchmark
 @pytest.mark.parametrize("benchmark_name", get_all_benchmarks())
 def test_verify_baseline(benchmark_name, test_dir, baselines_dir, results_dir):
     """Verify results against baseline for one benchmark.

@@ -1,187 +1,55 @@
 # Contributing to TorchVNNLIB
 
-We welcome contributions! Please follow these guidelines to ensure smooth collaboration.
+Shared conventions (imports, formatting, docstrings) are in the root [CONTRIBUTING.md](../CONTRIBUTING.md). This file covers torchvnnlib-specific workflow.
 
-## Development Setup
-
-### Setting Up Development Environment
+## Setup
 
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/torchvnnlib.git
 cd torchvnnlib
-
-# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
-
-# Verify setup
-pytest tests/ -v
-ruff check src/torchvnnlib tests
+pre-commit install
 ```
 
-## Development Workflow
-
-### Branch Naming Conventions
-
-Use descriptive branch names with prefixes:
-- `feature/` - New features (e.g., `feature/add-type6-processor`)
-- `fix/` - Bug fixes (e.g., `fix/parser-tokenization-issue`)
-- `refactor/` - Code refactoring (e.g., `refactor/simplify-backend`)
-- `docs/` - Documentation updates (e.g., `docs/improve-api-examples`)
-- `test/` - Test improvements (e.g., `test/add-edge-cases`)
-
-### Commit Message Format
-
-Write clear, concise commit messages:
-
-```
-<type>: <short summary in present tense>
-
-<optional detailed description>
-
-<optional footer with issue references>
-```
-
-**Types:**
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `refactor:` - Code refactoring (no behavior change)
-- `test:` - Add or update tests
-- `docs:` - Documentation changes
-- `style:` - Code style/formatting (ruff, whitespace)
-- `perf:` - Performance improvements
-- `chore:` - Maintenance tasks (dependencies, config)
-
-**Examples:**
-```
-feat: Add Type 6 processor for complex OR patterns
-
-Implements optimized processing for Type 6 VNN-LIB specifications
-with nested OR groups and complex constraint structures.
-
-Fixes #42
-```
-
-```
-fix: Correct tokenization for negative floating-point constants
-
-The tokenizer was incorrectly parsing negative floats as separate
-tokens, causing parse failures for constraints with negative bounds.
-```
-
-### Push Workflow
+## Checks
 
 ```bash
-# Create feature branch
-git checkout -b feature/my-new-feature
-
-# Make changes and commit
-git add <files>
-git commit -m "feat: Add my new feature"
-
-# Run pre-push checks (recommended)
-pytest tests/ -v
-ruff check src/torchvnnlib tests
-python -m mypy
-
-# Push to your fork
-git push origin feature/my-new-feature
-
-# Create PR on GitHub
+pre-commit run --all-files  # lint, format, type-check
+pytest tests/ -v            # tests
 ```
 
-## Code Quality Standards
+## Workflow
 
-### Linting
-```bash
-ruff check src/torchvnnlib tests
-```
+1. Create branch from `main`
+2. Make changes
+3. Run checks (above)
+4. Commit and push
 
-### Formatting
-```bash
-ruff format src/torchvnnlib tests
-```
+## Adding a Fast Type Processor
 
-### Type Checking
-```bash
-python -m mypy
-```
+Most contributions add a new type-specific processor (Type N):
 
-### Code Style
+1. Create `src/torchvnnlib/fast_type/_typeN_processor.py` with a `process_typeN()` function
+2. Add detection logic in `src/torchvnnlib/fast_type/_fast_type_detect.py` (extend `VNNLIBType` enum and `fast_detect_type()`)
+3. Register in `src/torchvnnlib/_torchvnnlib.py` (`_process_by_type` method)
+4. Export from `src/torchvnnlib/fast_type/__init__.py`
+5. Add tests in `tests/test_units/`
+6. Verify: `pytest tests/ -v`
 
-TorchVNNLIB follows strict code quality standards:
+## Adding an AST Operation
 
-- **Formatter**: `ruff format` (100 char line length)
-- **Linter**: `ruff check` (comprehensive ruleset)
-- **Type checker**: `mypy`
-- **Docstrings**: PEP 257 style with type hints
+1. Define expression class in `src/torchvnnlib/ast/_expr.py`
+2. Add tokenization in `_tokenize.py`, parsing in `_parse.py`
+3. Handle optimization in `_optimize.py` and flattening in `_flatten.py`
+4. Add tensor conversion in `src/torchvnnlib/_to_tensor.py`
+5. Export from `src/torchvnnlib/ast/__init__.py`
 
-## Pull Request Guidelines
+## Constraints
 
-1. **Before creating a PR:**
-   ```bash
-   # Run all tests
-   pytest tests/ -v
-   pytest tests/test_benchmarks/ -v
-
-   # Run linting
-   ruff check src/torchvnnlib tests
-   ruff format src/torchvnnlib tests
-
-   # Run type checking
-   python -m mypy
-   ```
-
-2. **Create PR with:**
-   - **Clear title**: Follow commit message format
-   - **Description**: Explain what changes and why
-   - **Tests**: Add tests for new features/fixes
-   - **Documentation**: Update README/docstrings if needed
-
-3. **Review process:**
-   - Maintainers will review within 48-72 hours
-   - Address feedback by pushing to your PR branch
-   - Once approved, maintainers will merge
-
-## Testing
-
-Run the test suite to verify functionality:
-
-```bash
-# Run all unit tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=src/torchvnnlib --cov-report=term-missing -v
-
-# Run specific test file
-pytest tests/test_units/test_ast_parse.py -v
-```
-
-## CI/CD
-
-### Running CI Locally
-
-Before pushing, run the same checks as GitHub Actions:
-
-```bash
-# Full CI simulation
-pytest tests/ --cov=src/torchvnnlib --cov-report=term-missing -v
-ruff check src/torchvnnlib tests
-ruff format --check src/torchvnnlib tests
-python -m mypy
-```
-
-## Documentation
-
-- All public classes/functions must have docstrings
-- Use reStructuredText format (Sphinx-compatible)
-- Include type hints for all parameters and return values
-
-## Getting Help
-
-- **Questions**: Open a GitHub Discussion
-- **Bug reports**: Open an Issue with reproducible example
-- **Feature requests**: Open an Issue with use case description
-
-Thank you for contributing to TorchVNNLIB!
+| Rule | Details |
+|------|---------|
+| Absolute imports only | `from torchvnnlib.ast._expr import ...` (no relative) |
+| `__docformat__` + `__all__` | Required in every module |
+| Private modules | Prefix with `_` (e.g., `_type1_processor.py`) |
+| Backend abstraction | All tensor ops go through `Backend` interface, never raw torch/numpy |
+| Type hints | Required on all public functions |
+| McCabe complexity <= 10 | Enforced by ruff C90 |

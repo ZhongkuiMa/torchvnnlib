@@ -112,7 +112,7 @@ class TestCheckOrExpr:
         # This should not raise in _check_or_expr itself, but in _check_and_expr
         # _check_or_expr will call _check_bound_or_constr_expr for each sub-expr
         # Just ensure it doesn't raise immediately
-        assert or_expr is not None
+        assert or_expr
 
 
 class TestCheckAndExpr:
@@ -413,7 +413,7 @@ class TestFlattenEdgeCases:
         """Test flatten with minimal valid AND."""
         expr = And([Leq(Var("X_0"), Cst(1.0)), Leq(Var("Y_0"), Cst(0.5))])
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_many_constraints(self):
         """Test flatten with many constraints."""
@@ -421,13 +421,13 @@ class TestFlattenEdgeCases:
         constraints.extend([Leq(Var(f"Y_{i}"), Cst(0.5 - i * 0.1)) for i in range(3)])
         expr = And(constraints)
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_or_with_single_and(self):
         """Test flatten OR with single AND."""
         expr = Or([And([Leq(Var("X_0"), Cst(1.0)), Leq(Var("Y_0"), Cst(0.5))])])
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_or_with_multiple_and(self):
         """Test flatten OR with multiple AND."""
@@ -436,7 +436,7 @@ class TestFlattenEdgeCases:
         expr3 = And([Leq(Var("X_0"), Cst(2.0)), Leq(Var("Y_0"), Cst(0.8))])
         or_expr = Or([expr1, expr2, expr3])
         result = flatten(or_expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenWithArithmetic:
@@ -451,7 +451,7 @@ class TestFlattenWithArithmetic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_multiplication(self):
         """Test flatten with multiplication in constraints."""
@@ -462,7 +462,7 @@ class TestFlattenWithArithmetic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_mixed_arithmetic(self):
         """Test flatten with mixed arithmetic."""
@@ -476,4 +476,4 @@ class TestFlattenWithArithmetic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result

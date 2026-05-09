@@ -25,21 +25,9 @@ __all__ = [
 
 
 import re
-from enum import Enum
 
 from torchvnnlib._backend import Backend, TensorLike
-
-
-class VNNLIBType(Enum):
-    """VNN-LIB file types based on structure."""
-
-    TYPE1 = "Type1: (and ...input_constraints... ...output_constraints...)"
-    TYPE2 = "Type2: (and ...input_constraints... (or ...output_constraints...))"
-    TYPE3 = "Type3: (and (or ...input_constraints...) ...output_constraints...)"
-    TYPE4 = "Type4: (and (or ...input_constraints...) (or ...output_constraints...))"
-    TYPE5 = "Type5: (or (and ...input_constraints... ...output_constraints...))"
-    COMPLEX = "Complex: Requires AST-based processing"
-
+from torchvnnlib.fast_type._enums import VNNLIBType
 
 TOP_LEVEL_OR_PATTERN = re.compile(r"^\s*\(\s*assert\s+\(\s*or\s+", re.IGNORECASE)
 NESTED_OR_PATTERN = re.compile(r"\(\s*or\s+", re.IGNORECASE)

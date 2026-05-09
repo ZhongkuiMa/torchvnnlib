@@ -17,7 +17,7 @@ class TestPreprocessBasic:
         """Test preprocessing empty content."""
         lines = []
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         assert isinstance(result, tuple)
         assert len(result) == 3  # lines, n_inputs, n_outputs
 
@@ -25,7 +25,7 @@ class TestPreprocessBasic:
         """Test preprocessing single declaration."""
         lines = ["(declare-const X_0 Real)"]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         _lines_out, n_inputs, n_outputs = result
         assert n_inputs == 1
         assert n_outputs == 0
@@ -37,7 +37,7 @@ class TestPreprocessBasic:
             "(assert (<= X_0 1.0))",
         ]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         lines_out, _n_inputs, _n_outputs = result
         assert len(lines_out) == 1  # Only assert line remains
         assert "(assert" in lines_out[0]
@@ -50,7 +50,7 @@ class TestPreprocessBasic:
             "(assert (<= Y_0 0.5))",
         ]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         _lines_out, n_inputs, n_outputs = result
         assert n_inputs == 1
         assert n_outputs == 1
@@ -112,13 +112,13 @@ class TestPreprocessWhitespace:
             "(assert (<= X_0 1.0))",
         ]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
 
     def test_preprocess_simple_declaration(self):
         """Test simple declaration processing."""
         lines = ["(declare-const X_0 Real)"]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         _lines_out, n_inputs, _n_outputs = result
         assert n_inputs == 1
 
@@ -130,7 +130,7 @@ class TestPreprocessWhitespace:
             "(assert (<= X_0 1.0))",
         ]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         _lines_out, n_inputs, _n_outputs = result
         assert n_inputs == 2
 
@@ -142,7 +142,7 @@ class TestPreprocessWhitespace:
             "(assert (<= Y_0 0.5))",
         ]
         result = preprocess_vnnlib(lines)
-        assert result is not None
+        assert result
         _lines_out, n_inputs, n_outputs = result
         assert n_inputs == 1
         assert n_outputs == 1
@@ -227,16 +227,41 @@ class TestPreprocessVariableDeclarations:
 class TestPreprocessConstraints:
     """Test constraint handling."""
 
-    def test_preprocess_simple_constraint(self):
-        """Test simple constraint processing."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(assert (<= X_0 1.0))",
-        ]
+    @pytest.mark.parametrize(
+        ("lines", "expected_check"),
+        [
+            (
+                [
+                    "(declare-const X_0 Real)",
+                    "(assert (<= X_0 1.0))",
+                ],
+                "(assert",
+            ),
+            (
+                [
+                    "(declare-const X_0 Real)",
+                    "(assert (and (<= X_0 1.0) (>= X_0 0.0)))",
+                ],
+                "and",
+            ),
+            (
+                [
+                    "(declare-const X_0 Real)",
+                    "(assert (or (<= X_0 0.3) (>= X_0 0.7)))",
+                ],
+                "or",
+            ),
+        ],
+    )
+    def test_preprocess_constraint_patterns(self, lines, expected_check):
+        """Test different constraint patterns."""
         result = preprocess_vnnlib(lines)
         lines_out, _n_inputs, _n_outputs = result
         assert len(lines_out) == 1
-        assert "(assert" in lines_out[0]
+        assert expected_check in lines_out[0]
+
+    # [REVIEW] Deleted: test_preprocess_simple_constraint, test_preprocess_logical_constraints,
+    # test_preprocess_or_constraints. STR2: merged 3 MED_DUP.
 
     def test_preprocess_multiple_constraints(self):
         """Test multiple constraint processing."""
@@ -251,28 +276,6 @@ class TestPreprocessConstraints:
         result = preprocess_vnnlib(lines)
         lines_out, _n_inputs, _n_outputs = result
         assert len(lines_out) == 4
-
-    def test_preprocess_logical_constraints(self):
-        """Test logical constraint processing."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(assert (and (<= X_0 1.0) (>= X_0 0.0)))",
-        ]
-        result = preprocess_vnnlib(lines)
-        lines_out, _n_inputs, _n_outputs = result
-        assert len(lines_out) == 1
-        assert "and" in lines_out[0]
-
-    def test_preprocess_or_constraints(self):
-        """Test OR constraint processing."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(assert (or (<= X_0 0.3) (>= X_0 0.7)))",
-        ]
-        result = preprocess_vnnlib(lines)
-        lines_out, _n_inputs, _n_outputs = result
-        assert len(lines_out) == 1
-        assert "or" in lines_out[0]
 
 
 class TestPreprocessReturnType:

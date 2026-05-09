@@ -1,3 +1,5 @@
+"""Preprocessing of raw VNN-LIB file content before parsing."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["preprocess_vnnlib"]
 

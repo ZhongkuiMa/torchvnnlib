@@ -5,6 +5,7 @@ Requires PyTorch to be installed.
 """
 
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -49,29 +50,36 @@ class TestTorchTensorCreation:
         assert t.shape == (3, 2)
         assert torch.all(t == 0.0)
 
-    def test_zeros_1d(self):
-        """Test creating 1D zero tensor."""
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            (5,),
+            (2, 3, 4),
+        ],
+    )
+    def test_zeros_with_shape(self, shape):
+        """Test creating zero tensors with various shapes."""
         backend = TorchBackend()
-        t = backend.zeros((5,))
-        assert t.shape == (5,)
+        t = backend.zeros(shape)
+        assert t.shape == shape
 
-    def test_zeros_3d(self):
-        """Test creating 3D zero tensor."""
-        backend = TorchBackend()
-        t = backend.zeros((2, 3, 4))
-        assert t.shape == (2, 3, 4)
+    # [REVIEW] Deleted: test_zeros_1d, test_zeros_3d. STR2: merged 2 MED_DUP.
 
-    def test_zeros_dtype_float64(self):
-        """Test zeros with float64 dtype."""
+    @pytest.mark.parametrize(
+        ("dtype", "expected_dtype"),
+        [
+            ("float64", torch.float64),
+            ("float32", torch.float32),
+        ],
+    )
+    def test_zeros_with_dtype(self, dtype, expected_dtype):
+        """Test zeros with dtype specification."""
         backend = TorchBackend()
-        t = backend.zeros((2, 2), dtype="float64")
-        assert t.dtype == torch.float64
+        t = backend.zeros((2, 2), dtype=dtype)
+        assert t.dtype == expected_dtype
 
-    def test_zeros_dtype_float32(self):
-        """Test zeros with float32 dtype."""
-        backend = TorchBackend()
-        t = backend.zeros((2, 2), dtype="float32")
-        assert t.dtype == torch.float32
+    # [REVIEW] Deleted: test_zeros_dtype_float64, test_zeros_dtype_float32.
+    # STR2: merged 2 MED_DUP.
 
     def test_full_basic(self):
         """Test creating tensor filled with value."""
@@ -110,31 +118,21 @@ class TestTorchTensorCreation:
 class TestTorchArrayOperations:
     """Test array/tensor operations."""
 
-    def test_stack_2d_tensors(self):
-        """Test stacking 2D tensors."""
+    @pytest.mark.parametrize(
+        ("t1_data", "t2_data", "axis", "expected_shape"),
+        [
+            ([[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]], 0, (2, 2, 2)),
+            ([1.0, 2.0], [3.0, 4.0], 0, (2, 2)),
+            ([[1.0, 2.0]], [[3.0, 4.0]], 1, (1, 2, 2)),
+        ],
+    )
+    def test_stack_operations(self, t1_data, t2_data, axis, expected_shape):
+        """Test stacking tensors along various axes (STR11: merged 3 tests)."""
         backend = TorchBackend()
-        t1 = backend.tensor([[1.0, 2.0], [3.0, 4.0]])
-        t2 = backend.tensor([[5.0, 6.0], [7.0, 8.0]])
-        stacked = backend.stack([t1, t2], axis=0)
-        assert stacked.shape == (2, 2, 2)
-
-    def test_stack_axis_0(self):
-        """Test stacking along axis 0."""
-        backend = TorchBackend()
-        t1 = backend.tensor([1.0, 2.0])
-        t2 = backend.tensor([3.0, 4.0])
-        stacked = backend.stack([t1, t2], axis=0)
-        assert stacked.shape == (2, 2)
-        assert stacked[0, 0] == 1.0
-        assert stacked[1, 0] == 3.0
-
-    def test_stack_axis_1(self):
-        """Test stacking along axis 1."""
-        backend = TorchBackend()
-        t1 = backend.tensor([[1.0, 2.0]])
-        t2 = backend.tensor([[3.0, 4.0]])
-        stacked = backend.stack([t1, t2], axis=1)
-        assert stacked.shape == (1, 2, 2)
+        t1 = backend.tensor(t1_data)
+        t2 = backend.tensor(t2_data)
+        stacked = backend.stack([t1, t2], axis=axis)
+        assert stacked.shape == expected_shape
 
     def test_isnan_detection(self):
         """Test NaN detection in tensor."""
@@ -239,8 +237,6 @@ class TestTorchFileIO:
             mtime1 = filepath.stat().st_mtime
 
             # Wait a tiny bit to ensure time difference
-            import time
-
             time.sleep(0.01)
 
             # Save second file (overwrite)
@@ -258,17 +254,9 @@ class TestTorchFileIO:
 class TestTorchDtypeHandling:
     """Test dtype handling and conversions."""
 
-    def test_dtype_float64_explicit(self):
-        """Test explicit float64 dtype."""
-        backend = TorchBackend()
-        t = backend.zeros((2, 2), dtype="float64")
-        assert t.dtype == torch.float64
-
-    def test_dtype_float32_explicit(self):
-        """Test explicit float32 dtype."""
-        backend = TorchBackend()
-        t = backend.zeros((2, 2), dtype="float32")
-        assert t.dtype == torch.float32
+    # [REVIEW] [DELETE_CANDIDATE] test_dtype_float64_explicit and
+    # test_dtype_float32_explicit: truly redundant with test_zeros_with_dtype.
+    # STR2: group=4, but these are exact duplicates.
 
     def test_tensor_dtype_inference(self):
         """Test dtype inference from values."""
@@ -280,17 +268,21 @@ class TestTorchDtypeHandling:
 class TestTorchEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_empty_tensor(self):
-        """Test creating empty tensor."""
+    @pytest.mark.parametrize(
+        "shape",
+        [
+            (0,),
+            (100, 100),
+        ],
+    )
+    def test_tensor_shapes(self, shape):
+        """Test creating tensors with various shapes."""
         backend = TorchBackend()
-        t = backend.zeros((0,))
-        assert t.shape == (0,)
+        t = backend.zeros(shape)
+        assert t.shape == shape
 
-    def test_large_tensor(self):
-        """Test creating large tensor."""
-        backend = TorchBackend()
-        t = backend.zeros((100, 100))
-        assert t.shape == (100, 100)
+    # [REVIEW] Deleted: test_empty_tensor, test_large_tensor.
+    # STR2: merged 2 MED_DUP.
 
     def test_negative_values(self):
         """Test tensor with negative values."""

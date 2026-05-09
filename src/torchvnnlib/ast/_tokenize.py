@@ -1,4 +1,6 @@
-__docformat__ = ["restructuredtext"]
+"""Tokenization of VNN-LIB S-expressions into token sequences."""
+
+__docformat__ = "restructuredtext"
 __all__ = ["tokenize"]
 
 import re

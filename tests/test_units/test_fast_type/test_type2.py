@@ -136,53 +136,49 @@ class TestType2BasicProcessing:
 class TestType2ParsedData:
     """Test TYPE2 processing with pre-parsed data."""
 
-    def test_process_type2_with_parsed_data(self, type2_parsed_data, backend):
-        """Test TYPE2 when parsed_data is provided (main code path).
+    @pytest.mark.parametrize(
+        ("use_fixture", "lines"),
+        [
+            pytest.param(
+                True,
+                [
+                    "(assert (>= X_0 0.5))",
+                    "(assert (<= X_0 1.0))",
+                    "(assert (or (>= Y_0 Y_1) (>= Y_1 Y_0)))",
+                ],
+                id="with_parsed_data",
+            ),
+            pytest.param(
+                False,
+                [
+                    "(assert (>= X_0 -0.5))",
+                    "(assert (<= X_0 1.5))",
+                    "(assert (or (>= Y_0 0.0) (<= Y_1 0.0)))",
+                ],
+                id="without_parsed_data",
+            ),
+        ],
+    )
+    def test_process_type2_with_and_without_parsed_data(
+        self, use_fixture, lines, backend, type2_parsed_data
+    ):
+        """Test TYPE2 when parsed_data is provided (main code path) vs None (fallback path).
 
-        This tests lines 32-38 in _type2_processor.py where parsed_data is provided.
-        Should skip re-parsing.
+        When parsed_data is provided, the processor skips re-parsing.
+        When parsed_data is None, parse_simple_patterns is called internally.
         """
         n_inputs = 1
         n_outputs = 2
+        parsed_data = type2_parsed_data if use_fixture else None
 
-        # Use the fixture's lines
-        lines = [
-            "(assert (>= X_0 0.5))",
-            "(assert (<= X_0 1.0))",
-            "(assert (or (>= Y_0 Y_1) (>= Y_1 Y_0)))",
-        ]
-
-        # Process with pre-parsed data
         result = process_type2(
-            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=type2_parsed_data
+            lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=parsed_data
         )
 
-        # Should succeed and have valid structure
         assert len(result) == 1, "Should have AND group"
         _input_bounds, _output_constrs = result[0][0]
         assert tuple(_input_bounds.shape) == (n_inputs, 2), "Should have correct input bounds shape"
         assert isinstance(_output_constrs, list), "Should have output constraints"
-
-    def test_process_type2_without_parsed_data(self, backend):
-        """Test TYPE2 when parsed_data is None (fallback path).
-
-        This tests lines 32-38 where parse_simple_patterns is called internally.
-        """
-        lines = [
-            "(assert (>= X_0 -0.5))",
-            "(assert (<= X_0 1.5))",
-            "(assert (or (>= Y_0 0.0) (<= Y_1 0.0)))",
-        ]
-        n_inputs = 1
-        n_outputs = 2
-
-        # Process without pre-parsed data - should call parse_simple_patterns internally
-        result = process_type2(lines, n_inputs, n_outputs, backend, verbose=False, parsed_data=None)
-
-        # Should succeed
-        assert len(result) == 1, "Should have AND group"
-        _input_bounds, _output_constrs = result[0][0]
-        assert tuple(_input_bounds.shape) == (n_inputs, 2), "Should have correct input bounds shape"
 
     def test_process_type2_parsed_data_structure_validation(self, backend):
         """Test that parsed_data dict structure is validated.

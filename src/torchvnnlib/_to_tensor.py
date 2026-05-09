@@ -1,3 +1,5 @@
+"""Conversion of parsed VNN-LIB AST expressions to tensor representations."""
+
 __docformat__ = "restructuredtext"
 __all__ = [
     "convert_and_output_constrs",

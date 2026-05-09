@@ -23,7 +23,7 @@ class TestFlattenBasic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_multiple_inputs_outputs(self):
         """Test flattening And with multiple inputs and outputs."""
@@ -37,7 +37,7 @@ class TestFlattenBasic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_arithmetic_in_constraints(self):
         """Test flattening And with arithmetic in constraints."""
@@ -48,7 +48,7 @@ class TestFlattenBasic:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenLogicalOperators:
@@ -64,7 +64,7 @@ class TestFlattenLogicalOperators:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_and_with_input_output_constraints(self):
         """Test flattening AND with multiple input and output constraints."""
@@ -77,7 +77,7 @@ class TestFlattenLogicalOperators:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_and_with_or_in_output(self):
         """Test flattening AND with OR in output constraints."""
@@ -93,7 +93,7 @@ class TestFlattenLogicalOperators:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_and_with_or_in_input(self):
         """Test flattening AND with OR in input constraints."""
@@ -109,7 +109,7 @@ class TestFlattenLogicalOperators:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenNestedLogical:
@@ -129,7 +129,7 @@ class TestFlattenNestedLogical:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_and_with_or_output_only(self):
         """Test flattening AND where output has only OR."""
@@ -145,7 +145,7 @@ class TestFlattenNestedLogical:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_complex_or_structure(self):
         """Test flattening AND with complex OR structure."""
@@ -166,7 +166,7 @@ class TestFlattenNestedLogical:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_mixed_constraints(self):
         """Test flattening AND with mixed direct and OR constraints."""
@@ -184,7 +184,7 @@ class TestFlattenNestedLogical:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenArithmeticInConstraints:
@@ -199,7 +199,7 @@ class TestFlattenArithmeticInConstraints:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_product_in_input(self):
         """Test flattening And with multiplication in input constraint."""
@@ -210,7 +210,7 @@ class TestFlattenArithmeticInConstraints:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_complex_arithmetic(self):
         """Test flattening And with complex arithmetic."""
@@ -224,7 +224,7 @@ class TestFlattenArithmeticInConstraints:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_arithmetic_in_output(self):
         """Test flattening And with arithmetic in output constraint."""
@@ -235,7 +235,7 @@ class TestFlattenArithmeticInConstraints:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenInputAndOutputVariables:
@@ -251,7 +251,7 @@ class TestFlattenInputAndOutputVariables:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_multiple_output_variables(self):
         """Test flattening with multiple output variables."""
@@ -263,7 +263,7 @@ class TestFlattenInputAndOutputVariables:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_many_mixed_variables(self):
         """Test flattening with many mixed input/output variables."""
@@ -277,7 +277,7 @@ class TestFlattenInputAndOutputVariables:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
 
 class TestFlattenResultStructure:
@@ -294,7 +294,7 @@ class TestFlattenResultStructure:
         )
         result = flatten(expr)
         # Result should preserve variable properties
-        assert result is not None
+        assert result
         assert result.has_input_vars is True
         assert result.has_output_vars is True
 
@@ -317,7 +317,7 @@ class TestFlattenResultStructure:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
         assert result.has_input_vars is True
         assert result.has_output_vars is True
 
@@ -334,7 +334,7 @@ class TestFlattenEdgeCases:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_many_constraints(self):
         """Test flattening with many constraints."""
@@ -342,7 +342,7 @@ class TestFlattenEdgeCases:
         constraints.extend(Leq(Var(f"Y_{i}"), Cst(0.5 - i * 0.1)) for i in range(2))
         expr = And(constraints)
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_with_or_in_both_constraints(self):
         """Test flattening with OR in both input and output."""
@@ -363,7 +363,7 @@ class TestFlattenEdgeCases:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result
 
     def test_flatten_or_with_nested_and(self):
         """Test flattening OR with nested AND in output."""
@@ -379,4 +379,4 @@ class TestFlattenEdgeCases:
             ]
         )
         result = flatten(expr)
-        assert result is not None
+        assert result

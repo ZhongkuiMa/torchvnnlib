@@ -8,6 +8,8 @@ fine-grained information, public API only, no deselected tests.
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from torchvnnlib import TorchVNNLIB
 
 
@@ -130,8 +132,15 @@ class TestEndToEndConversion:
 class TestOutputFormats:
     """Test different output formats."""
 
-    def test_torch_output_format(self):
-        """Test torch output format produces .pth files."""
+    @pytest.mark.parametrize(
+        ("output_format", "expected_extension"),
+        [
+            pytest.param("torch", ".pth", id="torch"),
+            pytest.param("numpy", ".npz", id="numpy"),
+        ],
+    )
+    def test_output_format(self, output_format, expected_extension):
+        """Test output format produces correct file extension (STR2: merged pair)."""
         vnnlib_content = """(declare-const X_0 Real)
 (declare-const Y_0 Real)
 
@@ -143,34 +152,13 @@ class TestOutputFormats:
             f.write(vnnlib_content)
             vnnlib_path = f.name
 
-        converter = TorchVNNLIB(output_format="torch")
+        converter = TorchVNNLIB(output_format=output_format)
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = str(Path(tmpdir) / "output")
             converter.convert(vnnlib_path, output_path)
 
-            pth_files = list(Path(output_path).rglob("*.pth"))
-            assert len(pth_files) > 0
-
-    def test_numpy_output_format(self):
-        """Test numpy output format produces .npz files."""
-        vnnlib_content = """(declare-const X_0 Real)
-(declare-const Y_0 Real)
-
-(assert (<= X_0 1.0))
-(assert (>= X_0 0.0))
-(assert (<= Y_0 0.5))
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".vnnlib", delete=False) as f:
-            f.write(vnnlib_content)
-            vnnlib_path = f.name
-
-        converter = TorchVNNLIB(output_format="numpy")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(vnnlib_path, output_path)
-
-            npz_files = list(Path(output_path).rglob("*.npz"))
-            assert len(npz_files) > 0
+            files = list(Path(output_path).rglob(f"*{expected_extension}"))
+            assert len(files) > 0
 
 
 class TestConversionWithOptions:
@@ -197,8 +185,15 @@ class TestConversionWithOptions:
             captured = capsys.readouterr()
             assert "Converting" in captured.out or len(captured.out) > 0
 
-    def test_convert_with_fast_type_enabled(self):
-        """Test conversion with fast type detection enabled."""
+    @pytest.mark.parametrize(
+        ("detect_fast_type", "scenario"),
+        [
+            pytest.param(True, "enabled", id="enabled"),
+            pytest.param(False, "disabled", id="disabled"),
+        ],
+    )
+    def test_convert_with_fast_type_config(self, detect_fast_type, scenario):
+        """Test conversion with fast type detection configuration (STR2: merged pair)."""
         vnnlib_content = """(declare-const X_0 Real)
 (declare-const Y_0 Real)
 
@@ -210,67 +205,51 @@ class TestConversionWithOptions:
             f.write(vnnlib_content)
             vnnlib_path = f.name
 
-        converter = TorchVNNLIB(detect_fast_type=True)
+        converter = TorchVNNLIB(detect_fast_type=detect_fast_type)
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = str(Path(tmpdir) / "output")
             converter.convert(vnnlib_path, output_path)
 
-            assert "used_fast" in converter.conversion_stats[vnnlib_path]
-
-    def test_convert_with_fast_type_disabled(self):
-        """Test conversion with fast type detection disabled."""
-        vnnlib_content = """(declare-const X_0 Real)
-(declare-const Y_0 Real)
-
-(assert (<= X_0 1.0))
-(assert (>= X_0 0.0))
-(assert (<= Y_0 0.5))
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".vnnlib", delete=False) as f:
-            f.write(vnnlib_content)
-            vnnlib_path = f.name
-
-        converter = TorchVNNLIB(detect_fast_type=False)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(vnnlib_path, output_path)
-
-            assert converter.conversion_stats[vnnlib_path]["used_fast"] is False
+            stats = converter.conversion_stats[vnnlib_path]
+            if scenario == "enabled":
+                assert "used_fast" in stats
+            else:
+                assert stats["used_fast"] is False
 
 
 class TestNegativeBounds:
     """Test conversions with negative bounds."""
 
-    def test_negative_input_bounds(self):
-        """Test conversion with negative input bounds."""
-        vnnlib_content = """(declare-const X_0 Real)
+    @pytest.mark.parametrize(
+        ("vnnlib_content", "scenario"),
+        [
+            pytest.param(
+                """(declare-const X_0 Real)
 (declare-const Y_0 Real)
 
 (assert (<= X_0 1.0))
 (assert (>= X_0 -1.0))
 (assert (<= Y_0 0.5))
-"""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".vnnlib", delete=False) as f:
-            f.write(vnnlib_content)
-            vnnlib_path = f.name
-
-        converter = TorchVNNLIB()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(vnnlib_path, output_path)
-
-            assert Path(output_path).exists()
-
-    def test_negative_output_bounds(self):
-        """Test conversion with negative output bounds."""
-        vnnlib_content = """(declare-const X_0 Real)
+""",
+                "negative_input",
+                id="negative_input",
+            ),
+            pytest.param(
+                """(declare-const X_0 Real)
 (declare-const Y_0 Real)
 
 (assert (<= X_0 1.0))
 (assert (>= X_0 0.0))
 (assert (<= Y_0 0.5))
 (assert (>= Y_0 -0.5))
-"""
+""",
+                "negative_output",
+                id="negative_output",
+            ),
+        ],
+    )
+    def test_negative_bounds(self, vnnlib_content, scenario):
+        """Test conversion with negative bounds (STR2: merged pair)."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".vnnlib", delete=False) as f:
             f.write(vnnlib_content)
             vnnlib_path = f.name

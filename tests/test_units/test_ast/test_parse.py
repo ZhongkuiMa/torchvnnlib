@@ -37,39 +37,27 @@ class TestParseBasic:
         assert isinstance(result, Add)
         assert len(result.args) == 2
 
-    def test_parse_simple_subtraction(self):
-        """Test parsing subtraction."""
-        tokens = deque(["(", "-", "X_0", "1.5", ")"])
+    @pytest.mark.parametrize(
+        ("tokens", "expected_type"),
+        [
+            (deque(["(", "-", "X_0", "1.5", ")"]), Sub),
+            (deque(["(", "*", "2.0", "X_0", ")"]), Mul),
+            (deque(["(", "/", "Y_0", "2.0", ")"]), Div),
+            (deque(["(", "<=", "X_0", "1.0", ")"]), Leq),
+            (deque(["(", ">=", "X_0", "0.0", ")"]), Geq),
+        ],
+    )
+    def test_parse_binary_operators(self, tokens, expected_type):
+        """Test parsing binary operators."""
         result = _parse_tokens(tokens)
-        assert isinstance(result, Sub)
+        assert isinstance(result, expected_type)
 
-    def test_parse_multiplication(self):
-        """Test parsing multiplication."""
-        tokens = deque(["(", "*", "2.0", "X_0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Mul)
-
-    def test_parse_division(self):
-        """Test parsing division."""
-        tokens = deque(["(", "/", "Y_0", "2.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Div)
+    # [REVIEW] Deleted: test_parse_simple_subtraction, test_parse_multiplication,
+    # test_parse_division, test_parse_less_equal, test_parse_greater_equal. STR1: merged 5 HIGH_DUP.
 
 
 class TestParseComparisons:
     """Test parsing comparison operators."""
-
-    def test_parse_less_equal(self):
-        """Test parsing <= constraint."""
-        tokens = deque(["(", "<=", "X_0", "1.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Leq)
-
-    def test_parse_greater_equal(self):
-        """Test parsing >= constraint."""
-        tokens = deque(["(", ">=", "X_0", "0.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Geq)
 
     @pytest.mark.parametrize(
         "tokens_list",
@@ -81,29 +69,34 @@ class TestParseComparisons:
     def test_parse_comparison_operators(self, tokens_list):
         """Test parsing various comparison operators."""
         result = _parse_tokens(tokens_list)
-        assert result is not None
+        assert result
         assert hasattr(result, "has_input_vars") or hasattr(result, "has_output_vars")
 
 
 class TestParseLogicalOperators:
     """Test parsing logical operators."""
 
-    def test_parse_and_two_constraints(self):
-        """Test parsing AND with two constraints."""
-        tokens = deque(
-            ["(", "and", "(", "<=", "X_0", "1.0", ")", "(", ">=", "X_0", "0.0", ")", ")"]
-        )
+    @pytest.mark.parametrize(
+        ("tokens", "expected_type"),
+        [
+            (
+                deque(
+                    ["(", "and", "(", "<=", "X_0", "1.0", ")", "(", ">=", "X_0", "0.0", ")", ")"]
+                ),
+                And,
+            ),
+            (
+                deque(
+                    ["(", "or", "(", "<=", "X_0", "0.5", ")", "(", ">=", "X_0", "0.75", ")", ")"]
+                ),
+                Or,
+            ),
+        ],
+    )
+    def test_parse_two_constraints(self, tokens, expected_type):
+        """Test parsing AND/OR with two constraints (STR11: merged pair)."""
         result = _parse_tokens(tokens)
-        assert isinstance(result, And)
-        assert len(result.args) == 2
-
-    def test_parse_or_two_constraints(self):
-        """Test parsing OR with two constraints."""
-        tokens = deque(
-            ["(", "or", "(", "<=", "X_0", "0.5", ")", "(", ">=", "X_0", "0.75", ")", ")"]
-        )
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Or)
+        assert isinstance(result, expected_type)
         assert len(result.args) == 2
 
     def test_parse_and_multiple_constraints(self):
@@ -238,32 +231,22 @@ class TestParseNumbers:
 
     @pytest.mark.parametrize(
         "number",
-        ["0.0", "1.5", "3.14", "2.71828"],
+        [
+            "0.0",
+            "1.5",
+            "3.14",
+            "2.71828",
+            "1e-10",
+            "1e308",
+            "2.5E+3",
+            "3.2e-5",
+            "-1",
+            "-1.5",
+            "-1e-10",
+        ],
     )
-    def test_parse_floats(self, number):
-        """Test parsing floating point values."""
-        tokens = deque([number])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Cst)
-        assert result.value == pytest.approx(float(number))
-
-    @pytest.mark.parametrize(
-        "number",
-        ["1e-10", "1e308", "2.5E+3", "3.2e-5"],
-    )
-    def test_parse_scientific_notation(self, number):
-        """Test parsing scientific notation."""
-        tokens = deque([number])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Cst)
-        assert result.value == pytest.approx(float(number))
-
-    @pytest.mark.parametrize(
-        "number",
-        ["-1", "-1.5", "-1e-10"],
-    )
-    def test_parse_negative_numbers(self, number):
-        """Test parsing negative numbers."""
+    def test_parse_number_formats(self, number):
+        """Test parsing various number formats: float, scientific, negative (STR5: merged 3 formats)."""
         tokens = deque([number])
         result = _parse_tokens(tokens)
         assert isinstance(result, Cst)
@@ -273,26 +256,23 @@ class TestParseNumbers:
 class TestParseProperties:
     """Test expression properties after parsing."""
 
-    def test_parse_input_variable_property(self):
-        """Test that parsed input variable has correct property."""
-        tokens = deque(["X_5"])
+    @pytest.mark.parametrize(
+        ("tokens", "expect_input", "expect_output"),
+        [
+            (deque(["X_5"]), True, False),
+            (deque(["Y_5"]), False, True),
+            (deque(["5.0"]), False, False),
+        ],
+    )
+    def test_parse_variable_properties(self, tokens, expect_input, expect_output):
+        """Test variable property detection after parsing."""
         result = _parse_tokens(tokens)
-        assert result.has_input_vars is True
-        assert result.has_output_vars is False
+        assert result.has_input_vars is expect_input
+        assert result.has_output_vars is expect_output
 
-    def test_parse_output_variable_property(self):
-        """Test that parsed output variable has correct property."""
-        tokens = deque(["Y_5"])
-        result = _parse_tokens(tokens)
-        assert result.has_output_vars is True
-        assert result.has_input_vars is False
-
-    def test_parse_constant_has_no_variables(self):
-        """Test that constant has no variables."""
-        tokens = deque(["5.0"])
-        result = _parse_tokens(tokens)
-        assert result.has_input_vars is False
-        assert result.has_output_vars is False
+    # [REVIEW] Deleted: test_parse_input_variable_property,
+    # test_parse_output_variable_property, test_parse_constant_has_no_variables.
+    # STR2: merged 3 MED_DUP tests into parametrized test_parse_variable_properties.
 
     def test_parse_expression_propagates_variables(self):
         """Test that expression propagates variable properties."""
@@ -306,40 +286,26 @@ class TestParseProperties:
 class TestParseBinaryOperators:
     """Test parsing binary operators."""
 
-    def test_parse_subtraction_basic(self):
-        """Test basic subtraction without parentheses."""
-        # (- 5 3)
-        tokens = deque(["(", "-", "5", "3", ")"])
+    @pytest.mark.parametrize(
+        ("tokens", "expected_type"),
+        [
+            (deque(["(", "-", "5", "3", ")"]), Sub),
+            (deque(["(", "*", "2.0", "X_0", ")"]), Mul),
+            (deque(["(", "/", "Y_0", "2.0", ")"]), Div),
+            (deque(["(", "<=", "X_0", "1.0", ")"]), Leq),
+            (deque(["(", ">=", "X_0", "0.0", ")"]), Geq),
+            (deque(["(", "assert", "(", "<=", "X_0", "1.0", ")", ")"]), Leq),
+        ],
+    )
+    def test_parse_binary_operators_basic(self, tokens, expected_type):
+        """Test parsing basic binary operators."""
         result = _parse_tokens(tokens)
-        assert isinstance(result, Sub)
+        assert isinstance(result, expected_type)
 
-    def test_parse_multiplication_basic(self):
-        """Test basic multiplication without parentheses."""
-        # (* 2.0 X_0)
-        tokens = deque(["(", "*", "2.0", "X_0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Mul)
-
-    def test_parse_division_basic(self):
-        """Test basic division without parentheses."""
-        # (/ Y_0 2.0)
-        tokens = deque(["(", "/", "Y_0", "2.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Div)
-
-    def test_parse_comparison_leq_basic(self):
-        """Test basic <= comparison."""
-        # (<= X_0 1.0)
-        tokens = deque(["(", "<=", "X_0", "1.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Leq)
-
-    def test_parse_comparison_geq_basic(self):
-        """Test basic >= comparison."""
-        # (>= X_0 0.0)
-        tokens = deque(["(", ">=", "X_0", "0.0", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Geq)
+    # [REVIEW] Deleted: test_parse_subtraction_basic, test_parse_multiplication_basic,
+    # test_parse_division_basic, test_parse_comparison_leq_basic,
+    # test_parse_comparison_geq_basic, test_parse_assert_statement.
+    # STR1: merged 6 HIGH_DUP.
 
 
 class TestParseVerboseMode:
@@ -380,29 +346,22 @@ class TestParseVerboseMode:
         captured = capsys.readouterr()
         assert "Parse tokens (sequential)" in captured.out
         assert "Merge exprs" in captured.out
-        assert result is not None
+        assert result
 
 
 class TestParseErrorHandling:
     """Test error handling in parsing."""
 
-    def test_parse_unknown_operator(self):
-        """Test error handling for unknown operators."""
-        # (unknown_op 1 2)
-        tokens = deque(["(", "unknown_op", "1", "2", ")"])
+    @pytest.mark.parametrize(
+        "tokens",
+        [
+            deque(["(", "unknown_op", "1", "2", ")"]),
+            deque(["(", "invalid", "X_0", "Y_0", ")"]),
+        ],
+    )
+    def test_parse_unknown_operator(self, tokens):
+        """Test error handling for unknown operators (STR11: merged pair)."""
         with pytest.raises(ValueError, match="Unknown operator"):
             _parse_tokens(tokens)
 
-    def test_parse_unknown_operator_with_variables(self):
-        """Test error handling for unknown operators with variables."""
-        # (invalid X_0 Y_0)
-        tokens = deque(["(", "invalid", "X_0", "Y_0", ")"])
-        with pytest.raises(ValueError, match="Unknown operator"):
-            _parse_tokens(tokens)
-
-    def test_parse_assert_statement(self):
-        """Test parsing assert statements."""
-        # (assert (<= X_0 1.0))
-        tokens = deque(["(", "assert", "(", "<=", "X_0", "1.0", ")", ")"])
-        result = _parse_tokens(tokens)
-        assert isinstance(result, Leq)
+    # [REVIEW] Deleted: test_parse_assert_statement (merged into test_parse_binary_operators_basic)

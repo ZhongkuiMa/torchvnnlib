@@ -65,7 +65,7 @@ class TestBackendSelection:
             assert isinstance(backend, TorchBackend)
         else:
             # If torch is not available, default 'torch' will raise ImportError
-            with pytest.raises(ImportError):
+            with pytest.raises(ImportError, match=r"PyTorch is not installed"):
                 get_backend()
 
 
@@ -175,7 +175,7 @@ class TestTorchAvailability:
             assert isinstance(backend, TorchBackend)
         else:
             # Default raises ImportError when torch not available
-            with pytest.raises(ImportError):
+            with pytest.raises(ImportError, match=r"PyTorch is not installed"):
                 get_backend()
 
 
@@ -197,7 +197,7 @@ class TestBackendCreation:
 
     def test_abstract_backend_not_instantiable(self):
         """Test that abstract Backend class cannot be instantiated."""
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match=r"Can't instantiate abstract class"):
             Backend()
 
 

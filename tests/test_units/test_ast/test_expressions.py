@@ -16,37 +16,30 @@ from torchvnnlib.ast._expr import Add, And, Cst, Div, Eq, Geq, Leq, Mul, Or, Sub
 class TestCstConstant:
     """Test Cst (Constant) expression class."""
 
-    def test_cst_creation_positive(self):
-        """Test creating positive constant."""
-        c = Cst(5.0)
-        assert c.value == 5.0
+    @pytest.mark.parametrize(
+        ("value", "label"),
+        [
+            pytest.param(5.0, "positive"),
+            pytest.param(-3.5, "negative"),
+            pytest.param(0.0, "zero"),
+            pytest.param(3.14159, "float"),
+        ],
+    )
+    def test_cst_creation(self, value, label):
+        """Test creating constant with various values."""
+        c = Cst(value)
+        assert c.value == pytest.approx(value)
 
-    def test_cst_creation_negative(self):
-        """Test creating negative constant."""
-        c = Cst(-3.5)
-        assert c.value == -3.5
-
-    def test_cst_creation_zero(self):
-        """Test creating zero constant."""
-        c = Cst(0.0)
-        assert c.value == 0.0
-
-    def test_cst_creation_float(self):
-        """Test creating float constant."""
-        c = Cst(3.14159)
-        assert c.value == pytest.approx(3.14159)
-
-    def test_cst_equality(self):
-        """Test equality comparison between constants."""
-        c1 = Cst(5.0)
-        c2 = Cst(5.0)
-        assert c1 == c2
-
-    def test_cst_inequality(self):
-        """Test inequality between different constants."""
-        c1 = Cst(5.0)
-        c2 = Cst(6.0)
-        assert c1 != c2
+    @pytest.mark.parametrize(
+        ("v1", "v2", "expect_equal"),
+        [pytest.param(5.0, 5.0, True, id="equal"), pytest.param(5.0, 6.0, False, id="not_equal")],
+    )
+    def test_cst_comparison(self, v1, v2, expect_equal):
+        """Test equality and inequality between constants."""
+        if expect_equal:
+            assert Cst(v1) == Cst(v2)
+        else:
+            assert Cst(v1) != Cst(v2)
 
     def test_cst_hash(self):
         """Test hashing constant for dict/set usage."""
@@ -65,47 +58,46 @@ class TestCstConstant:
 class TestVarVariable:
     """Test Var (Variable) expression class."""
 
-    def test_var_creation_input(self):
-        """Test creating input variable."""
-        v = Var("X_0")
-        assert v.name == "X_0"
+    @pytest.mark.parametrize(
+        ("name", "label"),
+        [pytest.param("X_0", "input"), pytest.param("Y_0", "output")],
+    )
+    def test_var_creation(self, name, label):
+        """Test creating variable with input and output names."""
+        v = Var(name)
+        assert v.name == name
 
-    def test_var_creation_output(self):
-        """Test creating output variable."""
-        v = Var("Y_0")
-        assert v.name == "Y_0"
-
-    def test_var_index_extraction(self):
+    @pytest.mark.parametrize(
+        ("name", "expected_index"),
+        [pytest.param("X_123", 123), pytest.param("Y_9999", 9999)],
+    )
+    def test_var_index_extraction(self, name, expected_index):
         """Test extracting index from variable name."""
-        v = Var("X_123")
-        assert v.index == 123
+        v = Var(name)
+        assert v.index == expected_index
 
-    def test_var_index_extraction_large(self):
-        """Test extracting large index from variable name."""
-        v = Var("Y_9999")
-        assert v.index == 9999
+    @pytest.mark.parametrize(
+        ("name", "expected_type"),
+        [pytest.param("X_5", "X"), pytest.param("Y_5", "Y")],
+    )
+    def test_var_type(self, name, expected_type):
+        """Test variable type detection for input and output."""
+        v = Var(name)
+        assert v.var_type == expected_type
 
-    def test_var_type_input(self):
-        """Test variable type detection for input."""
-        v = Var("X_5")
-        assert v.var_type == "X"
-
-    def test_var_type_output(self):
-        """Test variable type detection for output."""
-        v = Var("Y_5")
-        assert v.var_type == "Y"
-
-    def test_var_equality(self):
-        """Test equality between variables."""
-        v1 = Var("X_0")
-        v2 = Var("X_0")
-        assert v1 == v2
-
-    def test_var_inequality_different_names(self):
-        """Test inequality between different variable names."""
-        v1 = Var("X_0")
-        v2 = Var("X_1")
-        assert v1 != v2
+    @pytest.mark.parametrize(
+        ("n1", "n2", "expect_equal"),
+        [
+            pytest.param("X_0", "X_0", True, id="equal"),
+            pytest.param("X_0", "X_1", False, id="not_equal"),
+        ],
+    )
+    def test_var_comparison(self, n1, n2, expect_equal):
+        """Test equality and inequality between variables."""
+        if expect_equal:
+            assert Var(n1) == Var(n2)
+        else:
+            assert Var(n1) != Var(n2)
 
     def test_var_hash(self):
         """Test hashing variable for dict/set usage."""
@@ -114,17 +106,18 @@ class TestVarVariable:
         s = {v1}
         assert v2 in s
 
-    def test_var_has_input_vars_true(self):
-        """Test that input variable has input_vars."""
-        v = Var("X_5")
-        assert v.has_input_vars is True
-        assert v.has_output_vars is False
-
-    def test_var_has_output_vars_true(self):
-        """Test that output variable has output_vars."""
-        v = Var("Y_5")
-        assert v.has_output_vars is True
-        assert v.has_input_vars is False
+    @pytest.mark.parametrize(
+        ("name", "expect_input", "expect_output"),
+        [
+            pytest.param("X_5", True, False, id="input"),
+            pytest.param("Y_5", False, True, id="output"),
+        ],
+    )
+    def test_var_has_vars(self, name, expect_input, expect_output):
+        """Test has_input_vars and has_output_vars for input and output variables."""
+        v = Var(name)
+        assert v.has_input_vars is expect_input
+        assert v.has_output_vars is expect_output
 
     def test_var_repr(self):
         """Test string representation of variable."""
@@ -232,11 +225,6 @@ class TestComparisonOperators:
         """Test equality constraint."""
         expr = Eq(Var("X_0"), Cst(0.5))
         assert expr.has_input_vars is True
-
-    def test_eq_two_vars(self):
-        """Test equality between two variables."""
-        expr = Eq(Var("Y_0"), Var("Y_1"))
-        assert expr.has_output_vars is True
 
     def test_eq_two_outputs(self):
         """Test equality between output variables."""

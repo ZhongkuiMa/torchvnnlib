@@ -13,6 +13,10 @@ This includes:
 - Sequential vs parallel processing modes
 - Verbose output
 - Error handling for invalid tokens
+
+Note: STR4 cross-file analysis: test_tokenize_comprehensive.py is intentionally
+exhaustive over test_tokenize.py. Cross-file duplicates are STR8 (INFO only)
+— expected by design for comprehensive coverage file.
 """
 
 import pytest
@@ -83,7 +87,7 @@ class TestTokenizeBasicExpressions:
         for line in test_cases:
             result = tokenize([line])
             assert len(result) >= 1
-            assert all(tokens is not None for tokens in result)
+            assert all(tokens for tokens in result)
 
 
 class TestTokenizeEmptyAndWhitespace:
@@ -103,17 +107,15 @@ class TestTokenizeEmptyAndWhitespace:
         result = tokenize(lines)
         assert isinstance(result, list)
 
-    def test_tokenize_line_with_leading_whitespace(self):
-        """Test line with leading whitespace."""
-        lines = ["   (+ 1 2)"]
-        result = tokenize(lines)
-        assert len(result) == 1
-        tokens = list(result[0])
-        assert "+" in tokens
-
-    def test_tokenize_line_with_trailing_whitespace(self):
-        """Test line with trailing whitespace."""
-        lines = ["(+ 1 2)   "]
+    @pytest.mark.parametrize(
+        "lines",
+        [
+            ["   (+ 1 2)"],
+            ["(+ 1 2)   "],
+        ],
+    )
+    def test_tokenize_line_with_whitespace(self, lines):
+        """Test lines with leading or trailing whitespace (STR11: merged pair)."""
         result = tokenize(lines)
         assert len(result) == 1
         tokens = list(result[0])
@@ -198,33 +200,34 @@ class TestTokenizeNumbers:
             # Should contain scientific notation
             assert any("e" in t.lower() for t in tokens)
 
-    def test_tokenize_scientific_notation_positive_exponent(self):
-        """Test scientific notation with positive exponent."""
-        lines = ["(* 1.0e+5 2.0)"]
+    @pytest.mark.parametrize(
+        ("lines", "expected_pattern"),
+        [
+            (["(* 1.0e+5 2.0)"], "e+"),
+            (["(* 1.0e-5 2.0)"], "e-"),
+        ],
+    )
+    def test_tokenize_scientific_notation_exponent(self, lines, expected_pattern):
+        """Test scientific notation with positive/negative exponent (STR11: merged pair)."""
         result = tokenize(lines)
         tokens = list(result[0])
-        assert any("e+" in t.lower() for t in tokens)
+        assert any(expected_pattern in t.lower() for t in tokens)
 
-    def test_tokenize_scientific_notation_negative_exponent(self):
-        """Test scientific notation with negative exponent."""
-        lines = ["(* 1.0e-5 2.0)"]
+    @pytest.mark.parametrize(
+        ("lines", "expected_token"),
+        [
+            (["(+ 0 0)"], "0"),
+            (["(+ 0.0 0.0)"], "0.0"),
+        ],
+    )
+    def test_tokenize_zero_values(self, lines, expected_token):
+        """Test tokenizing zero values."""
         result = tokenize(lines)
         tokens = list(result[0])
-        assert any("e-" in t.lower() for t in tokens)
+        assert expected_token in tokens
 
-    def test_tokenize_zero(self):
-        """Test tokenizing zero."""
-        lines = ["(+ 0 0)"]
-        result = tokenize(lines)
-        tokens = list(result[0])
-        assert "0" in tokens
-
-    def test_tokenize_zero_float(self):
-        """Test tokenizing zero as float."""
-        lines = ["(+ 0.0 0.0)"]
-        result = tokenize(lines)
-        tokens = list(result[0])
-        assert "0.0" in tokens
+    # [REVIEW] Deleted: test_tokenize_zero, test_tokenize_zero_float.
+    # STR1: merged 2 of 5 group members.
 
 
 class TestTokenizeOperators:
@@ -248,45 +251,37 @@ class TestTokenizeOperators:
             tokens = list(result[0])
             assert op in tokens
 
-    def test_tokenize_logical_operators(self):
-        """Test tokenizing logical operators."""
-        keywords = ["and", "or"]
-        for kw in keywords:
-            line = f"({kw} (expr1) (expr2))"
-            result = tokenize([line])
-            tokens = list(result[0])
-            assert kw in tokens
-
-    def test_tokenize_keywords_and_identifiers(self):
-        """Test tokenizing keywords and identifiers."""
-        keywords = ["declare-const", "assert", "Real"]
-        for kw in keywords:
-            line = f"({kw} X_0)"
-            result = tokenize([line])
-            tokens = list(result[0])
-            assert kw in tokens
+    @pytest.mark.parametrize(
+        ("keyword", "line_template"),
+        [
+            ("and", "({kw} (expr1) (expr2))"),
+            ("or", "({kw} (expr1) (expr2))"),
+            ("declare-const", "({kw} X_0)"),
+            ("assert", "({kw} X_0)"),
+            ("Real", "({kw} X_0)"),
+        ],
+    )
+    def test_tokenize_keywords(self, keyword, line_template):
+        """Test tokenizing keywords and identifiers (STR11: merged operators + keywords)."""
+        line = line_template.format(kw=keyword)
+        result = tokenize([line])
+        tokens = list(result[0])
+        assert keyword in tokens
 
 
 class TestTokenizeVariables:
     """Test tokenizing variable names."""
 
-    def test_tokenize_input_variables(self):
-        """Test tokenizing input variables."""
-        var_names = ["X_0", "X_1", "X_999"]
-        for var in var_names:
-            line = f"(assert {var})"
-            result = tokenize([line])
-            tokens = list(result[0])
-            assert var in tokens
-
-    def test_tokenize_output_variables(self):
-        """Test tokenizing output variables."""
-        var_names = ["Y_0", "Y_1", "Y_10000"]
-        for var in var_names:
-            line = f"(assert {var})"
-            result = tokenize([line])
-            tokens = list(result[0])
-            assert var in tokens
+    @pytest.mark.parametrize(
+        "var_name",
+        ["X_0", "X_1", "X_999", "Y_0", "Y_1", "Y_10000"],
+    )
+    def test_tokenize_variable_names(self, var_name):
+        """Test tokenizing variable names (STR11: merged input + output variables)."""
+        line = f"(assert {var_name})"
+        result = tokenize([line])
+        tokens = list(result[0])
+        assert var_name in tokens
 
     def test_tokenize_mixed_variables(self):
         """Test tokenizing expression with multiple variables."""
@@ -313,6 +308,10 @@ class TestTokenizeVariables:
         result = tokenize([line])
         tokens = list(result[0])
         assert "X_123456" in tokens
+
+    # [REVIEW] test_tokenize_variable_with_large_index, test_tokenize_underscore_in_identifier,
+    # test_tokenize_very_large_number identified as STR1 group=5. Deferred: cross-class merge
+    # would reduce readability (different semantic domains per class). Flagged for STR4 analysis.
 
 
 class TestTokenizeComplexExpressions:
@@ -375,26 +374,23 @@ class TestTokenizeComplexExpressions:
         assert "<=" in all_tokens
         assert ">=" in all_tokens
 
-    def test_tokenize_type2_pattern(self):
-        """Test tokenizing TYPE2 VNN-LIB pattern."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (<= X_0 1.0) (or (>= Y_0 0.5))))",
-        ]
-        result = tokenize(lines)
-        assert len(result) == 3
-        all_tokens = [t for line_tokens in result for t in line_tokens]
-        assert "and" in all_tokens
-        assert "or" in all_tokens
-
-    def test_tokenize_type3_pattern(self):
-        """Test tokenizing TYPE3 VNN-LIB pattern."""
-        lines = [
-            "(declare-const X_0 Real)",
-            "(declare-const Y_0 Real)",
-            "(assert (and (or (<= X_0 0.5) (>= X_0 0.7)) (<= Y_0 0.5)))",
-        ]
+    @pytest.mark.parametrize(
+        "lines",
+        [
+            [
+                "(declare-const X_0 Real)",
+                "(declare-const Y_0 Real)",
+                "(assert (and (<= X_0 1.0) (or (>= Y_0 0.5))))",
+            ],
+            [
+                "(declare-const X_0 Real)",
+                "(declare-const Y_0 Real)",
+                "(assert (and (or (<= X_0 0.5) (>= X_0 0.7)) (<= Y_0 0.5)))",
+            ],
+        ],
+    )
+    def test_tokenize_vnnlib_patterns(self, lines):
+        """Test tokenizing TYPE2/3 VNN-LIB patterns (STR11: merged pair)."""
         result = tokenize(lines)
         assert len(result) == 3
         all_tokens = [t for line_tokens in result for t in line_tokens]
@@ -405,25 +401,19 @@ class TestTokenizeComplexExpressions:
 class TestTokenizeSequentialVsParallel:
     """Test sequential vs parallel execution modes."""
 
-    def test_tokenize_sequential_mode(self):
-        """Test tokenize with use_parallel=False."""
+    @pytest.mark.parametrize("use_parallel", [False, True])
+    def test_tokenize_parallel_modes(self, use_parallel):
+        """Test tokenize with parallel/sequential modes."""
         lines = [
             "(assert (<= X_0 1.0))",
             "(assert (>= X_1 0.0))",
         ]
-        result_seq = tokenize(lines, use_parallel=False)
-        assert len(result_seq) == 2
-        assert list(result_seq[0]) == ["(", "assert", "(", "<=", "X_0", "1.0", ")", ")"]
+        result = tokenize(lines, use_parallel=use_parallel)
+        assert len(result) == 2
+        assert list(result[0]) == ["(", "assert", "(", "<=", "X_0", "1.0", ")", ")"]
 
-    def test_tokenize_parallel_mode(self):
-        """Test tokenize with use_parallel=True."""
-        lines = [
-            "(assert (<= X_0 1.0))",
-            "(assert (>= X_1 0.0))",
-        ]
-        result_par = tokenize(lines, use_parallel=True)
-        assert len(result_par) == 2
-        assert list(result_par[0]) == ["(", "assert", "(", "<=", "X_0", "1.0", ")", ")"]
+    # [REVIEW] Deleted: test_tokenize_sequential_mode, test_tokenize_parallel_mode.
+    # STR1: cross-file group=7 member.
 
     def test_tokenize_modes_produce_same_result(self):
         """Test that parallel and sequential modes produce identical results."""
@@ -439,18 +429,11 @@ class TestTokenizeSequentialVsParallel:
         for seq_tokens, par_tokens in zip(result_seq, result_par, strict=True):
             assert list(seq_tokens) == list(par_tokens)
 
-    def test_tokenize_parallel_with_many_lines(self):
-        """Test parallel tokenization with many lines (>100 threshold)."""
-        # Create 150 lines to trigger parallel processing
+    @pytest.mark.parametrize("use_parallel", [True, False])
+    def test_tokenize_many_lines(self, use_parallel):
+        """Test tokenization with many lines (>100) in parallel or sequential mode (STR11: merged pair)."""
         lines = [f"(assert (>= X_{i} 0.0))" for i in range(150)]
-        result = tokenize(lines, use_parallel=True)
-        assert len(result) == 150
-
-    def test_tokenize_sequential_with_many_lines(self):
-        """Test sequential tokenization with many lines."""
-        # Create 150 lines
-        lines = [f"(assert (>= X_{i} 0.0))" for i in range(150)]
-        result = tokenize(lines, use_parallel=False)
+        result = tokenize(lines, use_parallel=use_parallel)
         assert len(result) == 150
 
     def test_tokenize_threshold_exactly_100(self):
@@ -474,18 +457,15 @@ class TestTokenizeSequentialVsParallel:
 class TestTokenizeVerboseMode:
     """Test verbose mode parameter."""
 
-    def test_tokenize_accepts_verbose_parameter(self):
+    @pytest.mark.parametrize("verbose", [True, False])
+    def test_tokenize_accepts_verbose(self, verbose):
         """Test that tokenize accepts verbose parameter."""
         lines = ["(+ 1 2)"]
-        # Should not raise error with verbose=True
-        result = tokenize(lines, verbose=True)
+        result = tokenize(lines, verbose=verbose)
         assert len(result) == 1
 
-    def test_tokenize_accepts_verbose_false(self):
-        """Test that tokenize accepts verbose=False parameter."""
-        lines = ["(+ 1 2)"]
-        result = tokenize(lines, verbose=False)
-        assert len(result) == 1
+    # [REVIEW] Deleted: test_tokenize_accepts_verbose_parameter,
+    # test_tokenize_accepts_verbose_false. STR2: merged 2 MED_DUP.
 
     def test_tokenize_verbose_sequential(self, capsys):
         """Test verbose output in sequential mode."""
@@ -505,15 +485,14 @@ class TestTokenizeVerboseMode:
 class TestTokenizeErrorHandling:
     """Test error handling in tokenization."""
 
-    @pytest.mark.skip(
-        reason="Invalid character causes infinite loop in tokenizer - known limitation"
-    )
     def test_tokenize_invalid_character(self):
         """Test that invalid characters raise error.
 
         Note: The current implementation hangs on invalid characters.
         This is a known limitation of the regex-based tokenizer.
         """
+        # [REVIEW] Tokenizer infinite-loops on invalid chars; unskip when fixed
+        pytest.skip("Invalid character causes infinite loop in tokenizer - known limitation")
         lines = ["(assert (<@ X_0 1.0))"]  # @ is invalid
         with pytest.raises(ValueError, match="Invalid token"):
             tokenize(lines)
@@ -560,26 +539,19 @@ class TestTokenizeEdgeCases:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_tokenize_single_parenthesis(self):
-        """Test tokenizing single parenthesis."""
-        lines = ["("]
+    @pytest.mark.parametrize(
+        ("lines", "expected_tokens"),
+        [
+            (["("], ["("]),
+            (["42"], ["42"]),
+            (["X_0"], ["X_0"]),
+        ],
+    )
+    def test_tokenize_single_entity(self, lines, expected_tokens):
+        """Test tokenizing single tokens: parenthesis, number, identifier (STR5: merged 3 tests)."""
         result = tokenize(lines)
         assert len(result) == 1
-        assert list(result[0]) == ["("]
-
-    def test_tokenize_single_number(self):
-        """Test tokenizing single number."""
-        lines = ["42"]
-        result = tokenize(lines)
-        assert len(result) == 1
-        assert list(result[0]) == ["42"]
-
-    def test_tokenize_single_identifier(self):
-        """Test tokenizing single identifier."""
-        lines = ["X_0"]
-        result = tokenize(lines)
-        assert len(result) == 1
-        assert list(result[0]) == ["X_0"]
+        assert list(result[0]) == expected_tokens
 
     def test_tokenize_consecutive_operators(self):
         """Test tokenizing consecutive operators."""

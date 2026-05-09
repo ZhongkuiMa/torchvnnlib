@@ -1,3 +1,5 @@
+"""Main TorchVNNLIB class for loading and converting VNN-LIB files."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["TorchVNNLIB"]
 

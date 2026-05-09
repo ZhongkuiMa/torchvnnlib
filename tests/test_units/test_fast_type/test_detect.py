@@ -115,6 +115,7 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_input_bounds" in result, "Result should contain 'simple_input_bounds' key"
         assert len(result["simple_input_bounds"]) == 2, "Should find 2 input bounds"
         assert result["simple_input_bounds"][0] == (
             ">=",
@@ -138,6 +139,7 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_output_bounds" in result, "Result should contain 'simple_output_bounds' key"
         assert len(result["simple_output_bounds"]) == 2, "Should find 2 output bounds"
         assert result["simple_output_bounds"][0] == (
             ">=",
@@ -161,6 +163,9 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_output_constrs" in result, (
+            "Result should contain 'simple_output_constrs' key"
+        )
         assert len(result["simple_output_constrs"]) == 2, "Should find 2 constraints"
         assert result["simple_output_constrs"][0] == (
             ">=",
@@ -200,6 +205,7 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_output_bounds" in result, "Result should contain 'simple_output_bounds' key"
         assert len(result["simple_output_bounds"]) == 1, "Should find 1 equality bound"
         assert result["simple_output_bounds"][0][0] == "=", "Should be equality operator"
 
@@ -212,7 +218,9 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_input_bounds" in result, "Result should contain 'simple_input_bounds' key"
         assert len(result["simple_input_bounds"]) == 1, "Should find 1 simple input bound"
+        assert "complex_lines" in result, "Result should contain 'complex_lines' key"
         assert len(result["complex_lines"]) == 1, "Should find 1 complex line"
         assert "(or" in result["complex_lines"][0], "Complex line should contain OR pattern"
 
@@ -266,7 +274,13 @@ class TestParseSimplePatterns:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_input_bounds" in result, "Result should contain 'simple_input_bounds' key"
+        assert len(result["simple_input_bounds"]) >= 1, "Should have at least 1 simple input bound"
         assert result["simple_input_bounds"][0][3] == -5.0, "Should parse negative input bound"
+        assert "simple_output_bounds" in result, "Result should contain 'simple_output_bounds' key"
+        assert len(result["simple_output_bounds"]) >= 1, (
+            "Should have at least 1 simple output bound"
+        )
         assert result["simple_output_bounds"][0][3] == -0.5, "Should parse negative output bound"
 
 
@@ -360,9 +374,11 @@ class TestFastDetectAndParse:
         _vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
 
         assert "metadata" in data, "Should include metadata"
-        assert data["metadata"]["n_lines"] == 3, "Should count 3 lines"
-        assert data["metadata"]["has_simple_input"], "Should detect simple input"
-        assert data["metadata"]["has_simple_output"], "Should detect simple output"
+        metadata = data["metadata"]
+        assert "n_lines" in metadata, "metadata should contain 'n_lines' key"
+        assert metadata["n_lines"] == 3, "Should count 3 lines"
+        assert metadata["has_simple_input"], "Should detect simple input"
+        assert metadata["has_simple_output"], "Should detect simple output"
 
     def test_realistic_benchmark_pattern(self):
         """Test with realistic VNN-COMP benchmark pattern."""
@@ -378,6 +394,7 @@ class TestFastDetectAndParse:
         vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=2, n_outputs=1, verbose=False)
 
         assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
+        assert "simple_input_bounds" in data, "Result should contain 'simple_input_bounds' key"
         assert len(data["simple_input_bounds"]) == 4, "Should parse 4 input bounds"
 
 
@@ -385,13 +402,13 @@ class TestVNNLIBTypeEnum:
     """Test VNNLIBType enum values."""
 
     def test_type_enum_values(self):
-        """Test that all VNNLIBType values exist."""
-        assert hasattr(VNNLIBType, "TYPE1"), "Should have TYPE1"
-        assert hasattr(VNNLIBType, "TYPE2"), "Should have TYPE2"
-        assert hasattr(VNNLIBType, "TYPE3"), "Should have TYPE3"
-        assert hasattr(VNNLIBType, "TYPE4"), "Should have TYPE4"
-        assert hasattr(VNNLIBType, "TYPE5"), "Should have TYPE5"
-        assert hasattr(VNNLIBType, "COMPLEX"), "Should have COMPLEX"
+        """Test that all VNNLIBType members have the expected integer values."""
+        assert VNNLIBType.TYPE1 == 1, "TYPE1 should have integer value 1"
+        assert VNNLIBType.TYPE2 == 2, "TYPE2 should have integer value 2"
+        assert VNNLIBType.TYPE3 == 3, "TYPE3 should have integer value 3"
+        assert VNNLIBType.TYPE4 == 4, "TYPE4 should have integer value 4"
+        assert VNNLIBType.TYPE5 == 5, "TYPE5 should have integer value 5"
+        assert VNNLIBType.COMPLEX == 6, "COMPLEX should have integer value 6"
 
     def test_type_enum_string_representation(self):
         """Test that enum values have proper string representation."""
@@ -447,5 +464,11 @@ class TestEdgeCasesAndErrors:
 
         result = parse_simple_patterns(lines, verbose=False)
 
+        assert "simple_input_bounds" in result, "Result should contain 'simple_input_bounds' key"
+        assert len(result["simple_input_bounds"]) >= 1, "Should have at least 1 simple input bound"
         assert result["simple_input_bounds"][0][2] == 99, "Should parse large X index"
+        assert "simple_output_bounds" in result, "Result should contain 'simple_output_bounds' key"
+        assert len(result["simple_output_bounds"]) >= 1, (
+            "Should have at least 1 simple output bound"
+        )
         assert result["simple_output_bounds"][0][2] == 199, "Should parse large Y index"
