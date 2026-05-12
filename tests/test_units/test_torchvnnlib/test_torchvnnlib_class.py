@@ -5,6 +5,8 @@ Follows principles: broad code coverage, all logics, error handling, quick tests
 fine-grained information, public API only, no deselected tests.
 """
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 
@@ -373,7 +375,7 @@ class TestTorchVNNLIBPropertySaving:
             converter.convert(temp_vnnlib_simple, output_path)
             assert Path(output_path).exists()
 
-    def test_save_properties_default_folder(self, temp_vnnlib_simple):
+    def test_save_properties_default_folder(self):
         """Test saving properties to default folder (from vnnlib path)."""
         converter = TorchVNNLIB()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -480,15 +482,8 @@ class TestTorchVNNLIBType2Processing:
             # Check that files were created
             assert len(list(Path(output_path).rglob("*.pth"))) > 0
 
-    def test_convert_type2_verbose(self, temp_vnnlib_type2, capsys):
-        """Test TYPE2 conversion with verbose output."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_type2, output_path)
-            captured = capsys.readouterr()
-            # Should see TYPE2 processing output
-            assert "Converting" in captured.err or "Type2" in captured.err
+    # [REVIEW] Deleted: test_convert_type2_verbose. STR1: merged into
+    # TestTorchVNNLIBVerboseProcessing.test_convert_verbose_with_keywords.
 
     def test_convert_type2_without_fast_detect(self, temp_vnnlib_type2):
         """Test TYPE2 conversion without fast type detection."""
@@ -530,31 +525,39 @@ class TestTorchVNNLIBVerboseProcessing:
             captured = capsys.readouterr()
             assert any(kw in captured.err for kw in possible_keywords)
 
-    def test_verbose_optimization(self, temp_vnnlib_simple, capsys):
-        """Test verbose output during optimization stage."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=False)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
-            captured = capsys.readouterr()
-            # Should see optimization output
-            assert "Optimization:" in captured.err
+    @pytest.mark.parametrize(
+        ("fixture_name", "detect_fast_type", "expected_keywords"),
+        [
+            ("temp_vnnlib_type2", True, ["Converting", "Type2"]),
+            ("temp_vnnlib_simple", False, ["Optimization:"]),
+            ("temp_vnnlib_simple", True, ["Total:"]),
+            ("temp_vnnlib_type3_or", True, ["Converting"]),
+            ("temp_vnnlib_type4_or", True, ["Converting", "Type4"]),
+        ],
+        ids=["type2", "optimization", "complete_conversion", "type3", "type4"],
+    )
+    def test_convert_verbose_with_keywords(
+        self, capsys, request, fixture_name, detect_fast_type, expected_keywords
+    ):
+        """Test verbose conversion produces expected keywords across VNN-LIB types.
 
-    def test_verbose_complete_conversion(self, temp_vnnlib_simple, capsys):
-        """Test complete verbose output from start to finish."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
+        STR1: merged 5 HIGH_DUP tests — test_convert_type2_verbose,
+        test_verbose_optimization, test_verbose_complete_conversion,
+        test_convert_type3_verbose, test_convert_type4_verbose.
+        """
+        vnnlib_path = request.getfixturevalue(fixture_name)
+        converter = TorchVNNLIB(verbose=True, detect_fast_type=detect_fast_type)
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_simple, output_path)
+            converter.convert(vnnlib_path, output_path)
             captured = capsys.readouterr()
-            # Should see total time output
-            assert "Total:" in captured.err
+            assert any(kw in captured.err for kw in expected_keywords)
 
 
 class TestTorchVNNLIBExceptionHandling:
     """Test exception handling in type processors."""
 
-    def test_fallback_on_invalid_type_detection(self, temp_vnnlib_simple, capsys):
+    def test_fallback_on_invalid_type_detection(self, temp_vnnlib_simple):
         """Test fallback to AST when type processor raises exception."""
         converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -575,15 +578,8 @@ class TestTorchVNNLIBType3Processing:
             converter.convert(temp_vnnlib_type3_or, output_path)
             assert Path(output_path).exists()
 
-    def test_convert_type3_verbose(self, temp_vnnlib_type3_or, capsys):
-        """Test TYPE3 conversion with verbose output."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_type3_or, output_path)
-            captured = capsys.readouterr()
-            # Should see processing output
-            assert "Converting" in captured.err
+    # [REVIEW] Deleted: test_convert_type3_verbose. STR1: merged into
+    # TestTorchVNNLIBVerboseProcessing.test_convert_verbose_with_keywords.
 
 
 class TestTorchVNNLIBType4Processing:
@@ -597,15 +593,8 @@ class TestTorchVNNLIBType4Processing:
             converter.convert(temp_vnnlib_type4_or, output_path)
             assert Path(output_path).exists()
 
-    def test_convert_type4_verbose(self, temp_vnnlib_type4_or, capsys):
-        """Test TYPE4 conversion with verbose output."""
-        converter = TorchVNNLIB(verbose=True, detect_fast_type=True)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = str(Path(tmpdir) / "output")
-            converter.convert(temp_vnnlib_type4_or, output_path)
-            captured = capsys.readouterr()
-            # Should see processing output
-            assert "Converting" in captured.err or "Type4" in captured.err
+    # [REVIEW] Deleted: test_convert_type4_verbose. STR1: merged into
+    # TestTorchVNNLIBVerboseProcessing.test_convert_verbose_with_keywords.
 
 
 class TestTorchVNNLIBType5Processing:

@@ -337,8 +337,8 @@ class TestOptimizeVerboseMode:
         )
         result = optimize(expr, verbose=True, use_parallel=False)
         captured = capsys.readouterr()
-        assert "Simplify (sequential)" in captured.out
-        assert "Sort vars" in captured.out
+        assert "Simplify (sequential)" in captured.err
+        assert "Sort vars" in captured.err
         assert isinstance(result, Expr)
 
     def test_optimize_verbose_parallel(self, capsys):
@@ -352,8 +352,8 @@ class TestOptimizeVerboseMode:
         )
         result = optimize(expr, verbose=True, use_parallel=True)
         captured = capsys.readouterr()
-        assert "Simplify (parallel)" in captured.out
-        assert "Sort vars" in captured.out
+        assert "Simplify (parallel)" in captured.err
+        assert "Sort vars" in captured.err
         assert isinstance(result, Expr)
 
 
@@ -475,7 +475,7 @@ class TestOptimizeOrExpressions:
         )
         result = optimize(expr, verbose=True, use_parallel=False)
         captured = capsys.readouterr()
-        assert "Simplify" in captured.out
+        assert "Simplify" in captured.err
         assert isinstance(result, Or)
 
     def test_optimize_or_with_nested_and(self):

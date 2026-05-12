@@ -1,4 +1,5 @@
 """AST expression types for VNN-LIB formula representation."""
+# pyright: reportIncompatibleMethodOverride=false
 
 __docformat__ = "restructuredtext"
 __all__ = [

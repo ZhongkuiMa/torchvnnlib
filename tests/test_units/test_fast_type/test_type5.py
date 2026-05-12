@@ -239,10 +239,10 @@ class TestType5VerboseMode:
         process_type5(lines, n_inputs=1, n_outputs=1, backend=backend, verbose=True)
 
         captured = capsys.readouterr()
-        assert "Type5 detection:" in captured.out, "must print 'Type5 detection:'"
-        assert "OR clauses (properties):" in captured.out, "must print 'OR clauses (properties):'"
-        assert "Parsing:" in captured.out, "must print 'Parsing:'"
-        assert "Type5 total time:" in captured.out, "must print 'Type5 total time:'"
+        assert "Type5 detection:" in captured.err, "must print 'Type5 detection:'"
+        assert "OR clauses (properties):" in captured.err, "must print 'OR clauses (properties):'"
+        assert "Parsing:" in captured.err, "must print 'Parsing:'"
+        assert "Type5 total time:" in captured.err, "must print 'Type5 total time:'"
 
     def test_verbose_false_produces_no_output(self, backend, capsys):
         """verbose=False must not write anything to stdout."""
@@ -252,7 +252,7 @@ class TestType5VerboseMode:
         process_type5(lines, n_inputs=1, n_outputs=1, backend=backend, verbose=False)
 
         captured = capsys.readouterr()
-        assert captured.out == "", f"verbose=False must produce no stdout, got: {captured.out!r}"
+        assert captured.err == "", f"verbose=False must produce no stdout, got: {captured.err!r}"
 
 
 class TestType5EdgeCases:

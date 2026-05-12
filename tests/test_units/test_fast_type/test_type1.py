@@ -373,7 +373,7 @@ class TestType1EdgeCases:
         )
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         # Should print timing information
         assert "Type1" in output or len(output) > 0, "Should have verbose output"

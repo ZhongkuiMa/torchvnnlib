@@ -667,4 +667,4 @@ class TestType3VerboseOutput:
         result = process_type3(lines, n_inputs, n_outputs, backend, verbose=True)
 
         captured = capsys.readouterr()
-        assert "Type3" in captured.out or result
+        assert "Type3" in captured.err or result

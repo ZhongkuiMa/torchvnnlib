@@ -12,6 +12,7 @@ __all__ = [
     "parse_simple_patterns",
 ]
 
+import logging
 import re
 import time
 
@@ -21,6 +22,8 @@ from torchvnnlib.fast_type._utils import (
     SIMPLE_OUTPUT_BOUND_PATTERN,
     SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
 )
+
+_logger = logging.getLogger(__name__)
 
 # Top-level OR pattern
 TOP_LEVEL_OR_PATTERN = re.compile(r"^\s*\(\s*assert\s+\(\s*or\s+", re.IGNORECASE)
@@ -53,8 +56,10 @@ def _handle_or_and_pattern(
 ) -> bool:
     """Handle (assert (or (and pattern.
 
-    :param stripped: Stripped line content
-    :param pattern_flags: Dict of flags to update
+    :param stripped: Stripped line content.
+
+    :param pattern_flags: Dict of flags to update.
+
     :return: True if should break from loop, False otherwise
     """
     is_mixed, is_input, is_output, _ = _check_or_and_pattern(stripped)
@@ -76,8 +81,10 @@ def _handle_simple_pattern(
 ) -> bool:
     """Handle simple (assert pattern.
 
-    :param stripped: Stripped line content
-    :param pattern_flags: Dict of flags to update
+    :param stripped: Stripped line content.
+
+    :param pattern_flags: Dict of flags to update.
+
     :return: True if should break from loop, False otherwise
     """
     is_input, is_output = _check_simple_pattern(stripped)
@@ -96,8 +103,10 @@ def _update_type_patterns_from_line(
 ) -> bool:
     """Update pattern flags from a single line.
 
-    :param stripped: Stripped line content
-    :param pattern_flags: Dict of flags to update
+    :param stripped: Stripped line content.
+
+    :param pattern_flags: Dict of flags to update.
+
     :return: True if should break from loop, False otherwise
     """
     if stripped.startswith("(assert (or (and"):
@@ -111,7 +120,12 @@ def _update_type_patterns_from_line(
 
 def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
     """Fast type detection without parsing - classify VNN-LIB structure."""
-    start_time = time.perf_counter() if verbose else None
+    start_time = time.perf_counter()
+
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
 
     # Pattern counters
     pattern_flags = {
@@ -140,9 +154,9 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
 
     if verbose and start_time is not None:
         elapsed = time.perf_counter() - start_time
-        print(f"  Fast type detection: {elapsed:.4f}s")
-        print(f"    Detected: {vnnlib_type.name}")
-        print(
+        _logger.info(f"  Fast type detection: {elapsed:.4f}s")
+        _logger.info(f"    Detected: {vnnlib_type.name}")
+        _logger.info(
             f"    Patterns: simple_in={pattern_flags['has_simple_input']}, "
             f"simple_out={pattern_flags['has_simple_output']}, "
             f"or_in={pattern_flags['has_or_and_input']}, "
@@ -170,7 +184,12 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
     :return: Dictionary with keys ``simple_input_bounds``, ``simple_output_constrs``,
         ``simple_output_bounds``, ``complex_lines``, and ``complex_indices``.
     """
-    start_time = time.perf_counter() if verbose else None
+    start_time = time.perf_counter()
+
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
 
     simple_input_bounds = []
     simple_output_constrs = []
@@ -213,7 +232,6 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
                         (op, var_prefix1, int(idx1), var_prefix2, int(idx2))
                     )
                     continue
-
                 # Try simple output bound: (assert (<=/>=|= Y_5 0.123))
                 match = SIMPLE_OUTPUT_BOUND_PATTERN.match(line)
                 if match:
@@ -221,10 +239,10 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
                     simple_output_bounds.append((op, var_prefix, int(idx), float(value)))
                     continue
 
-                # No match - complex
-                complex_lines.append(line)
-                complex_indices.append(i)
-                continue
+            # No match - complex
+            complex_lines.append(line)
+            complex_indices.append(i)
+            continue
 
         # Other lines - complex
         complex_lines.append(line)
@@ -240,11 +258,11 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
 
     if verbose and start_time is not None:
         elapsed = time.perf_counter() - start_time
-        print(f"  Parse simple patterns: {elapsed:.4f}s")
-        print(f"    Input bounds: {len(simple_input_bounds)}")
-        print(f"    Output constraints: {len(simple_output_constrs)}")
-        print(f"    Output bounds: {len(simple_output_bounds)}")
-        print(f"    Complex lines: {len(complex_lines)}")
+        _logger.info(f"  Parse simple patterns: {elapsed:.4f}s")
+        _logger.info(f"    Input bounds: {len(simple_input_bounds)}")
+        _logger.info(f"    Output constraints: {len(simple_output_constrs)}")
+        _logger.info(f"    Output bounds: {len(simple_output_bounds)}")
+        _logger.info(f"    Complex lines: {len(complex_lines)}")
 
     return data
 
@@ -259,12 +277,18 @@ def _process_or_and_line_in_parse(
 ) -> None:
     """Process (assert (or (and pattern in fast_detect_and_parse.
 
-    :param stripped: Stripped line content
-    :param line: Original line
-    :param i: Line index
-    :param pattern_flags: Dict of pattern flags to update
-    :param complex_lines: List to append complex lines
-    :param complex_indices: List to append complex indices
+    :param stripped: Stripped line content.
+
+    :param line: Original line.
+
+    :param i: Line index.
+
+    :param pattern_flags: Dict of pattern flags to update.
+
+    :param complex_lines: List to append complex lines.
+
+    :param complex_indices: List to append complex indices.
+
     """
     has_x = "X_" in stripped
     has_y = "Y_" in stripped
@@ -292,14 +316,22 @@ def _process_simple_assertion_in_parse(
 ) -> None:
     """Process simple (assert pattern in fast_detect_and_parse.
 
-    :param stripped: Stripped line content
-    :param line: Original line
-    :param i: Line index
-    :param pattern_flags: Dict of pattern flags to update
-    :param simple_input_bounds: List to append input bounds
-    :param simple_output_constrs: List to append output constraints
-    :param complex_lines: List to append complex lines
-    :param complex_indices: List to append complex indices
+    :param stripped: Stripped line content.
+
+    :param line: Original line.
+
+    :param i: Line index.
+
+    :param pattern_flags: Dict of pattern flags to update.
+
+    :param simple_input_bounds: List to append input bounds.
+
+    :param simple_output_constrs: List to append output constraints.
+
+    :param complex_lines: List to append complex lines.
+
+    :param complex_indices: List to append complex indices.
+
     """
     has_x = "X_" in stripped
     has_y = "Y_" in stripped
@@ -350,7 +382,12 @@ def fast_detect_and_parse(
     :param verbose: Print timing information.
     :return: Tuple of (VNNLIBType enum value, dictionary with parsed data).
     """
-    start_time = time.perf_counter() if verbose else None
+    start_time = time.perf_counter()
+
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
 
     n_lines = len(lines)
     simple_input_bounds: list[tuple] = []
@@ -422,9 +459,9 @@ def fast_detect_and_parse(
 
     if verbose and start_time is not None:
         elapsed = time.perf_counter() - start_time
-        print(f"  Fast detect+parse: {elapsed:.4f}s")
-        print(f"    Detected: {vnnlib_type.name}")
-        print(
+        _logger.info(f"  Fast detect+parse: {elapsed:.4f}s")
+        _logger.info(f"    Detected: {vnnlib_type.name}")
+        _logger.info(
             f"    Patterns: simple_in={pattern_flags['has_simple_input']}, "
             f"simple_out={pattern_flags['has_simple_output']}, "
             f"or_in={pattern_flags['has_or_and_input']}, "

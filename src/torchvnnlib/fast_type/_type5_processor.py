@@ -3,10 +3,13 @@
 __docformat__ = "restructuredtext"
 __all__ = ["process_type5"]
 
+import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
 from torchvnnlib.fast_type._utils import parse_and_block
+
+_logger = logging.getLogger(__name__)
 
 
 def process_type5(
@@ -18,26 +21,38 @@ def process_type5(
 ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Fast processor for Type5 VNN-LIB files.
 
-    :param lines: Preprocessed assertion lines
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
-    :param verbose: Print timing information
+    :param lines: Preprocessed assertion lines.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
+    :param verbose: Print timing information.
+
     :return: Standardized format with complete properties
     """
-    t_start = time.perf_counter() if verbose else None
+    t_start = time.perf_counter()
 
-    t = time.perf_counter() if verbose else None
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
+
+    t = time.perf_counter()
     properties = _parse_top_level_or(lines, n_inputs, n_outputs, backend, verbose)
-    if verbose and t is not None:
-        print("  Type5 detection:")
-        print(f"    OR clauses (properties): {len(properties)}")
-        print(f"    Parsing: {time.perf_counter() - t:.4f}s")
+    if verbose:
+        _logger.info("  Type5 detection:")
+    if verbose:
+        _logger.info(f"    OR clauses (properties): {len(properties)}")
+    if verbose:
+        _logger.info(f"    Parsing: {time.perf_counter() - t:.4f}s")
 
     and_properties = [properties]
 
-    if verbose and t_start is not None:
-        print(f"  Type5 total time: {time.perf_counter() - t_start:.4f}s")
+    if verbose:
+        _logger.info(f"  Type5 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
 
@@ -51,11 +66,16 @@ def _parse_top_level_or(
 ) -> list[tuple[TensorLike, list[TensorLike]]]:
     """Parse top-level OR to extract complete properties.
 
-    :param lines: Preprocessed assertion lines
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
-    :param verbose: Print timing information
+    :param lines: Preprocessed assertion lines.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
+    :param verbose: Print timing information.
+
     :return: List of (input_bounds, output_constraints) tuples
     """
     properties = []

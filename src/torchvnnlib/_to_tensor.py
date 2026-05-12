@@ -11,6 +11,7 @@ __all__ = [
     "convert_to_tensor",
 ]
 
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -19,13 +20,18 @@ from typing import cast
 from torchvnnlib._backend import Backend, TensorLike
 from torchvnnlib.ast import Add, And, Cst, Div, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
+_logger = logging.getLogger(__name__)
+
 
 def convert_input_bounds(expr: And, n_inputs: int, backend: Backend) -> TensorLike:
     """Convert input bound expressions to tensor.
 
-    :param expr: AND expression containing input bound constraints
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param expr: AND expression containing input bound constraints.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Input bounds tensor of shape (n_inputs, 2)
     """
     input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
@@ -74,11 +80,16 @@ def convert_linear_poly(
     Converts expression to form b + Ax where the constraint vector has dimensions:
     [bias, y_coeff_1, ..., y_coeff_n, x_coeff_1, ..., x_coeff_m]
 
-    :param constr: Constraint tensor to accumulate coefficients
-    :param expr: Expression to convert
-    :param y_dim: Number of output variables
-    :param x_dim: Number of input variables
-    :param is_add: Whether to add or subtract coefficients
+    :param constr: Constraint tensor to accumulate coefficients.
+
+    :param expr: Expression to convert.
+
+    :param y_dim: Number of output variables.
+
+    :param x_dim: Number of input variables.
+
+    :param is_add: Whether to add or subtract coefficients.
+
     :return: Updated constraint tensor
     """
     coeff_sign = 1 if is_add else -1
@@ -109,11 +120,16 @@ def convert_linear_constr(
 
     Handles constraints of form left <= right.
 
-    :param left: Left-hand side expression
-    :param right: Right-hand side expression
-    :param y_dim: Number of output variables
-    :param x_dim: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param left: Left-hand side expression.
+
+    :param right: Right-hand side expression.
+
+    :param y_dim: Number of output variables.
+
+    :param x_dim: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Constraint tensor in form b + Ax >= 0
     """
     constr: TensorLike = backend.zeros((y_dim + 1,), dtype="float64")
@@ -151,10 +167,14 @@ def convert_and_output_constrs(
 
     All constraints are in form b + Ax >= 0.
 
-    :param expr: AND expression containing output constraints
-    :param n_outputs: Number of output variables
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param expr: AND expression containing output constraints.
+
+    :param n_outputs: Number of output variables.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Stacked constraint tensor
     """
     y_dim = n_outputs
@@ -163,8 +183,8 @@ def convert_and_output_constrs(
     output_constrs_list = []
 
     for sub_expr in expr:
-        left = sub_expr.left
-        right = sub_expr.right
+        left = sub_expr.left  # pyright: ignore[reportAttributeAccessIssue]
+        right = sub_expr.right  # pyright: ignore[reportAttributeAccessIssue]
 
         if isinstance(sub_expr, Leq):
             constr = convert_linear_constr(left, right, y_dim, x_dim, backend)
@@ -187,10 +207,14 @@ def convert_output_constrs(
 ) -> list[TensorLike]:
     """Convert OR output constraints to list of tensors.
 
-    :param expr: OR expression containing AND groups
-    :param n_outputs: Number of output variables
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param expr: OR expression containing AND groups.
+
+    :param n_outputs: Number of output variables.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: List of constraint tensors
     """
     or_output_constrs = []
@@ -208,10 +232,14 @@ def convert_one_property(
 ) -> tuple[TensorLike, list[TensorLike]]:
     """Convert one property to input and output constraints.
 
-    :param expr: AND expression containing input bounds and output constraints
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param expr: AND expression containing input bounds and output constraints.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tuple of (input_bounds, output_constraints)
     """
     if not isinstance(expr, And):
@@ -243,12 +271,18 @@ def convert_to_tensor(
     - Level 2 (OR): Properties in group (one must be true)
     - Level 3 (AND): Input bounds and output constraints
 
-    :param expr: Root AND expression
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
-    :param verbose: Print timing information
-    :param use_parallel: Use parallel processing
+    :param expr: Root AND expression.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
+    :param verbose: Print timing information.
+
+    :param use_parallel: Use parallel processing.
+
     :return: Nested list of (input_bounds, output_constraints) tuples
     """
 
@@ -282,12 +316,10 @@ def convert_to_tensor(
         if use_parallel:
             with ThreadPoolExecutor() as executor:
                 and_properties = list(executor.map(lambda x: process(cast(Or, x)), expr.args))
-            if verbose:
-                print(f"Convert properties (parallel): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"Convert properties (parallel): {time.perf_counter() - t:.4f}s")
         else:
             and_properties = [process(cast(Or, arg)) for arg in expr.args]
-            if verbose:
-                print(f"Convert properties (sequential): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"Convert properties (sequential): {time.perf_counter() - t:.4f}s")
 
         return and_properties
 

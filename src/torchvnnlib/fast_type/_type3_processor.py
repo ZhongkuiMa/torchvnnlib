@@ -3,10 +3,13 @@
 __docformat__ = "restructuredtext"
 __all__ = ["process_type3"]
 
+import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
 from torchvnnlib.fast_type._utils import parse_input_or_block
+
+_logger = logging.getLogger(__name__)
 
 
 def _process_output_constraints_type3(
@@ -16,9 +19,12 @@ def _process_output_constraints_type3(
 ) -> list[TensorLike]:
     """Process simple output constraints into tensor list.
 
-    :param simple_output_constrs: List of constraint tuples
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance
+    :param simple_output_constrs: List of constraint tuples.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance.
+
     :return: List of constraint tensors
     """
     output_constrs_list = []
@@ -44,9 +50,12 @@ def _process_output_bounds_type3(
 ) -> list[TensorLike]:
     """Process simple output bounds into tensor list.
 
-    :param simple_output_bounds: List of bound tuples
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance
+    :param simple_output_bounds: List of bound tuples.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance.
+
     :return: List of bound tensors
     """
     output_bounds_list = []
@@ -86,39 +95,52 @@ def process_type3(
 ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Fast processor for Type3 VNN-LIB files.
 
-    :param lines: Preprocessed assertion lines
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
-    :param verbose: Print timing information
-    :param parsed_data: Pre-parsed data from parse_simple_patterns()
+    :param lines: Preprocessed assertion lines.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
+    :param verbose: Print timing information.
+
+    :param parsed_data: Pre-parsed data from parse_simple_patterns().
+
     :return: Standardized format with OR input regions
     """
-    t_start = time.perf_counter() if verbose else None
+    t_start = time.perf_counter()
+
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
 
     if parsed_data is None:
         from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
 
-        t = time.perf_counter() if verbose else None
+        t = time.perf_counter()
         parsed_data = parse_simple_patterns(lines, verbose=False)
-        if verbose and t is not None:
-            print(f"  Type3 parsing: {time.perf_counter() - t:.4f}s")
+        if verbose:
+            _logger.info(f"  Type3 parsing: {time.perf_counter() - t:.4f}s")
 
     simple_output_constrs = parsed_data["simple_output_constrs"]
     simple_output_bounds = parsed_data["simple_output_bounds"]
     or_block_lines = parsed_data["complex_lines"]
 
     if verbose:
-        print("  Type3 processing:")
-        print(f"    OR block lines: {len(or_block_lines)}")
+        _logger.info("  Type3 processing:")
+    if verbose:
+        _logger.info(f"    OR block lines: {len(or_block_lines)}")
 
-    t = time.perf_counter() if verbose else None
+    t = time.perf_counter()
     input_bounds_list = parse_input_or_block(or_block_lines, n_inputs, backend)
-    if verbose and t is not None:
-        print(f"    Input OR block parsing: {time.perf_counter() - t:.4f}s")
-        print(f"    Extracted {len(input_bounds_list)} input regions")
+    if verbose:
+        _logger.info(f"    Input OR block parsing: {time.perf_counter() - t:.4f}s")
+    if verbose:
+        _logger.info(f"    Extracted {len(input_bounds_list)} input regions")
 
-    t = time.perf_counter() if verbose else None
+    t = time.perf_counter()
     output_constrs_list = _process_output_constraints_type3(
         simple_output_constrs, n_outputs, backend
     )
@@ -128,13 +150,13 @@ def process_type3(
     if not output_constrs_list:
         output_constrs_list = [backend.zeros((1, n_outputs + 1), dtype="float64")]
 
-    if verbose and t is not None:
-        print(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
+    if verbose:
+        _logger.info(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
 
     or_properties = [(input_bounds, output_constrs_list) for input_bounds in input_bounds_list]
     and_properties = [or_properties]
 
-    if verbose and t_start is not None:
-        print(f"  Type3 total time: {time.perf_counter() - t_start:.4f}s")
+    if verbose:
+        _logger.info(f"  Type3 total time: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties

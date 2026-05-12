@@ -183,11 +183,11 @@ class TestType4VerboseMode:
         process_type4(lines, n_inputs=1, n_outputs=1, backend=backend, verbose=True)
 
         captured = capsys.readouterr()
-        assert "Type4 detection:" in captured.out, "must print 'Type4 detection:'"
-        assert "Input OR groups:" in captured.out, "must print 'Input OR groups:'"
-        assert "Output OR options:" in captured.out, "must print 'Output OR options:'"
-        assert "Parsing:" in captured.out, "must print 'Parsing:'"
-        assert "Type4 total time:" in captured.out, "must print 'Type4 total time:'"
+        assert "Type4 detection:" in captured.err, "must print 'Type4 detection:'"
+        assert "Input OR groups:" in captured.err, "must print 'Input OR groups:'"
+        assert "Output OR options:" in captured.err, "must print 'Output OR options:'"
+        assert "Parsing:" in captured.err, "must print 'Parsing:'"
+        assert "Type4 total time:" in captured.err, "must print 'Type4 total time:'"
 
     def test_verbose_false_produces_no_output(self, backend, capsys):
         """verbose=False must not write anything to stdout."""
@@ -198,7 +198,7 @@ class TestType4VerboseMode:
         process_type4(lines, n_inputs=1, n_outputs=1, backend=backend, verbose=False)
 
         captured = capsys.readouterr()
-        assert captured.out == "", f"verbose=False must produce no stdout, got: {captured.out!r}"
+        assert captured.err == "", f"verbose=False must produce no stdout, got: {captured.err!r}"
 
 
 class TestType4MultipleInputOutputGroups:

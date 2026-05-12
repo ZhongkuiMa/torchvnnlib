@@ -356,7 +356,7 @@ class TestType2EdgeCases:
 
         # Check console output contains timing information
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         # Should print timing information
         assert "Type2" in output or "Type2 total" in output or len(output) > 0, (

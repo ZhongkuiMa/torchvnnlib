@@ -5,6 +5,8 @@ Follows principles: broad code coverage, all logics, error handling, quick tests
 fine-grained information, public API only, no deselected tests.
 """
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 

@@ -319,7 +319,7 @@ class TestParseVerboseMode:
         ]
         result = _parse_tokens_list(tokens_list, verbose=True, use_parallel=False)
         captured = capsys.readouterr()
-        assert "Parse tokens (sequential)" in captured.out
+        assert "Parse tokens (sequential)" in captured.err
         assert len(result) == 2
         assert isinstance(result[0], Add)
         assert isinstance(result[1], Sub)
@@ -333,7 +333,7 @@ class TestParseVerboseMode:
         ]
         result = _parse_tokens_list(tokens_list, verbose=True, use_parallel=True)
         captured = capsys.readouterr()
-        assert "Parse tokens (parallel)" in captured.out
+        assert "Parse tokens (parallel)" in captured.err
         assert len(result) == 3
 
     def test_parse_verbose_mode(self, capsys):
@@ -344,8 +344,8 @@ class TestParseVerboseMode:
         ]
         result = parse(tokens_list, verbose=True, use_parallel=False)
         captured = capsys.readouterr()
-        assert "Parse tokens (sequential)" in captured.out
-        assert "Merge exprs" in captured.out
+        assert "Parse tokens (sequential)" in captured.err
+        assert "Merge exprs" in captured.err
         assert result
 
 

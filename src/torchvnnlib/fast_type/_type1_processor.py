@@ -3,12 +3,15 @@
 __docformat__ = "restructuredtext"
 __all__ = ["process_type1"]
 
+import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
 from torchvnnlib._to_tensor import convert_and_output_constrs
 from torchvnnlib.ast import And, Or, optimize, parse, tokenize
 from torchvnnlib.fast_type._utils import convert_simple_input_bounds
+
+_logger = logging.getLogger(__name__)
 
 
 def _process_simple_output_constrs_and_bounds(
@@ -19,10 +22,14 @@ def _process_simple_output_constrs_and_bounds(
 ) -> list[TensorLike]:
     """Process simple output constraints and bounds into tensors.
 
-    :param simple_output_constrs: List of simple output constraint tuples
-    :param simple_output_bounds: List of simple output bound tuples
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param simple_output_constrs: List of simple output constraint tuples.
+
+    :param simple_output_bounds: List of simple output bound tuples.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: List of constraint tensors
     """
     output_constrs_list = []
@@ -49,9 +56,12 @@ def _ensure_non_empty_constraints(
 ) -> list[TensorLike]:
     """Ensure constraint list is non-empty by adding default zeros.
 
-    :param all_output_constrs: List of constraint tensors
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param all_output_constrs: List of constraint tensors.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Non-empty constraint list
     """
     if not all_output_constrs:
@@ -78,11 +88,9 @@ def _extract_complex_output_constraints(
                 for or_arg in arg.args:
                     if isinstance(or_arg, And):
                         constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs, backend)
-                    else:
-                        constr = convert_and_output_constrs(
-                            And([or_arg]), n_outputs, n_inputs, backend
-                        )
-                    complex_output_constrs.append(constr)
+                else:
+                    constr = convert_and_output_constrs(And([or_arg]), n_outputs, n_inputs, backend)
+                complex_output_constrs.append(constr)
             else:
                 constr = convert_and_output_constrs(And([arg]), n_outputs, n_inputs, backend)
                 complex_output_constrs.append(constr)
@@ -108,58 +116,75 @@ def process_type1(
 ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Fast Type1 processor using pre-parsed data.
 
-    :param simple_input_bounds: Pre-parsed simple input bounds
-    :param simple_output_constrs: Pre-parsed simple output constraints
-    :param complex_lines: Lines that don't match simple patterns
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
-    :param verbose: Print timing information
-    :param simple_output_bounds: Pre-parsed simple output bounds
+    :param simple_input_bounds: Pre-parsed simple input bounds.
+
+    :param simple_output_constrs: Pre-parsed simple output constraints.
+
+    :param complex_lines: Lines that don't match simple patterns.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
+    :param verbose: Print timing information.
+
+    :param simple_output_bounds: Pre-parsed simple output bounds.
+
     :return: Standardized format: [[(input_bounds, [output_constrs])]]
     """
-    t_start = time.perf_counter() if verbose else None
+    t_start = time.perf_counter()
 
     if verbose:
-        print("  Type1 fast processing:")
-        print(f"    Simple input bounds: {len(simple_input_bounds)}")
-        print(f"    Simple output constraints: {len(simple_output_constrs)}")
-        if simple_output_bounds:
-            print(f"    Simple output bounds: {len(simple_output_bounds)}")
-        print(f"    Complex lines: {len(complex_lines)}")
+        from torchvnnlib import _ensure_verbose_handler
 
-    t = time.perf_counter() if verbose else None
+        _ensure_verbose_handler()
+
+    if verbose:
+        _logger.info("  Type1 fast processing:")
+    if verbose:
+        _logger.info(f"    Simple input bounds: {len(simple_input_bounds)}")
+    if verbose:
+        _logger.info(f"    Simple output constraints: {len(simple_output_constrs)}")
+    if simple_output_bounds and verbose:
+        _logger.info(f"    Simple output bounds: {len(simple_output_bounds)}")
+    if verbose:
+        _logger.info(f"    Complex lines: {len(complex_lines)}")
+
+    t = time.perf_counter()
     input_bounds = convert_simple_input_bounds(simple_input_bounds, n_inputs, backend)
-    if verbose and t is not None:
-        print(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
+    if verbose:
+        _logger.info(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
-    t = time.perf_counter() if verbose else None
+    t = time.perf_counter()
     output_constrs_list = _process_simple_output_constrs_and_bounds(
         simple_output_constrs, simple_output_bounds, n_outputs, backend
     )
 
-    if verbose and t is not None:
-        print(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
+    if verbose:
+        _logger.info(f"    Output constraints conversion: {time.perf_counter() - t:.4f}s")
 
     if complex_lines:
         if verbose:
-            print(f"    Processing {len(complex_lines)} complex expressions...")
+            _logger.info(f"    Processing {len(complex_lines)} complex expressions...")
 
-        t = time.perf_counter() if verbose else None
+        t = time.perf_counter()
         tokens_list = tokenize(complex_lines, verbose=False, use_parallel=False)
         expr_complex = parse(tokens_list, verbose=False, use_parallel=False)
         expr_complex = optimize(expr_complex, verbose=False, use_parallel=False)
-        if verbose and t is not None:
-            print(f"    Complex expression processing: {time.perf_counter() - t:.4f}s")
+        if verbose:
+            _logger.info(f"    Complex expression processing: {time.perf_counter() - t:.4f}s")
 
-        t = time.perf_counter() if verbose else None
+        t = time.perf_counter()
         complex_output_constrs = _extract_complex_output_constraints(
             expr_complex, n_outputs, n_inputs, backend
         )
 
-        if verbose and t is not None:
-            print(f"    Complex output extraction: {time.perf_counter() - t:.4f}s")
-            print(f"    Extracted {len(complex_output_constrs)} complex output constraints")
+        if verbose:
+            _logger.info(f"    Complex output extraction: {time.perf_counter() - t:.4f}s")
+        if verbose:
+            _logger.info(f"    Extracted {len(complex_output_constrs)} complex output constraints")
 
         all_output_constrs = output_constrs_list + complex_output_constrs
     else:
@@ -168,8 +193,8 @@ def process_type1(
     all_output_constrs = _ensure_non_empty_constraints(all_output_constrs, n_outputs, backend)
     and_properties = [[(input_bounds, all_output_constrs)]]
 
-    if verbose and t_start is not None:
-        print(f"  Type1 fast total: {time.perf_counter() - t_start:.4f}s")
+    if verbose:
+        _logger.info(f"  Type1 fast total: {time.perf_counter() - t_start:.4f}s")
 
     return and_properties
 
@@ -179,9 +204,12 @@ def _convert_simple_output_constraints_batched(
 ) -> TensorLike | None:
     """Convert simple output constraints (Y <op> Y format) - batched version.
 
-    :param simple_output_constrs: List of constraint tuples
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param simple_output_constrs: List of constraint tuples.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Constraint tensor or None
     """
     if not simple_output_constrs:
@@ -206,9 +234,12 @@ def _convert_simple_output_bounds_batched(
 ) -> TensorLike | None:
     """Convert simple output bounds (Y <op> value format) - batched version.
 
-    :param simple_output_bounds: List of bound tuples
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param simple_output_bounds: List of bound tuples.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Constraint tensor or None
     """
     if not simple_output_bounds:

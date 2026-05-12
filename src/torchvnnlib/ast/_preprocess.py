@@ -12,7 +12,8 @@ ASSERT_PATTERN = re.compile(r"^\(assert\s+.*\)$")
 def _remove_comments(lines: list[str]) -> list[str]:
     """Remove comment lines from VNN-LIB file.
 
-    :param lines: Lines from VNN-LIB file
+    :param lines: Lines from VNN-LIB file.
+
     :return: Lines without comments
     """
     new_lines = []
@@ -29,7 +30,8 @@ def _remove_comments(lines: list[str]) -> list[str]:
 def _remove_declare_clauses(lines: list[str]) -> tuple[list[str], int, int]:
     """Remove variable declaration lines and count variables.
 
-    :param lines: Lines from VNN-LIB file
+    :param lines: Lines from VNN-LIB file.
+
     :return: Tuple of (lines without declarations, input count, output count)
     """
     new_lines = []
@@ -52,7 +54,8 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
 
     Uses parenthesis counting to determine expression boundaries.
 
-    :param lines: Lines from VNN-LIB file
+    :param lines: Lines from VNN-LIB file.
+
     :return: Lines where each line is a complete expression
     """
     new_lines = []
@@ -81,8 +84,10 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
 def _check_illegal_lines(lines: list[str]) -> None:
     """Check for illegal lines in VNN-LIB file.
 
-    :param lines: Lines from VNN-LIB file
-    :raises ValueError: If illegal line format is found
+    :param lines: Lines from VNN-LIB file.
+
+    :raises ValueError: If illegal line format is found.
+
     """
     for line in lines:
         if not ASSERT_PATTERN.match(line):
@@ -94,7 +99,8 @@ def preprocess_vnnlib(lines: list[str]) -> tuple[list[str], int, int]:
 
     Removes comments, declarations, and merges multi-line expressions.
 
-    :param lines: Lines from VNN-LIB file
+    :param lines: Lines from VNN-LIB file.
+
     :return: Tuple of (preprocessed lines, input count, output count)
     """
     lines = _remove_comments(lines)

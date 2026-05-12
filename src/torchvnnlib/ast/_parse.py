@@ -3,14 +3,13 @@
 __docformat__ = "restructuredtext"
 __all__ = ["parse"]
 
-import re
+import logging
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 from torchvnnlib.ast._expr import Add, And, Cst, Div, Expr, Geq, Leq, Mul, Or, Sub, Var
 
-# Pre-compiled pattern (defined but not used - kept for compatibility)
-number_pattern = re.compile(r"^-?\d+(\.\d+)?$")
+_logger = logging.getLogger(__name__)
 
 # Combine operator maps for faster lookup (single dictionary access)
 OPS_MAP = {
@@ -31,18 +30,23 @@ def _parse_tokens_list(
     """Parse tokens with optional parallel processing."""
     import time
 
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
+
     if not use_parallel:
         t = time.perf_counter()
         exprs = [_parse_tokens(tokens) for tokens in tokens_list]
         if verbose:
-            print(f"    - Parse tokens (sequential): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"    - Parse tokens (sequential): {time.perf_counter() - t:.4f}s")
         return exprs
 
     t = time.perf_counter()
     with ThreadPoolExecutor() as executor:
         exprs = list(executor.map(_parse_tokens, tokens_list))
-    if verbose:
-        print(f"    - Parse tokens (parallel): {time.perf_counter() - t:.4f}s")
+        if verbose:
+            _logger.info(f"    - Parse tokens (parallel): {time.perf_counter() - t:.4f}s")
     return exprs
 
 
@@ -107,7 +111,8 @@ def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:
 def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bool = True) -> Expr:
     """Parse a VNNLIB file and return an expression object.
 
-    :param tokens_list: A list of lists of tokens, where each inner list represents a
+    :param tokens_list: A list of lists of tokens, where each inner list represents a.
+
         line of tokens.
     :param verbose: Print timing information.
     :param use_parallel: Use parallel processing.
@@ -115,12 +120,17 @@ def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bo
     """
     import time
 
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
+
     exprs_list = _parse_tokens_list(tokens_list, verbose=verbose, use_parallel=use_parallel)
 
     t = time.perf_counter()
     # Merge all expressions into a single And expression
     expr = _merge_all_exprs_as_and(exprs_list)
     if verbose:
-        print(f"    - Merge exprs: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"    - Merge exprs: {time.perf_counter() - t:.4f}s")
 
     return expr

@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["TorchVNNLIB"]
 
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -31,6 +32,18 @@ from torchvnnlib.fast_type import (
     process_type5,
 )
 
+_logger = logging.getLogger(__name__)
+
+
+def _enable_verbose() -> None:
+    """Configure package-level logger for console output."""
+    pkg_logger = logging.getLogger("torchvnnlib")
+    if not pkg_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        pkg_logger.addHandler(handler)
+    pkg_logger.setLevel(logging.DEBUG)
+
 
 def _save_property_file(
     or_properties: list[tuple[TensorLike, list[TensorLike]]],
@@ -40,14 +53,17 @@ def _save_property_file(
 ) -> None:
     """Save OR properties to individual files.
 
-    :param or_properties: List of (input_bounds, output_constraints) tuples
-    :param or_folder_path: Directory path to save files
-    :param backend: Backend instance for saving operations
-    :param verbose: Print progress messages
+    :param or_properties: List of (input_bounds, output_constraints) tuples.
+
+    :param or_folder_path: Directory path to save files.
+
+    :param backend: Backend instance for saving operations.
+
+    :param verbose: Print progress messages.
+
     """
     for j, and_property in enumerate(or_properties):
-        if verbose:
-            print(f"Converting {j + 1}/{len(or_properties)} properties")
+        _logger.info(f"Converting {j + 1}/{len(or_properties)} properties")
 
         input_bounds, output_constrs = and_property
         data = {"input": input_bounds, "output": output_constrs}
@@ -65,11 +81,16 @@ def _write_property(
 ) -> None:
     """Write all properties to organized folder structure.
 
-    :param and_properties: Nested list of properties
-    :param target_folder_path: Output directory path
-    :param vnnlib_path: Original VNN-LIB file path
-    :param backend: Backend instance for saving operations
-    :param verbose: Print progress messages
+    :param and_properties: Nested list of properties.
+
+    :param target_folder_path: Output directory path.
+
+    :param vnnlib_path: Original VNN-LIB file path.
+
+    :param backend: Backend instance for saving operations.
+
+    :param verbose: Print progress messages.
+
     """
     if target_folder_path is None:
         target_folder_path = str(Path(vnnlib_path).with_suffix(""))
@@ -100,12 +121,18 @@ class TorchVNNLIB:
     ) -> None:
         """Initialize TorchVNNLIB converter.
 
-        :param verbose: Print detailed timing information
-        :param use_parallel: Use parallel processing where possible
-        :param detect_fast_type: Use optimized type-specific processors
-        :param output_format: Output format ('torch' for .pth or 'numpy' for .npz)
+        :param verbose: Print detailed timing information.
+
+        :param use_parallel: Use parallel processing where possible.
+
+        :param detect_fast_type: Use optimized type-specific processors.
+
+        :param output_format: Output format ('torch' for .pth or 'numpy' for .npz).
+
         """
         self.verbose = verbose
+        if verbose:
+            _enable_verbose()
         self.use_parallel = use_parallel
         self.detect_fast_type = detect_fast_type
         self.output_format = output_format
@@ -127,8 +154,7 @@ class TorchVNNLIB:
             verbose=self.verbose,
             simple_output_bounds=parsed_data["simple_output_bounds"],
         )
-        if self.verbose:
-            print(f"Type1 processing: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Type1 processing: {time.perf_counter() - t:.4f}s")
         return and_properties
 
     def _process_type234(
@@ -156,8 +182,7 @@ class TorchVNNLIB:
             and_properties = processor_func(
                 lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
             )
-        if self.verbose:
-            print(f"{type_name} processing: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  {type_name} processing: {time.perf_counter() - t:.4f}s")
         return and_properties  # type: ignore[no-any-return]
 
     def _process_by_type(
@@ -185,8 +210,7 @@ class TorchVNNLIB:
         if vnnlib_type == VNNLIBType.TYPE5:
             return self._process_type234(process_type5, lines, n_inputs, n_outputs, "Type5", t)
 
-        if self.verbose:
-            print("Complex structure detected, using AST processing")
+        _logger.info("Complex structure detected, using AST processing")
         return None
 
     def _process_ast(
@@ -195,24 +219,22 @@ class TorchVNNLIB:
         """Process using AST pipeline (tokenize, parse, optimize, flatten, convert)."""
         t = time.perf_counter()
         tokens_list = tokenize(lines, verbose=self.verbose, use_parallel=self.use_parallel)
-        if self.verbose:
-            print(f"Tokenization: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Tokenization: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
         expr = parse(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
-        if self.verbose:
-            nary_expr = cast(And | Or, expr)
-            print(f"Parsing: {len(nary_expr.args)} expressions, {time.perf_counter() - t:.4f}s")
+        nary_expr = cast(And | Or, expr)
+        _logger.info(
+            "  Parsing: %d expressions, %.4fs", len(nary_expr.args), time.perf_counter() - t
+        )
 
         t = time.perf_counter()
         expr = optimize(expr, verbose=self.verbose, use_parallel=self.use_parallel)
-        if self.verbose:
-            print(f"Optimization: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Optimization: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
         expr = flatten(expr)
-        if self.verbose:
-            print(f"Flattening: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Flattening: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
         and_properties = convert_to_tensor(
@@ -223,35 +245,33 @@ class TorchVNNLIB:
             verbose=self.verbose,
             use_parallel=self.use_parallel,
         )
-        if self.verbose:
-            elapsed = time.perf_counter() - t
-            num_props = len(and_properties)
-            print(f"Tensor conversion: {num_props} AND properties, {elapsed:.4f}s")
+        elapsed = time.perf_counter() - t
+        num_props = len(and_properties)
+        _logger.info(f"  Tensor conversion: {num_props} AND properties, {elapsed:.4f}s")
         return and_properties
 
     def convert(self, vnnlib_path: str, target_folder_path: str | None = None) -> None:
         """Convert VNN-LIB file to tensor data.
 
-        :param vnnlib_path: Path to .vnnlib file
-        :param target_folder_path: Output directory path
+        :param vnnlib_path: Path to .vnnlib file.
+
+        :param target_folder_path: Output directory path.
+
         """
-        if self.verbose:
-            print(f"Converting {vnnlib_path}")
-            print(f"Output format: {self.output_format}")
+        _logger.info(f"TorchVNNLIB: converting {vnnlib_path}")
+        _logger.info(f"  Output format: {self.output_format}")
         t_start = time.perf_counter()
 
         t = time.perf_counter()
         vnnlib_file = Path(vnnlib_path)
         with vnnlib_file.open() as f:
             lines = f.readlines()
-        if self.verbose:
-            print(f"Read file: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Read file: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
         lines, n_inputs, n_outputs = preprocess_vnnlib(lines)
-        if self.verbose:
-            elapsed = time.perf_counter() - t
-            print(f"Preprocessing: {n_inputs} inputs, {n_outputs} outputs, {elapsed:.4f}s")
+        elapsed = time.perf_counter() - t
+        _logger.info(f"  Preprocessing: {n_inputs} inputs, {n_outputs} outputs, {elapsed:.4f}s")
 
         use_type_processor = False
         detected_type = VNNLIBType.COMPLEX
@@ -260,12 +280,12 @@ class TorchVNNLIB:
             vnnlib_type = fast_detect_type(lines, verbose=self.verbose)
             detected_type = vnnlib_type
 
+            and_properties = None
             try:
                 and_properties = self._process_by_type(vnnlib_type, lines, n_inputs, n_outputs)
                 use_type_processor = and_properties is not None
             except (ValueError, RuntimeError) as e:
-                if self.verbose:
-                    print(f"Type processor failed, fallback to AST: {str(e)[:100]}")
+                _logger.info(f"  Type processor failed, fallback to AST: {str(e)[:100]}")
                 use_type_processor = False
 
         if not use_type_processor:
@@ -277,12 +297,10 @@ class TorchVNNLIB:
         )
         t = time.perf_counter()
         _write_property(and_properties, target_folder_path, vnnlib_path, self.backend, self.verbose)
-        if self.verbose:
-            print(f"Writing to disk: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"  Writing to disk: {time.perf_counter() - t:.4f}s")
 
         total_time = time.perf_counter() - t_start
-        if self.verbose:
-            print(f"Total time: {total_time:.4f}s")
+        _logger.info(f"  Total: {total_time:.4f}s")
 
         self.conversion_stats[vnnlib_path] = {
             "type": detected_type,

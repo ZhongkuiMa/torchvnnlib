@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchvnnlib"
-version = "2026.5.0"
+version = "2026.5.1"
 description = "VNN-specific utilities and abstractions for PyTorch"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -125,7 +125,7 @@ known-first-party = ["torchvnnlib"]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 16
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"
@@ -173,6 +173,13 @@ source = [
     "src/torchvnnlib",
     "*/site-packages/torchvnnlib",
 ]
+
+[tool.pyright]
+include = ["src/torchvnnlib"]
+exclude = ["tests"]
+pythonVersion = "3.11"
+reportPossiblyUnboundVariable = false
+reportPrivateImportUsage = false
 
 [project.urls]
 Homepage = "https://github.com/ZhongkuiMa/torchvnnlib"

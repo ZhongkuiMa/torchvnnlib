@@ -87,7 +87,7 @@ class TestFastDetectType:
         vnnlib_type = fast_detect_type(lines, verbose=True)
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
         assert "Fast type detection" in output or len(output) > 0, "Should have verbose output"
@@ -248,7 +248,7 @@ class TestParseSimplePatterns:
         result = parse_simple_patterns(lines, verbose=True)
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         assert len(result["simple_input_bounds"]) == 1, "Should find 1 input bound"
         assert "Parse simple patterns" in output or len(output) > 0, "Should have verbose output"
@@ -358,7 +358,7 @@ class TestFastDetectAndParse:
         vnnlib_type, _data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=True)
 
         captured = capsys.readouterr()
-        output = captured.out
+        output = captured.err
 
         assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
         assert "Fast detect+parse" in output or len(output) > 0, "Should have verbose output"

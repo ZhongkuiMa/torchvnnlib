@@ -3,9 +3,12 @@
 __docformat__ = "restructuredtext"
 __all__ = ["tokenize"]
 
+import logging
 import re
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+
+_logger = logging.getLogger(__name__)
 
 # Pre-compile regex pattern at module level for performance
 # The ordering of the regex is important - match the longest possible token first
@@ -28,7 +31,8 @@ TOKEN_PATTERN = re.compile(
 def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
     """Tokenize a single line (helper function for parallel processing).
 
-    :param args: Tuple of (line_index, line_string)
+    :param args: Tuple of (line_index, line_string).
+
     :return: Deque of tokens, or None if line is empty
     """
     i, line = args
@@ -70,6 +74,11 @@ def tokenize(
     """
     import time
 
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
+
     # Sequential processing for small files or when parallel is disabled
     if len(lines) < 100 or not use_parallel:
         t = time.perf_counter()
@@ -79,7 +88,7 @@ def tokenize(
             if result is not None:
                 tokens_list.append(result)
         if verbose:
-            print(f"    - Tokenize (sequential): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"    - Tokenize (sequential): {time.perf_counter() - t:.4f}s")
         return tokens_list
 
     # For larger files, use parallel processing
@@ -91,6 +100,6 @@ def tokenize(
         # Filter out None results (empty lines)
         tokens_list = [r for r in results if r is not None]
     if verbose:
-        print(f"    - Tokenize (parallel): {time.perf_counter() - t:.4f}s")
+        _logger.info(f"    - Tokenize (parallel): {time.perf_counter() - t:.4f}s")
 
     return tokens_list

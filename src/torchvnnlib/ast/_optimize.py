@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["optimize"]
 
+import logging
 import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,8 @@ from torchvnnlib.ast._expr import (
     UnaryOp,
     Var,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def _else_recursion(expr: Expr, func: Callable) -> Expr:
@@ -131,6 +134,11 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
     """Optimize expressions with optional parallel processing."""
     import time
 
+    if verbose:
+        from torchvnnlib import _ensure_verbose_handler
+
+        _ensure_verbose_handler()
+
     is_and = isinstance(expr, And)
     is_or = isinstance(expr, Or)
 
@@ -152,11 +160,11 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
         with ThreadPoolExecutor() as executor:
             expr_list = list(executor.map(simplify, nary_expr.args))
         if verbose:
-            print(f"    - Simplify (parallel): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"    - Simplify (parallel): {time.perf_counter() - t:.4f}s")
     else:
         expr_list = [simplify(arg) for arg in nary_expr.args]
         if verbose:
-            print(f"    - Simplify (sequential): {time.perf_counter() - t:.4f}s")
+            _logger.info(f"    - Simplify (sequential): {time.perf_counter() - t:.4f}s")
 
     if is_and:
         expr = And(expr_list)
@@ -168,6 +176,6 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
     t = time.perf_counter()
     expr = _sort_vars_in_expr(expr)
     if verbose:
-        print(f"    - Sort vars: {time.perf_counter() - t:.4f}s")
+        _logger.info(f"    - Sort vars: {time.perf_counter() - t:.4f}s")
 
     return expr

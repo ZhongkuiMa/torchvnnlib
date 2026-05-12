@@ -33,8 +33,10 @@ class Backend(ABC):
     def zeros(self, shape: tuple[int, ...], dtype: str = "float64") -> TensorLike:
         """Create array of zeros.
 
-        :param shape: Shape of the array
-        :param dtype: Data type
+        :param shape: Shape of the array.
+
+        :param dtype: Data type.
+
         :return: Zero-filled array
         """
 
@@ -42,9 +44,12 @@ class Backend(ABC):
     def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         """Create array filled with value.
 
-        :param shape: Shape of the array
-        :param fill_value: Fill value
-        :param dtype: Data type
+        :param shape: Shape of the array.
+
+        :param fill_value: Fill value.
+
+        :param dtype: Data type.
+
         :return: Filled array
         """
 
@@ -52,8 +57,10 @@ class Backend(ABC):
     def tensor(self, data: list | Any, dtype: str = "float64") -> TensorLike:
         """Create array from data.
 
-        :param data: Input data
-        :param dtype: Data type
+        :param data: Input data.
+
+        :param dtype: Data type.
+
         :return: Array
         """
 
@@ -61,8 +68,10 @@ class Backend(ABC):
     def stack(self, arrays: list[TensorLike], axis: int = 0) -> TensorLike:
         """Stack arrays along axis.
 
-        :param arrays: List of arrays
-        :param axis: Axis to stack along
+        :param arrays: List of arrays.
+
+        :param axis: Axis to stack along.
+
         :return: Stacked array
         """
 
@@ -70,7 +79,8 @@ class Backend(ABC):
     def isnan(self, arr: TensorLike) -> TensorLike:
         """Check for NaN values.
 
-        :param arr: Input array
+        :param arr: Input array.
+
         :return: Boolean array
         """
 
@@ -78,7 +88,8 @@ class Backend(ABC):
     def where(self, condition: TensorLike) -> tuple[TensorLike, ...]:
         """Find where condition is True.
 
-        :param condition: Boolean array
+        :param condition: Boolean array.
+
         :return: Tuple of indices
         """
 
@@ -86,8 +97,10 @@ class Backend(ABC):
     def save(self, data: dict[str, Any], file_path: str) -> None:
         """Save data to file.
 
-        :param data: Data dictionary
-        :param file_path: Output file path
+        :param data: Data dictionary.
+
+        :param file_path: Output file path.
+
         """
 
     @property
@@ -283,8 +296,11 @@ class NumpyBackend(Backend):
 def get_backend(backend_name: str = "torch") -> Backend:
     """Get backend instance.
 
-    :param backend_name: Backend name ('torch' or 'numpy')
-    :return: Backend instance
+    :param backend_name: Backend name ('torch' or 'numpy').
+
+    :return: Backend instance.
+    :raises ImportError: If PyTorch is not installed and "torch" backend is requested.
+    :raises ValueError: If *backend_name* is not "torch" or "numpy".
     """
     if backend_name == "torch":
         if not TORCH_AVAILABLE:

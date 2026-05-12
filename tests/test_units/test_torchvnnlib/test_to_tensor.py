@@ -4,6 +4,8 @@ Tests conversion of AST expressions to tensor format for constraint representati
 Covers input bounds, output constraints, linear constraints, and full expression conversion.
 """
 
+__docformat__ = "restructuredtext"
+
 import pytest
 
 from torchvnnlib._to_tensor import (
@@ -15,7 +17,7 @@ from torchvnnlib._to_tensor import (
     convert_output_constrs,
     convert_to_tensor,
 )
-from torchvnnlib.ast import Add, And, Cst, Eq, Geq, Leq, Mul, Or, Sub, Var
+from torchvnnlib.ast import Add, And, Cst, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 
 class TestConvertInputBounds:
@@ -155,7 +157,7 @@ class TestConvertLinearConstr:
     """Test linear constraint conversion."""
 
     def test_simple_constraint_var_vs_const(self, backend):
-        """Test constraint: Y_0 <= 0.5 → Y_0 - 0.5 >= 0."""
+        """Test constraint: Y_0 <= 0.5 -> Y_0 - 0.5 >= 0."""
         left = Var("Y_0")
         right = Cst(0.5)
 
@@ -185,7 +187,7 @@ class TestConvertLinearConstr:
         result = convert_linear_constr(left, right, y_dim=1, x_dim=0, backend=backend)
 
         result_np = backend.to_numpy(result) if hasattr(backend, "to_numpy") else result
-        # 1.0 - 2.0 >= 0 → -1.0 >= 0 (always false, but should be -1.0)
+        # 1.0 - 2.0 >= 0 -> -1.0 >= 0 (always false, but should be -1.0)
         assert result_np[0] == 1.0, "Bias should be 1.0"
 
 
@@ -517,7 +519,7 @@ class TestConvertAndOutputConstrsComprehensive:
 
     def test_and_output_multiple_constraints(self, backend):
         """Test multiple output constraints."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("Y_0"), Cst(0.5)),
             Geq(Var("Y_1"), Cst(0.2)),
             Leq(Var("Y_0"), Var("Y_1")),
@@ -528,7 +530,7 @@ class TestConvertAndOutputConstrsComprehensive:
 
     def test_and_output_with_input_vars(self, backend):
         """Test output constraints that might reference input vars."""
-        constraints = [Leq(Var("Y_0"), Cst(0.5))]
+        constraints: list[Expr] = [Leq(Var("Y_0"), Cst(0.5))]
         expr = And(constraints)
         result = convert_and_output_constrs(expr, n_outputs=1, n_inputs=3, backend=backend)
         assert result.shape == (1, 2)
@@ -571,21 +573,20 @@ class TestConvertOutputConstrsComprehensive:
 class TestConvertLinearPolyComprehensive:
     """Comprehensive tests for convert_linear_poly missing lines."""
 
-    def test_linear_poly_add_coefficient(self, backend):
-        """Test converting variable with positive coefficient."""
+    @pytest.mark.parametrize(
+        ("is_add", "expected_coef"),
+        [
+            pytest.param(True, 1.0, id="add"),
+            pytest.param(False, -1.0, id="subtract"),
+        ],
+    )
+    def test_linear_poly_variable_coefficient(self, is_add, expected_coef, backend):
+        """Test converting variable with positive/negative coefficient (STR11: merged pair)."""
         constr = backend.zeros((3,), dtype="float64")
         expr = Var("Y_0")
-        result = convert_linear_poly(constr, expr, y_dim=2, x_dim=0, is_add=True)
+        result = convert_linear_poly(constr, expr, y_dim=2, x_dim=0, is_add=is_add)
         result_np = backend.to_numpy(result) if hasattr(backend, "to_numpy") else result
-        assert result_np[1] == 1.0
-
-    def test_linear_poly_subtract_coefficient(self, backend):
-        """Test converting variable with negative coefficient."""
-        constr = backend.zeros((3,), dtype="float64")
-        expr = Var("Y_0")
-        result = convert_linear_poly(constr, expr, y_dim=2, x_dim=0, is_add=False)
-        result_np = backend.to_numpy(result) if hasattr(backend, "to_numpy") else result
-        assert result_np[1] == -1.0
+        assert result_np[1] == expected_coef
 
     def test_linear_poly_const_add(self, backend):
         """Test converting constant with is_add=True."""
@@ -663,7 +664,7 @@ class TestConvertOnePropertyComprehensive:
         """Test that non-And expression raises error."""
         expr = Or([And([Leq(Var("X_0"), Cst(1.0))])])
         with pytest.raises(ValueError, match="Expected And expression"):
-            convert_one_property(expr, n_inputs=1, n_outputs=1, backend=backend)
+            convert_one_property(expr, n_inputs=1, n_outputs=1, backend=backend)  # type: ignore[arg-type]
 
     def test_one_property_multiple_outputs(self, backend):
         """Test property with multiple output constraints."""
@@ -740,4 +741,4 @@ class TestConvertToTensorComprehensive:
         expr = Or([Var("X_0")])  # Invalid: not And
 
         with pytest.raises((ValueError, AttributeError, TypeError)):
-            convert_to_tensor(expr, n_inputs=1, n_outputs=1, backend=backend)
+            convert_to_tensor(expr, n_inputs=1, n_outputs=1, backend=backend)  # type: ignore[arg-type]

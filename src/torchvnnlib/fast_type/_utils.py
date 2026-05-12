@@ -61,7 +61,8 @@ def _categorize_bounds_by_operator(
 ) -> tuple[list[int], list[float], list[int], list[float], list[int], list[float]]:
     """Categorize bounds by operator type (<=, >=, =).
 
-    :param simple_bounds: List of tuples (op, var_prefix, idx, value)
+    :param simple_bounds: List of tuples (op, var_prefix, idx, value).
+
     :return: Tuple of (leq_indices, leq_values, geq_indices, geq_values, eq_indices, eq_values)
     """
     n_bounds = len(simple_bounds)
@@ -112,14 +113,22 @@ def _apply_bound_constraints(
 ) -> None:
     """Apply bound constraints to input_bounds tensor in-place.
 
-    :param input_bounds: Tensor to update in-place
-    :param leq_indices: Indices for <= bounds
-    :param leq_values: Values for <= bounds
-    :param geq_indices: Indices for >= bounds
-    :param geq_values: Values for >= bounds
-    :param eq_indices: Indices for = bounds
-    :param eq_values: Values for = bounds
-    :param backend: Backend instance
+    :param input_bounds: Tensor to update in-place.
+
+    :param leq_indices: Indices for <= bounds.
+
+    :param leq_values: Values for <= bounds.
+
+    :param geq_indices: Indices for >= bounds.
+
+    :param geq_values: Values for >= bounds.
+
+    :param eq_indices: Indices for = bounds.
+
+    :param eq_values: Values for = bounds.
+
+    :param backend: Backend instance.
+
     """
     if leq_indices:
         leq_val_array = backend.tensor(leq_values, dtype="float64")
@@ -143,9 +152,12 @@ def convert_simple_input_bounds(
 ) -> TensorLike:
     """Convert simple input bounds to tensor format.
 
-    :param simple_bounds: List of tuples (op, var_prefix, idx, value) from regex parsing
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param simple_bounds: List of tuples (op, var_prefix, idx, value) from regex parsing.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tensor of shape (n_inputs, 2) where [:, 0] is lower bounds and [:, 1] is upper bounds
     """
     input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
@@ -178,9 +190,12 @@ def parse_input_or_block(
 ) -> list[TensorLike]:
     """Parse OR block to extract input bounds using direct pattern matching.
 
-    :param or_block_lines: Lines containing OR block expressions
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param or_block_lines: Lines containing OR block expressions.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: List of input bound tensors
     """
     if not or_block_lines:
@@ -207,10 +222,14 @@ def parse_output_or_block(
 ) -> list[TensorLike]:
     """Parse OR block to extract output constraints using direct pattern matching.
 
-    :param or_block_lines: Lines containing OR block expressions
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param or_block_lines: Lines containing OR block expressions.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: List of output constraint tensors
     """
     if not or_block_lines:
@@ -240,10 +259,14 @@ def parse_and_block(
 ) -> tuple[TensorLike, list[TensorLike]]:
     """Parse a single AND block to extract both input bounds and output constraints.
 
-    :param block: String containing AND block content
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param block: String containing AND block content.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tuple of (input_bounds, output_constraints_list)
     """
     input_bounds = parse_input_bounds_block(block, n_inputs, backend)
@@ -288,9 +311,12 @@ def parse_and_block(
 def parse_input_bounds_block(block: str, n_inputs: int, backend: Backend) -> TensorLike:
     """Parse a single AND block to extract input bounds.
 
-    :param block: String containing AND block content
-    :param n_inputs: Number of input variables
-    :param backend: Backend instance for tensor operations
+    :param block: String containing AND block content.
+
+    :param n_inputs: Number of input variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tensor of shape (n_inputs, 2) with lower and upper bounds
     """
     input_bounds = backend.full((n_inputs, 2), float("nan"), dtype="float64")
@@ -318,9 +344,12 @@ def parse_input_bounds_block(block: str, n_inputs: int, backend: Backend) -> Ten
 def parse_output_and_block(block: str, n_outputs: int, backend: Backend) -> TensorLike:
     """Parse a single AND block to extract output constraints.
 
-    :param block: String containing AND block content
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param block: String containing AND block content.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tensor of constraints (rows x (n_outputs + 1))
     """
     constraints = []
@@ -378,10 +407,14 @@ def parse_dual_or_blocks(
 ) -> tuple[list[TensorLike], list[TensorLike]]:
     """Parse two OR blocks for inputs and outputs using direct pattern matching.
 
-    :param lines: Preprocessed assertion lines
-    :param n_inputs: Number of input variables
-    :param n_outputs: Number of output variables
-    :param backend: Backend instance for tensor operations
+    :param lines: Preprocessed assertion lines.
+
+    :param n_inputs: Number of input variables.
+
+    :param n_outputs: Number of output variables.
+
+    :param backend: Backend instance for tensor operations.
+
     :return: Tuple of (input_bounds_list, output_constrs_list)
     """
     content = " ".join(lines)
