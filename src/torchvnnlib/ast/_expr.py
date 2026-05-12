@@ -47,14 +47,14 @@ class Expr:
         """Check if expression contains input variables (X_*)."""
         if self._has_input_vars is None:
             self._has_input_vars = self._compute_has_input_vars()
-        return self._has_input_vars  # type: ignore[no-any-return]
+        return self._has_input_vars
 
     @property
     def has_output_vars(self) -> bool:
         """Check if expression contains output variables (Y_*)."""
         if self._has_output_vars is None:
             self._has_output_vars = self._compute_has_output_vars()
-        return self._has_output_vars  # type: ignore[no-any-return]
+        return self._has_output_vars
 
     def _compute_has_input_vars(self) -> bool:
         """Compute whether expression contains input variables. Override in subclasses."""
