@@ -534,7 +534,7 @@ class TestTokenizeEdgeCases:
 
     def test_tokenize_empty_list(self):
         """Test tokenizing empty list of lines."""
-        lines = []
+        lines: list[str] = []
         result = tokenize(lines)
         assert isinstance(result, list)
         assert len(result) == 0

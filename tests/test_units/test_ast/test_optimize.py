@@ -284,7 +284,7 @@ class TestOptimizeMultipleTimes:
                 Geq(Var("X_0"), Cst(0.0)),
             ]
         )
-        result = expr
+        result: Expr = expr
         for _ in range(3):
             result = optimize(result)
         assert isinstance(result, Expr)

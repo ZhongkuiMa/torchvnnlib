@@ -7,6 +7,7 @@ Requires PyTorch to be installed.
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -207,7 +208,7 @@ class TestTorchFileIO:
     def test_save_empty_dict(self):
         """Test saving empty dictionary."""
         backend = TorchBackend()
-        data = {}
+        data: dict[str, Any] = {}
 
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.pth"

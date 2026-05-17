@@ -68,7 +68,7 @@ class TestType1BasicProcessing:
             (">=", "X_", 1, 0.0),
             ("<=", "X_", 1, 1.5),
         ]
-        simple_output_constrs = []
+        simple_output_constrs: list[tuple] = []
 
         result = process_type1(
             simple_input_bounds, simple_output_constrs, [], n_inputs=2, n_outputs=2, backend=backend
@@ -453,7 +453,7 @@ class TestType1IntegrationWithBenchmarks:
             (">=", "X_", 1, -1.0),
             ("<=", "X_", 1, 1.0),
         ]
-        simple_output_constrs = []
+        simple_output_constrs: list[tuple] = []
         simple_output_bounds = [
             ("<=", "Y_", 0, 0.5),
             (">=", "Y_", 0, -0.5),
@@ -552,7 +552,7 @@ class TestType1ComplexExpressions:
             (">=", "X_", 0, 0.0),
             ("<=", "X_", 0, 1.0),
         ]
-        simple_output_bounds = []
+        simple_output_bounds: list[tuple] = []
         complex_lines = [
             "(assert (or (>= Y_0 0.5) (<= Y_0 0.3)))",
         ]

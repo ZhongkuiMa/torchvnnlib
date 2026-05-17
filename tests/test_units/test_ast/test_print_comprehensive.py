@@ -23,6 +23,7 @@ from torchvnnlib.ast._expr import (
     Cst,
     Div,
     Eq,
+    Expr,
     Geq,
     Leq,
     Mul,
@@ -387,7 +388,7 @@ class TestPrintEdgeCases:
 
     def test_print_all_constraint_types(self):
         """Test printing all constraint types together."""
-        constraints = [
+        constraints: list[Expr] = [
             Eq(Var("X_0"), Cst(1.0)),
             Leq(Var("X_1"), Cst(2.0)),
             Geq(Var("X_2"), Cst(0.0)),
@@ -448,12 +449,12 @@ class TestPrintInvalidExpression:
 
         invalid = InvalidExpr()
         with pytest.raises(RuntimeError, match="Unknown expr"):
-            print_expr(invalid)
+            print_expr(invalid)  # type: ignore[arg-type]
 
     def test_print_none_expression(self):
         """Test printing None raises appropriate error."""
         with pytest.raises((RuntimeError, AttributeError, TypeError)):
-            print_expr(None)
+            print_expr(None)  # type: ignore[arg-type]
 
 
 class TestPrintMultilineOutput:

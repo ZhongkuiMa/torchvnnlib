@@ -198,7 +198,7 @@ class TestBackendCreation:
     def test_abstract_backend_not_instantiable(self):
         """Test that abstract Backend class cannot be instantiated."""
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class"):
-            Backend()
+            Backend()  # type: ignore[abstract]
 
 
 class TestBackendConsistency:

@@ -424,7 +424,7 @@ class TestEdgeCasesAndErrors:
 
     def test_empty_lines_list(self):
         """Test handling of empty lines list."""
-        lines = []
+        lines: list[str] = []
 
         vnnlib_type = fast_detect_type(lines, verbose=False)
 

@@ -262,7 +262,7 @@ class TestParseInputOrBlock:
 
     def test_empty_or_block(self, backend):
         """Test parsing empty OR block."""
-        lines = []
+        lines: list[str] = []
         result = parse_input_or_block(lines, n_inputs=1, backend=backend)
         # Should return NaN bounds
         assert len(result) == 1
@@ -311,7 +311,7 @@ class TestParseOutputOrBlock:
 
     def test_empty_or_block(self, backend):
         """Test parsing empty OR block."""
-        lines = []
+        lines: list[str] = []
         result = parse_output_or_block(lines, n_inputs=0, n_outputs=1, backend=backend)
         # Should return zero bounds
         assert len(result) == 1

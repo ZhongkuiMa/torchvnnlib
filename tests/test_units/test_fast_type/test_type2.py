@@ -204,11 +204,11 @@ class TestType2ParsedData:
         assert len(result) == 1, "Should process with valid parsed_data"
 
         # Test with missing keys - should raise or handle gracefully
-        invalid_parsed_data_1 = {"simple_input_bounds": []}
+        invalid_parsed_data_1: dict[str, list] = {"simple_input_bounds": []}
         with pytest.raises((KeyError, TypeError, AttributeError)):
             process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_1)
 
-        invalid_parsed_data_2 = {"complex_lines": []}
+        invalid_parsed_data_2: dict[str, list] = {"complex_lines": []}
         with pytest.raises((KeyError, TypeError, AttributeError)):
             process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_2)
 

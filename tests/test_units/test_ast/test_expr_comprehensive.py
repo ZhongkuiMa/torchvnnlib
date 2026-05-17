@@ -15,6 +15,8 @@ in torchvnnlib.ast._expr module including:
 Target coverage: All 47 missed statements in _expr.py (70% -> >92%)
 """
 
+from typing import cast
+
 import pytest
 
 from torchvnnlib.ast._expr import (
@@ -289,8 +291,8 @@ class TestBinaryOperatorsComprehensive:
     def test_sub_basic(self):
         """Test subtraction operation."""
         expr = Sub(Var("X_0"), Cst(1.0))
-        assert expr.left.name == "X_0"
-        assert expr.right.value == 1.0
+        assert cast(Var, expr.left).name == "X_0"
+        assert cast(Cst, expr.right).value == 1.0
 
     def test_sub_equality(self):
         """Test equality of subtraction expressions."""
@@ -349,8 +351,8 @@ class TestBinaryOperatorsComprehensive:
     def test_mul_basic(self):
         """Test multiplication operation."""
         expr = Mul(Cst(2.0), Var("X_0"))
-        assert expr.left.value == 2.0
-        assert expr.right.name == "X_0"
+        assert cast(Cst, expr.left).value == 2.0
+        assert cast(Var, expr.right).name == "X_0"
 
     def test_mul_zero(self):
         """Test multiplication by zero."""
@@ -360,8 +362,8 @@ class TestBinaryOperatorsComprehensive:
     def test_div_basic(self):
         """Test division operation."""
         expr = Div(Var("X_0"), Cst(2.0))
-        assert expr.left.name == "X_0"
-        assert expr.right.value == 2.0
+        assert cast(Var, expr.left).name == "X_0"
+        assert cast(Cst, expr.right).value == 2.0
 
     def test_div_by_one(self):
         """Test division by one."""
@@ -376,14 +378,14 @@ class TestBinaryOperatorsComprehensive:
     def test_eq_basic(self):
         """Test equality constraint."""
         expr = Eq(Var("X_0"), Cst(0.5))
-        assert expr.left.name == "X_0"
-        assert expr.right.value == 0.5
+        assert cast(Var, expr.left).name == "X_0"
+        assert cast(Cst, expr.right).value == 0.5
 
     def test_leq_basic(self):
         """Test less than or equal constraint."""
         expr = Leq(Var("X_0"), Cst(1.0))
-        assert expr.left.name == "X_0"
-        assert expr.right.value == 1.0
+        assert cast(Var, expr.left).name == "X_0"
+        assert cast(Cst, expr.right).value == 1.0
 
     def test_leq_with_zero(self):
         """Test Leq with zero value."""
@@ -398,8 +400,8 @@ class TestBinaryOperatorsComprehensive:
     def test_geq_basic(self):
         """Test greater than or equal constraint."""
         expr = Geq(Var("X_0"), Cst(0.0))
-        assert expr.left.name == "X_0"
-        assert expr.right.value == 0.0
+        assert cast(Var, expr.left).name == "X_0"
+        assert cast(Cst, expr.right).value == 0.0
 
     def test_binary_op_repr_sub(self):
         """Test repr of subtraction."""
@@ -542,7 +544,7 @@ class TestNaryOperatorsComprehensive:
 
     def test_add_iteration(self):
         """Test iterating over Add operands."""
-        operands = [Cst(1.0), Cst(2.0), Cst(3.0)]
+        operands: list[Expr] = [Cst(1.0), Cst(2.0), Cst(3.0)]
         expr = Add(operands)
         result = list(expr)
         assert result == operands
@@ -555,7 +557,7 @@ class TestNaryOperatorsComprehensive:
 
     def test_and_many_elements(self):
         """Test And with many elements."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("X_0"), Cst(1.0)),
             Geq(Var("X_0"), Cst(0.0)),
             Leq(Var("X_1"), Cst(2.0)),
@@ -589,7 +591,7 @@ class TestNaryOperatorsComprehensive:
 
     def test_and_iteration(self):
         """Test iterating over And operands."""
-        constraints = [Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))]
+        constraints: list[Expr] = [Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))]
         expr = And(constraints)
         result = list(expr)
         assert result == constraints
@@ -602,7 +604,7 @@ class TestNaryOperatorsComprehensive:
 
     def test_or_many_elements(self):
         """Test Or with many elements."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("X_0"), Cst(0.3)),
             Leq(Var("X_0"), Cst(0.7)),
             Leq(Var("X_0"), Cst(1.0)),
@@ -624,7 +626,7 @@ class TestNaryOperatorsComprehensive:
 
     def test_or_iteration(self):
         """Test iterating over Or operands."""
-        constraints = [Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))]
+        constraints: list[Expr] = [Leq(Var("X_0"), Cst(0.5)), Geq(Var("X_0"), Cst(0.75))]
         expr = Or(constraints)
         result = list(expr)
         assert result == constraints
@@ -649,7 +651,7 @@ class TestComplexNestedExpressions:
 
     def test_deeply_nested_arithmetic(self):
         """Test deeply nested arithmetic expressions."""
-        expr = Cst(1.0)
+        expr: Expr = Cst(1.0)
         for _ in range(5):
             expr = Add([expr, Cst(1.0)])
         assert expr.has_input_vars is False
@@ -718,7 +720,7 @@ class TestComplexNestedExpressions:
 
     def test_complex_linear_combination(self):
         """Test complex linear combination."""
-        terms = [
+        terms: list[Expr] = [
             Mul(Cst(2.0), Var("X_0")),
             Mul(Cst(3.0), Var("X_1")),
             Mul(Cst(-1.0), Var("X_2")),
@@ -765,14 +767,14 @@ class TestEdgeCasesAndBoundaryConditions:
 
     def test_very_large_expression_nary(self):
         """Test n-ary operation with many arguments."""
-        args = [Cst(float(i)) for i in range(100)]
+        args: list[Expr] = [Cst(float(i)) for i in range(100)]
         expr = Add(args)
         assert len(expr.args) == 100
         assert expr.has_input_vars is False
 
     def test_very_large_expression_nary_with_var(self):
         """Test n-ary operation with many arguments including one variable."""
-        args = [Cst(float(i)) for i in range(100)]
+        args: list[Expr] = [Cst(float(i)) for i in range(100)]
         args.append(Var("X_0"))
         expr = Add(args)
         assert len(expr.args) == 101

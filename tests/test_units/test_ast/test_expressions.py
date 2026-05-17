@@ -10,7 +10,7 @@ Tests all expression classes in torchvnnlib.ast._expr module including:
 
 import pytest
 
-from torchvnnlib.ast._expr import Add, And, Cst, Div, Eq, Geq, Leq, Mul, Or, Sub, Var
+from torchvnnlib.ast._expr import Add, And, Cst, Div, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 
 class TestCstConstant:
@@ -328,7 +328,7 @@ class TestEdgeCasesAndProperties:
 
     def test_deeply_nested_expressions(self):
         """Test deeply nested expression structure."""
-        expr = Cst(1.0)
+        expr: Expr = Cst(1.0)
         for _ in range(5):
             expr = Add([expr, Cst(1.0)])
         assert expr.has_input_vars is False

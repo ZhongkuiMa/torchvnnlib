@@ -7,7 +7,7 @@ fine-grained information, public API only, no deselected tests.
 Note: flatten() requires And expressions with both input (X_*) and output (Y_*) variables.
 """
 
-from torchvnnlib.ast._expr import Add, And, Cst, Geq, Leq, Mul, Or, Var
+from torchvnnlib.ast._expr import Add, And, Cst, Expr, Geq, Leq, Mul, Or, Var
 from torchvnnlib.ast._flatten import flatten
 
 
@@ -338,7 +338,7 @@ class TestFlattenEdgeCases:
 
     def test_flatten_many_constraints(self):
         """Test flattening with many constraints."""
-        constraints = [Leq(Var(f"X_{i}"), Cst(float(i + 1))) for i in range(3)]
+        constraints: list[Expr] = [Leq(Var(f"X_{i}"), Cst(float(i + 1))) for i in range(3)]
         constraints.extend(Leq(Var(f"Y_{i}"), Cst(0.5 - i * 0.1)) for i in range(2))
         expr = And(constraints)
         result = flatten(expr)

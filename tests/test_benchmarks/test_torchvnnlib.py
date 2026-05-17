@@ -22,6 +22,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 
@@ -48,15 +49,25 @@ def get_all_benchmarks():
     return [str(b) for b in benchmark_dirs]
 
 
+class _BenchStats(TypedDict):
+    """Statistics for one benchmark directory."""
+
+    total: int
+    success: int
+    total_time: float
+    type_counts: defaultdict[str, int]
+    fast_type_counts: defaultdict[str, int]
+
+
 # Global statistics for session summary
-_benchmark_stats: defaultdict[str, dict[str, int | float | defaultdict[str, int]]] = defaultdict(
-    lambda: {
-        "total": 0,
-        "success": 0,
-        "total_time": 0.0,
-        "type_counts": defaultdict(int),
-        "fast_type_counts": defaultdict(int),
-    }
+_benchmark_stats: defaultdict[str, _BenchStats] = defaultdict(
+    lambda: _BenchStats(
+        total=0,
+        success=0,
+        total_time=0.0,
+        type_counts=defaultdict(int),
+        fast_type_counts=defaultdict(int),
+    )
 )
 _overall_stats = {"success_count": 0, "total_count": 0, "overall_time": 0.0}
 
@@ -175,8 +186,8 @@ def print_summary():
     print(f"\n{'=' * 80}")
     print("OVERALL SUMMARY")
     print(f"{'=' * 80}")
-    total_by_type = defaultdict(int)
-    total_fast_by_type = defaultdict(int)
+    total_by_type: defaultdict[str, int] = defaultdict(int)
+    total_fast_by_type: defaultdict[str, int] = defaultdict(int)
     for stats in _benchmark_stats.values():
         for type_name, count in stats["type_counts"].items():
             total_by_type[type_name] += count

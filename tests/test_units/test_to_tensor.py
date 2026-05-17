@@ -15,7 +15,7 @@ from torchvnnlib._to_tensor import (
     convert_output_constrs,
     convert_to_tensor,
 )
-from torchvnnlib.ast import Add, And, Cst, Eq, Geq, Leq, Mul, Or, Sub, Var
+from torchvnnlib.ast import Add, And, Cst, Eq, Expr, Geq, Leq, Mul, Or, Sub, Var
 
 
 class TestConvertInputBounds:
@@ -44,7 +44,7 @@ class TestConvertInputBounds:
 
     def test_multiple_input_variables(self, backend):
         """Test conversion with multiple input variables."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(-1.0)),
             Leq(Var("X_0"), Cst(2.0)),
             Geq(Var("X_1"), Cst(0.0)),
@@ -82,7 +82,7 @@ class TestConvertInputBounds:
 
     def test_negative_bounds(self, backend):
         """Test conversion with negative bounds."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(-5.0)),
             Leq(Var("X_0"), Cst(-1.0)),
         ]
@@ -202,7 +202,7 @@ class TestConvertAndOutputConstrs:
 
     def test_multiple_constraints(self, backend):
         """Test multiple constraints in AND."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("Y_0"), Cst(0.5)),
             Geq(Var("Y_0"), Cst(0.0)),
         ]
@@ -386,7 +386,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_all_operators(self, backend):
         """Test input bounds with all operator types (<=, >=, =)."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(0.0)),  # Lower bound for X_0
             Leq(Var("X_0"), Cst(2.0)),  # Upper bound for X_0
             Geq(Var("X_1"), Cst(-1.0)),  # Lower bound for X_1
@@ -402,7 +402,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_zero_bounds(self, backend):
         """Test input bounds with zero values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(0.0)),
             Leq(Var("X_0"), Cst(0.0)),
         ]
@@ -414,7 +414,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_large_values(self, backend):
         """Test input bounds with very large values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(1e10)),
             Leq(Var("X_0"), Cst(1e11)),
         ]
@@ -426,7 +426,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_small_values(self, backend):
         """Test input bounds with very small values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(1e-10)),
             Leq(Var("X_0"), Cst(1e-9)),
         ]
@@ -517,7 +517,7 @@ class TestConvertAndOutputConstrsComprehensive:
 
     def test_and_output_multiple_constraints(self, backend):
         """Test multiple output constraints."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("Y_0"), Cst(0.5)),
             Geq(Var("Y_1"), Cst(0.2)),
             Leq(Var("Y_0"), Var("Y_1")),
@@ -528,7 +528,7 @@ class TestConvertAndOutputConstrsComprehensive:
 
     def test_and_output_with_input_vars(self, backend):
         """Test output constraints that might reference input vars."""
-        constraints = [Leq(Var("Y_0"), Cst(0.5))]
+        constraints: list[Expr] = [Leq(Var("Y_0"), Cst(0.5))]
         expr = And(constraints)
         result = convert_and_output_constrs(expr, n_outputs=1, n_inputs=3, backend=backend)
         assert result.shape == (1, 2)
@@ -663,7 +663,7 @@ class TestConvertOnePropertyComprehensive:
         """Test that non-And expression raises error."""
         expr = Or([And([Leq(Var("X_0"), Cst(1.0))])])
         with pytest.raises(ValueError, match="Expected And expression"):
-            convert_one_property(expr, n_inputs=1, n_outputs=1, backend=backend)
+            convert_one_property(expr, n_inputs=1, n_outputs=1, backend=backend)  # type: ignore[arg-type]
 
     def test_one_property_multiple_outputs(self, backend):
         """Test property with multiple output constraints."""
@@ -740,4 +740,4 @@ class TestConvertToTensorComprehensive:
         expr = Or([Var("X_0")])  # Invalid: not And
 
         with pytest.raises((ValueError, AttributeError, TypeError)):
-            convert_to_tensor(expr, n_inputs=1, n_outputs=1, backend=backend)
+            convert_to_tensor(expr, n_inputs=1, n_outputs=1, backend=backend)  # type: ignore[arg-type]

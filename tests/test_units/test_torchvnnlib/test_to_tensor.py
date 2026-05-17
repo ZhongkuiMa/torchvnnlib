@@ -46,7 +46,7 @@ class TestConvertInputBounds:
 
     def test_multiple_input_variables(self, backend):
         """Test conversion with multiple input variables."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(-1.0)),
             Leq(Var("X_0"), Cst(2.0)),
             Geq(Var("X_1"), Cst(0.0)),
@@ -84,7 +84,7 @@ class TestConvertInputBounds:
 
     def test_negative_bounds(self, backend):
         """Test conversion with negative bounds."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(-5.0)),
             Leq(Var("X_0"), Cst(-1.0)),
         ]
@@ -204,7 +204,7 @@ class TestConvertAndOutputConstrs:
 
     def test_multiple_constraints(self, backend):
         """Test multiple constraints in AND."""
-        constraints = [
+        constraints: list[Expr] = [
             Leq(Var("Y_0"), Cst(0.5)),
             Geq(Var("Y_0"), Cst(0.0)),
         ]
@@ -388,7 +388,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_all_operators(self, backend):
         """Test input bounds with all operator types (<=, >=, =)."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(0.0)),  # Lower bound for X_0
             Leq(Var("X_0"), Cst(2.0)),  # Upper bound for X_0
             Geq(Var("X_1"), Cst(-1.0)),  # Lower bound for X_1
@@ -404,7 +404,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_zero_bounds(self, backend):
         """Test input bounds with zero values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(0.0)),
             Leq(Var("X_0"), Cst(0.0)),
         ]
@@ -416,7 +416,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_large_values(self, backend):
         """Test input bounds with very large values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(1e10)),
             Leq(Var("X_0"), Cst(1e11)),
         ]
@@ -428,7 +428,7 @@ class TestConvertInputBoundsComprehensive:
 
     def test_input_bounds_small_values(self, backend):
         """Test input bounds with very small values."""
-        constraints = [
+        constraints: list[Expr] = [
             Geq(Var("X_0"), Cst(1e-10)),
             Leq(Var("X_0"), Cst(1e-9)),
         ]

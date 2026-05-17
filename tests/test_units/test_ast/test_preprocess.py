@@ -15,7 +15,7 @@ class TestPreprocessBasic:
 
     def test_preprocess_empty_content(self):
         """Test preprocessing empty content."""
-        lines = []
+        lines: list[str] = []
         result = preprocess_vnnlib(lines)
         assert result
         assert isinstance(result, tuple)

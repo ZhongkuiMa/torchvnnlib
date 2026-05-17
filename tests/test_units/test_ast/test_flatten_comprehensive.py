@@ -17,7 +17,7 @@ Target coverage: All 25 missed statements in _flatten.py (78% -> >92%)
 
 import pytest
 
-from torchvnnlib.ast._expr import Add, And, Cst, Eq, Geq, Leq, Mul, Or, Var
+from torchvnnlib.ast._expr import Add, And, Cst, Eq, Expr, Geq, Leq, Mul, Or, Var
 from torchvnnlib.ast._flatten import (
     _build_input_expr_list,
     _build_output_expr_list,
@@ -213,14 +213,14 @@ class TestBuildInputExprList:
 
     def test_direct_input_only(self):
         """Test with only direct input expressions."""
-        direct_inputs = [Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))]
+        direct_inputs: list[Expr] = [Leq(Var("X_0"), Cst(1.0)), Geq(Var("X_0"), Cst(0.0))]
         result = _build_input_expr_list(direct_inputs, [])
         assert len(result) == 1
         assert isinstance(result[0], And)
 
     def test_or_input_only(self):
         """Test with only OR input expressions."""
-        or_inputs = [
+        or_inputs: list[Expr] = [
             Leq(Var("X_0"), Cst(0.5)),
             Geq(Var("X_0"), Cst(0.75)),
         ]
@@ -236,7 +236,7 @@ class TestBuildInputExprList:
 
     def test_or_input_single_expr(self):
         """Test OR input with single expression (not AND)."""
-        or_inputs = [Leq(Var("X_0"), Cst(0.5))]
+        or_inputs: list[Expr] = [Leq(Var("X_0"), Cst(0.5))]
         result = _build_input_expr_list([], or_inputs)
         assert len(result) == 1
 
@@ -246,7 +246,7 @@ class TestBuildOutputExprList:
 
     def test_direct_output_only(self):
         """Test with only direct output expressions."""
-        direct_outputs = [Leq(Var("Y_0"), Cst(0.5)), Leq(Var("Y_1"), Cst(0.3))]
+        direct_outputs: list[Expr] = [Leq(Var("Y_0"), Cst(0.5)), Leq(Var("Y_1"), Cst(0.3))]
         result = _build_output_expr_list(direct_outputs, None)
         assert len(result) == 1
         assert isinstance(result[0], Or)
@@ -274,7 +274,7 @@ class TestBuildOutputExprList:
 
     def test_both_direct_and_or_output(self):
         """Test with both direct and OR output expressions."""
-        direct = [Leq(Var("Y_0"), Cst(0.5))]
+        direct: list[Expr] = [Leq(Var("Y_0"), Cst(0.5))]
         or_expr = Or([Geq(Var("Y_1"), Cst(0.2))])
         result = _build_output_expr_list(direct, or_expr)
         assert len(result) == 1
@@ -282,7 +282,7 @@ class TestBuildOutputExprList:
 
     def test_both_with_and_in_or(self):
         """Test both direct and OR with AND in OR."""
-        direct = [Leq(Var("Y_0"), Cst(0.5))]
+        direct: list[Expr] = [Leq(Var("Y_0"), Cst(0.5))]
         and_expr = And([Geq(Var("Y_1"), Cst(0.2)), Leq(Var("Y_1"), Cst(0.8))])
         or_expr = Or([and_expr])
         result = _build_output_expr_list(direct, or_expr)
@@ -417,7 +417,7 @@ class TestFlattenEdgeCases:
 
     def test_flatten_many_constraints(self):
         """Test flatten with many constraints."""
-        constraints = [Leq(Var(f"X_{i}"), Cst(float(i + 1))) for i in range(5)]
+        constraints: list[Expr] = [Leq(Var(f"X_{i}"), Cst(float(i + 1))) for i in range(5)]
         constraints.extend([Leq(Var(f"Y_{i}"), Cst(0.5 - i * 0.1)) for i in range(3)])
         expr = And(constraints)
         result = flatten(expr)
