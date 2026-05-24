@@ -88,9 +88,11 @@ def _extract_complex_output_constraints(
                 for or_arg in arg.args:
                     if isinstance(or_arg, And):
                         constr = convert_and_output_constrs(or_arg, n_outputs, n_inputs, backend)
-                else:
-                    constr = convert_and_output_constrs(And([or_arg]), n_outputs, n_inputs, backend)
-                complex_output_constrs.append(constr)
+                    else:
+                        constr = convert_and_output_constrs(
+                            And([or_arg]), n_outputs, n_inputs, backend
+                        )
+                    complex_output_constrs.append(constr)
             else:
                 constr = convert_and_output_constrs(And([arg]), n_outputs, n_inputs, backend)
                 complex_output_constrs.append(constr)
@@ -137,9 +139,9 @@ def process_type1(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     if verbose:
         _logger.info("  Type1 fast processing:")

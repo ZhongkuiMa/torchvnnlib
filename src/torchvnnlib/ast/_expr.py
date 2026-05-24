@@ -1,6 +1,10 @@
 """AST expression types for VNN-LIB formula representation."""
 # pyright: reportIncompatibleMethodOverride=false
 
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
 __docformat__ = "restructuredtext"
 __all__ = [
     "Add",
@@ -16,26 +20,27 @@ __all__ = [
     "NaryOp",
     "Or",
     "Sub",
-    "UnaryOp",
     "Var",
 ]
 
 
-class Expr:
+class Expr(ABC):
     """Abstract base class for all VNN-LIB AST expression nodes."""
+
+    __slots__ = ("_has_input_vars", "_has_output_vars")
 
     def __init__(self):
         """Initialize cached flags for input/output variable presence."""
         self._has_input_vars = None  # Cache for input variable presence
         self._has_output_vars = None  # Cache for output variable presence
 
-    def __repr__(self):
+    @abstractmethod
+    def __repr__(self) -> str:
         """Return string representation."""
-        raise NotImplementedError("This should be implemented in subclasses")
 
-    def __eq__(self, other):
+    @abstractmethod
+    def __eq__(self, other: object) -> bool:
         """Check equality. Must be implemented in subclasses."""
-        raise NotImplementedError("This should be implemented in subclasses")
 
     def __hash__(self):
         """Hash based on string representation."""
@@ -71,6 +76,8 @@ class Cst(Expr):
     :param value: The numeric constant value.
     """
 
+    __slots__ = ("value",)
+
     def __init__(self, value: float):
         """Store a constant numeric value.
 
@@ -83,7 +90,7 @@ class Cst(Expr):
         """Return string representation."""
         return f"{self.value}"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Check equality by comparing value."""
         if not isinstance(other, Cst):
             return False
@@ -100,6 +107,8 @@ class Var(Expr):
     :param name: Variable name in ``X_<idx>`` or ``Y_<idx>`` format.
     :raises ValueError: If name does not match the expected format.
     """
+
+    __slots__ = ("index", "name", "var_type")
 
     def __init__(self, name: str):
         """Store variable name, type, and index.
@@ -124,7 +133,7 @@ class Var(Expr):
         """Return string representation."""
         return f"{self.name}"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Check equality by comparing name."""
         if not isinstance(other, Var):
             return False
@@ -143,49 +152,14 @@ class Var(Expr):
         return self.var_type == "Y"
 
 
-class UnaryOp(Expr):
-    """Abstract base for unary operations with a single operand.
-
-    :param arg: The single operand expression.
-    """
-
-    def __init__(self, arg: Expr):
-        """Store the operand expression.
-
-        :param arg: The single operand.
-        """
-        super().__init__()
-        self.arg = arg
-
-    def __repr__(self):
-        """Return string representation."""
-        raise RuntimeError("This should be implemented in subclasses")
-
-    def __eq__(self, other):
-        """Check equality by comparing arg."""
-        if not isinstance(other, UnaryOp):
-            return False
-        return self.arg == other.arg
-
-    def __hash__(self):
-        """Hash based on arg."""
-        return hash(self.arg)
-
-    def _compute_has_input_vars(self) -> bool:
-        """Compute whether the operand contains input variables."""
-        return self.arg.has_input_vars
-
-    def _compute_has_output_vars(self) -> bool:
-        """Compute whether the operand contains output variables."""
-        return self.arg.has_output_vars
-
-
 class BinaryOp(Expr):
     """Abstract base for binary operations with left and right operands.
 
     :param left: Left operand expression.
     :param right: Right operand expression.
     """
+
+    __slots__ = ("left", "right")
 
     def __init__(self, left: Expr, right: Expr):
         """Store left and right operand expressions.
@@ -197,11 +171,7 @@ class BinaryOp(Expr):
         self.left = left
         self.right = right
 
-    def __repr__(self):
-        """Return string representation."""
-        raise RuntimeError("This should be implemented in subclasses")
-
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Check equality by comparing left and right."""
         if not isinstance(other, BinaryOp):
             return False
@@ -226,6 +196,8 @@ class NaryOp(Expr):
     :param args: List of operand expressions.
     """
 
+    __slots__ = ("args",)
+
     def __init__(self, args: list[Expr]):
         """Store the list of operand expressions.
 
@@ -234,11 +206,7 @@ class NaryOp(Expr):
         super().__init__()
         self.args = args
 
-    def __repr__(self):
-        """Return string representation."""
-        raise RuntimeError("This should be implemented in subclasses")
-
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Check equality by comparing all args element-wise."""
         if not isinstance(other, NaryOp):
             return False

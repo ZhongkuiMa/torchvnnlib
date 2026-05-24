@@ -123,9 +123,9 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
     start_time = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     # Pattern counters
     pattern_flags = {
@@ -137,11 +137,10 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
         "has_output_info": False,
     }
 
-    # Reverse scan - outputs at end, inputs at beginning
-    for line in reversed(lines):
+    # Full scan to avoid false negatives when inputs/outputs are interleaved.
+    for line in lines:
         stripped = line.strip()
-        if _update_type_patterns_from_line(stripped, pattern_flags):
-            break
+        _update_type_patterns_from_line(stripped, pattern_flags)
 
     # Classify type based on patterns
     vnnlib_type = _classify_type_by_patterns(
@@ -187,9 +186,9 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
     start_time = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     simple_input_bounds = []
     simple_output_constrs = []
@@ -385,9 +384,9 @@ def fast_detect_and_parse(
     start_time = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     n_lines = len(lines)
     simple_input_bounds: list[tuple] = []

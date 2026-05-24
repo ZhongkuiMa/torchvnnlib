@@ -75,9 +75,9 @@ def tokenize(
     import time
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     # Sequential processing for small files or when parallel is disabled
     if len(lines) < 100 or not use_parallel:

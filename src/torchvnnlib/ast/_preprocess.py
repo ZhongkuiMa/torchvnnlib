@@ -7,6 +7,8 @@ import re
 
 COMMENT_PATTERN = re.compile(r";.*")
 ASSERT_PATTERN = re.compile(r"^\(assert\s+.*\)$")
+DECL_INPUT_PATTERN = re.compile(r"declare-const\s+X_\d+")
+DECL_OUTPUT_PATTERN = re.compile(r"declare-const\s+Y_\d+")
 
 
 def _remove_comments(lines: list[str]) -> list[str]:
@@ -41,9 +43,9 @@ def _remove_declare_clauses(lines: list[str]) -> tuple[list[str], int, int]:
     for line in lines:
         if "declare-const" not in line:
             new_lines.append(line)
-        elif "X" in line:
+        elif DECL_INPUT_PATTERN.search(line):
             n_inputs += 1
-        elif "Y" in line:
+        elif DECL_OUTPUT_PATTERN.search(line):
             n_outputs += 1
 
     return new_lines, n_inputs, n_outputs

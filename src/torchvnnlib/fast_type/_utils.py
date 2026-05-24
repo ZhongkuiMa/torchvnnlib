@@ -18,7 +18,6 @@ __all__ = [
     "parse_dual_or_blocks",
     "parse_input_bounds_block",
     "parse_input_or_block",
-    "parse_or_block",
     "parse_output_and_block",
     "parse_output_or_block",
 ]
@@ -249,9 +248,6 @@ def parse_output_or_block(
             output_constrs.append(constr)
 
     return output_constrs or [backend.zeros((1, n_outputs + 1), dtype="float64")]
-
-
-parse_or_block = parse_output_or_block
 
 
 def parse_and_block(

@@ -4,7 +4,6 @@ This module provides extensive test coverage for all expression classes
 in torchvnnlib.ast._expr module including:
 - Cst (Constant) expressions
 - Var (Variable) expressions
-- UnaryOp base class
 - BinaryOp classes: Add, Sub, Mul, Div, Eq, Leq, Geq
 - NaryOp classes: And, Or
 - Expression equality and hashing
@@ -33,7 +32,6 @@ from torchvnnlib.ast._expr import (
     NaryOp,
     Or,
     Sub,
-    UnaryOp,
     Var,
 )
 
@@ -816,17 +814,6 @@ class TestEdgeCasesAndBoundaryConditions:
         c2 = Cst(5.0000001)
         # These are not equal (float comparison)
         assert c1 != c2
-
-    def test_unary_op_base_class(self):
-        """Test UnaryOp base class methods."""
-
-        # UnaryOp is abstract but we can test through subclassing
-        class TestUnary(UnaryOp):
-            def __repr__(self):
-                return f"(test {self.arg})"
-
-        expr = TestUnary(Var("X_0"))
-        assert expr.has_input_vars is True
 
     def test_binary_op_base_class(self):
         """Test BinaryOp base class methods."""

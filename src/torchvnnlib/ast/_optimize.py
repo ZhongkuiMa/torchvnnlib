@@ -19,7 +19,6 @@ from torchvnnlib.ast._expr import (
     Leq,
     NaryOp,
     Or,
-    UnaryOp,
     Var,
 )
 
@@ -27,9 +26,7 @@ _logger = logging.getLogger(__name__)
 
 
 def _else_recursion(expr: Expr, func: Callable) -> Expr:
-    if isinstance(expr, UnaryOp):
-        expr.arg = func(expr.arg)
-    elif isinstance(expr, BinaryOp):
+    if isinstance(expr, BinaryOp):
         expr.left = func(expr.left)
         expr.right = func(expr.right)
     elif isinstance(expr, NaryOp):
@@ -107,7 +104,7 @@ def _get_priority(var: Var) -> int | float:
 
     if var.index > 100000000:
         warnings.warn(
-            "The number in the variable name is greater than 10000. This will result "
+            "The number in the variable name is greater than 100000000. This will result "
             "in incorrect sorting when printing.",
             stacklevel=2,
         )
@@ -135,9 +132,9 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
     import time
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     is_and = isinstance(expr, And)
     is_or = isinstance(expr, Or)

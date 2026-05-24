@@ -7,7 +7,7 @@ import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
-from torchvnnlib.fast_type._utils import convert_simple_input_bounds, parse_or_block
+from torchvnnlib.fast_type._utils import convert_simple_input_bounds, parse_output_or_block
 
 _logger = logging.getLogger(__name__)
 
@@ -39,9 +39,9 @@ def process_type2(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     if parsed_data is None:
         from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
@@ -67,7 +67,7 @@ def process_type2(
         _logger.info(f"    Input bounds conversion: {time.perf_counter() - t:.4f}s")
 
     t = time.perf_counter()
-    output_constrs = parse_or_block(or_block_lines, n_inputs, n_outputs, backend)
+    output_constrs = parse_output_or_block(or_block_lines, n_inputs, n_outputs, backend)
     if verbose:
         _logger.info(f"    OR block parsing: {time.perf_counter() - t:.4f}s")
     if verbose:

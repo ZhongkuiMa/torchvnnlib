@@ -19,7 +19,6 @@ __all__ = [
     "NaryOp",
     "Or",
     "Sub",
-    "UnaryOp",
     "Var",
     "flatten",
     "optimize",
@@ -43,7 +42,6 @@ from torchvnnlib.ast._expr import (
     NaryOp,
     Or,
     Sub,
-    UnaryOp,
     Var,
 )
 from torchvnnlib.ast._flatten import flatten

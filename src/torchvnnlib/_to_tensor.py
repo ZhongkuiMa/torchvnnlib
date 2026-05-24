@@ -191,6 +191,7 @@ def convert_and_output_constrs(
         elif isinstance(sub_expr, Geq):
             constr = convert_linear_constr(left, right, y_dim, x_dim, backend)
             constr = -constr
+            # Normalize negative zero to avoid sign-dependent downstream bugs.
             constr[constr == 0.0] = 0.0
         else:
             raise ValueError(f"Invalid output constraint expression: {sub_expr}")

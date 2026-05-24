@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from torchvnnlib._backend import Backend, TensorLike, get_backend
+from torchvnnlib._logging import _enable_verbose
 from torchvnnlib._to_tensor import convert_to_tensor
 from torchvnnlib.ast import (
     And,
@@ -33,16 +34,6 @@ from torchvnnlib.fast_type import (
 )
 
 _logger = logging.getLogger(__name__)
-
-
-def _enable_verbose() -> None:
-    """Configure package-level logger for console output."""
-    pkg_logger = logging.getLogger("torchvnnlib")
-    if not pkg_logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        pkg_logger.addHandler(handler)
-    pkg_logger.setLevel(logging.DEBUG)
 
 
 def _save_property_file(
@@ -275,6 +266,7 @@ class TorchVNNLIB:
 
         use_type_processor = False
         detected_type = VNNLIBType.COMPLEX
+        fallback_reason: str | None = None
 
         if self.detect_fast_type:
             vnnlib_type = fast_detect_type(lines, verbose=self.verbose)
@@ -285,7 +277,8 @@ class TorchVNNLIB:
                 and_properties = self._process_by_type(vnnlib_type, lines, n_inputs, n_outputs)
                 use_type_processor = and_properties is not None
             except (ValueError, RuntimeError) as e:
-                _logger.info(f"  Type processor failed, fallback to AST: {str(e)[:100]}")
+                fallback_reason = str(e)[:100]
+                _logger.warning("  Type processor failed, fallback to AST: %s", fallback_reason)
                 use_type_processor = False
 
         if not use_type_processor:
@@ -309,4 +302,5 @@ class TorchVNNLIB:
             "n_inputs": n_inputs,
             "n_outputs": n_outputs,
             "output_format": self.output_format,
+            "fallback_reason": fallback_reason,
         }

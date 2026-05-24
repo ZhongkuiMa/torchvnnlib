@@ -31,9 +31,9 @@ def _parse_tokens_list(
     import time
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     if not use_parallel:
         t = time.perf_counter()
@@ -121,9 +121,9 @@ def parse(tokens_list: list[deque[str]], verbose: bool = False, use_parallel: bo
     import time
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     exprs_list = _parse_tokens_list(tokens_list, verbose=verbose, use_parallel=use_parallel)
 

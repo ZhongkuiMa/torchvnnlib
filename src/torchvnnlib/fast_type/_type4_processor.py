@@ -36,9 +36,9 @@ def process_type4(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     t = time.perf_counter()
     input_bounds_list, output_constrs_list = parse_dual_or_blocks(

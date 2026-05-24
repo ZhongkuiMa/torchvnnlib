@@ -29,7 +29,6 @@ from torchvnnlib.fast_type._utils import (
     parse_dual_or_blocks,
     parse_input_bounds_block,
     parse_input_or_block,
-    parse_or_block,
     parse_output_and_block,
     parse_output_or_block,
 )
@@ -461,11 +460,3 @@ class TestSimplePatterns:
         }
         match = patterns[pattern].match(text)
         assert match
-
-
-class TestParseOrBlockAlias:
-    """Test parse_or_block alias."""
-
-    def test_parse_or_block_is_alias(self):
-        """Test that parse_or_block is alias for parse_output_or_block."""
-        assert parse_or_block is parse_output_or_block

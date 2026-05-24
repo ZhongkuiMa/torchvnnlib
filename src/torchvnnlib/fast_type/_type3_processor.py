@@ -112,9 +112,9 @@ def process_type3(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib import _ensure_verbose_handler
+        from torchvnnlib._logging import _enable_verbose
 
-        _ensure_verbose_handler()
+        _enable_verbose()
 
     if parsed_data is None:
         from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns

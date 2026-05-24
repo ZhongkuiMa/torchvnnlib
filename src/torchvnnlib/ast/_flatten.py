@@ -16,14 +16,8 @@ def _check_input_bound_expr(expr: Expr):
         raise ValueError(f"Invalid binary expression for input bound: {expr}")
 
 
-def _check_output_constrs_expr(expr: Expr):
-    pass
-
-
 def _check_bound_or_constr_expr(expr: Expr):
-    if expr.has_output_vars:
-        _check_output_constrs_expr(expr)
-    else:
+    if not expr.has_output_vars:
         _check_input_bound_expr(expr)
 
 
@@ -190,7 +184,8 @@ def flatten(expr: Expr) -> And:
         return And([or_expr])
 
     # If not And, must be Or based on the constraint checking
-    assert isinstance(expr, Or), f"Expression must be And or Or, got {type(expr)}"
+    if not isinstance(expr, Or):
+        raise ValueError(f"Expression must be And or Or, got {type(expr)}")
     or_expr_list = []
     for and_expr in expr.args:
         or_expr = _flatten_and_expr(cast(And, and_expr))
