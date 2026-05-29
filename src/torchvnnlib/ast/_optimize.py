@@ -4,11 +4,13 @@ __docformat__ = "restructuredtext"
 __all__ = ["optimize"]
 
 import logging
+import time
 import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import cast
+from typing import Final, cast
 
+from torchvnnlib._logging import _enable_verbose
 from torchvnnlib.ast._expr import (
     And,
     BinaryOp,
@@ -24,8 +26,14 @@ from torchvnnlib.ast._expr import (
 
 _logger = logging.getLogger(__name__)
 
+# Sort priority: output vars (Y_*) always sort after input vars (X_*).
+_Y_PRIORITY_OFFSET: Final[int] = 1_000_000
+# Var indices above this break sort priority because Y_OFFSET is exceeded.
+_MAX_VAR_INDEX: Final[int] = 100_000_000
 
-def _else_recursion(expr: Expr, func: Callable) -> Expr:
+
+def _else_recursion(expr: Expr, func: Callable[[Expr], Expr]) -> Expr:
+    """Recurse ``func`` into operand slots of ``expr`` in place."""
     if isinstance(expr, BinaryOp):
         expr.left = func(expr.left)
         expr.right = func(expr.right)
@@ -46,10 +54,13 @@ def _remove_single_and_or(expr: Expr) -> Expr:
     return _else_recursion(expr, _remove_single_and_or)
 
 
-def _combine_leq_geq_pairs(leq_pairs: dict, geq_pairs: dict) -> tuple[list[Expr], set]:
-    """Combine matching Leq and Geq pairs into Eq expressions."""
+def _combine_leq_geq_pairs(
+    leq_pairs: dict[tuple[Expr, Expr], Leq],
+    geq_pairs: dict[tuple[Expr, Expr], Geq],
+) -> tuple[list[Expr], set[tuple[Expr, Expr]]]:
+    """Combine matching ``Leq`` and ``Geq`` pairs into ``Eq``."""
     combined: list[Expr] = []
-    used = set()
+    used: set[tuple[Expr, Expr]] = set()
     for key, le_expr in leq_pairs.items():
         if key in geq_pairs:
             combined.append(Eq(le_expr.left, le_expr.right))
@@ -66,9 +77,9 @@ def _simplify_leqgeq(expr: Expr) -> Expr:
     if not isinstance(expr, And):
         return _else_recursion(expr, _simplify_leqgeq)
 
-    simplified_args = []
-    leq_pairs = {}
-    geq_pairs = {}
+    simplified_args: list[Expr] = []
+    leq_pairs: dict[tuple[Expr, Expr], Leq] = {}
+    geq_pairs: dict[tuple[Expr, Expr], Geq] = {}
 
     for arg in expr.args:
         if isinstance(arg, Leq):
@@ -91,21 +102,18 @@ def _simplify_leqgeq(expr: Expr) -> Expr:
     return And(simplified_args)
 
 
-def _get_priority(var: Var) -> int | float:
-    """Extract the number from the variable name using cached values."""
-    # Use cached var_type and index for O(1) performance
+def _get_priority(var: Expr) -> int | float:
+    """Return sort priority for ``var``; constants sort last (``inf``)."""
     if not isinstance(var, Var):
-        # This is a constant
         return float("inf")
 
     priority = 0
     if var.var_type == "Y":
-        priority += 1000000
+        priority += _Y_PRIORITY_OFFSET
 
-    if var.index > 100000000:
+    if var.index > _MAX_VAR_INDEX:
         warnings.warn(
-            "The number in the variable name is greater than 100000000. This will result "
-            "in incorrect sorting when printing.",
+            f"Variable index exceeds {_MAX_VAR_INDEX}; sort order may be wrong.",
             stacklevel=2,
         )
     priority += var.index
@@ -121,19 +129,22 @@ def _sort_vars_in_expr(expr: Expr) -> Expr:
     if isinstance(expr, NaryOp):
         # Recursively sort all arguments
         expr.args = [_sort_vars_in_expr(arg) for arg in expr.args]
-        expr.args = sorted(expr.args, key=lambda x: _get_priority(cast(Var, x)))
+        expr.args = sorted(expr.args, key=_get_priority)
         return expr
 
     return _else_recursion(expr, _sort_vars_in_expr)
 
 
 def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Expr:
-    """Optimize expressions with optional parallel processing."""
-    import time
+    """Optimize expressions with optional parallel processing.
 
+    :param expr: Root ``And`` or ``Or`` expression.
+    :param verbose: Emit timing logs.
+    :param use_parallel: Run per-arg simplification in a thread pool.
+    :return: Optimized expression tree.
+    :raises ValueError: If ``expr`` is not ``And`` or ``Or``.
+    """
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     is_and = isinstance(expr, And)
@@ -163,12 +174,8 @@ def optimize(expr: Expr, verbose: bool = False, use_parallel: bool = True) -> Ex
         if verbose:
             _logger.info(f"    - Simplify (sequential): {time.perf_counter() - t:.4f}s")
 
-    if is_and:
-        expr = And(expr_list)
-    elif is_or:
-        expr = Or(expr_list)
-    else:
-        raise ValueError("The expression must be either an And or an Or.")
+    # ``is_and`` / ``is_or`` are exhaustive thanks to the early guard above.
+    expr = And(expr_list) if is_and else Or(expr_list)
 
     t = time.perf_counter()
     expr = _sort_vars_in_expr(expr)

@@ -741,3 +741,112 @@ class TestConvertToTensorComprehensive:
 
         with pytest.raises((ValueError, AttributeError, TypeError)):
             convert_to_tensor(expr, n_inputs=1, n_outputs=1, backend=backend)  # type: ignore[arg-type]
+
+
+class TestConvertInputBoundsHardening:
+    """Regression: convert_input_bounds rejects malformed bound expressions cleanly."""
+
+    def test_rejects_constant_on_left(self, backend):
+        """``(<= 0.5 X_0)`` (Cst on left) must raise ValueError, not AttributeError."""
+        expr = And([Leq(Cst(0.5), Var("X_0"))])
+
+        with pytest.raises(ValueError, match="single variable on the left"):
+            convert_input_bounds(expr, n_inputs=1, backend=backend)
+
+    def test_rejects_var_on_right(self, backend):
+        """``(<= X_0 X_1)`` (Var on right) must raise ValueError."""
+        expr = And([Leq(Var("X_0"), Var("X_1"))])
+
+        with pytest.raises(ValueError, match="constant on the right"):
+            convert_input_bounds(expr, n_inputs=2, backend=backend)
+
+    def test_rejects_arithmetic_on_left(self, backend):
+        """Arithmetic on the bound LHS must raise ValueError."""
+        expr = And([Leq(Add([Var("X_0"), Var("X_1")]), Cst(1.0))])
+
+        with pytest.raises(ValueError, match="single variable on the left"):
+            convert_input_bounds(expr, n_inputs=2, backend=backend)
+
+    def test_rejects_out_of_range_index(self, backend):
+        """Index >= n_inputs must raise ValueError, not IndexError."""
+        expr = And([Geq(Var("X_5"), Cst(0.0)), Leq(Var("X_5"), Cst(1.0))])
+
+        with pytest.raises(ValueError, match="out of range"):
+            convert_input_bounds(expr, n_inputs=2, backend=backend)
+
+
+class TestConvertLinearPolyHardening:
+    """Regression: convert_linear_poly raises on unsupported / non-linear forms."""
+
+    def test_mul_var_cst_symmetric(self, backend):
+        """``Mul(Var, Cst)`` must contribute the same coeff as ``Mul(Cst, Var)``."""
+        # Bias slot + 2 y-coeffs + 2 x-coeffs.
+        constr_left = backend.zeros((5,), dtype="float64")
+        constr_right = backend.zeros((5,), dtype="float64")
+
+        # 2.0 * X_0  vs.  X_0 * 2.0; both should land coeff 2.0 in x slot.
+        convert_linear_poly(constr_left, Mul(Cst(2.0), Var("X_0")), y_dim=2, x_dim=2)
+        convert_linear_poly(constr_right, Mul(Var("X_0"), Cst(2.0)), y_dim=2, x_dim=2)
+
+        assert float(constr_left[3]) == 2.0
+        assert float(constr_right[3]) == 2.0
+
+    def test_mul_var_var_rejected(self, backend):
+        """Non-linear ``Mul(Var, Var)`` must raise NotImplementedError."""
+        constr = backend.zeros((5,), dtype="float64")
+
+        with pytest.raises(NotImplementedError, match="Non-linear Mul"):
+            convert_linear_poly(constr, Mul(Var("X_0"), Var("X_1")), y_dim=2, x_dim=2)
+
+
+class TestNegativeZeroNormalization:
+    """Regression: Leq-path output constraints must not leak ``-0.0`` into rows."""
+
+    def test_leq_zero_bias_no_neg_zero(self, backend):
+        """``(<= 0.0 Y_0)`` (bias collapses to 0) emits ``+0.0`` not ``-0.0``."""
+        # Y_0 - 0.0 >= 0   =>  bias = 0; coefficient = 1 on Y_0.
+        expr = And([Leq(Cst(0.0), Var("Y_0"))])
+        result = convert_and_output_constrs(expr, n_outputs=1, n_inputs=0, backend=backend)
+
+        # Row layout: [bias, y0_coeff]. Bias should be +0.0.
+        bias = float(result[0, 0])
+        assert bias == 0.0
+        # repr distinguishes -0.0 from 0.0; bit-exact check.
+        assert repr(bias) == "0.0"
+
+
+class TestYIndexHardening:
+    """Regression: Y-variable index out-of-range produces ValueError, not silent corruption."""
+
+    def test_convert_linear_constr_left_y_oob(self, backend):
+        """``Y_5 <= 1.0`` with n_outputs=2 must raise, not write past the slot."""
+        with pytest.raises(ValueError, match="out of range"):
+            convert_linear_constr(Var("Y_5"), Cst(1.0), y_dim=2, x_dim=0, backend=backend)
+
+    def test_convert_linear_constr_right_y_oob(self, backend):
+        """``0.0 <= Y_99`` with n_outputs=3 must raise."""
+        with pytest.raises(ValueError, match="out of range"):
+            convert_linear_constr(Cst(0.0), Var("Y_99"), y_dim=3, x_dim=0, backend=backend)
+
+    def test_convert_linear_constr_left_x_rejected(self, backend):
+        """``X_0 <= Y_0`` (X on left of an output constraint) must raise."""
+        with pytest.raises(NotImplementedError, match="Y-variables supported"):
+            convert_linear_constr(Var("X_0"), Var("Y_0"), y_dim=2, x_dim=2, backend=backend)
+
+    def test_convert_linear_constr_right_x_rejected(self, backend):
+        """``Y_0 <= X_0`` (X on right of an output constraint) must raise."""
+        with pytest.raises(NotImplementedError, match="Y-variables supported"):
+            convert_linear_constr(Var("Y_0"), Var("X_0"), y_dim=2, x_dim=2, backend=backend)
+
+    def test_convert_linear_poly_y_oob(self, backend):
+        """Polynomial path through ``_update_constr_for_var`` also guards Y-index."""
+        # bias + y0 + y1 slots only; Y_5 should raise.
+        constr = backend.zeros((3,), dtype="float64")
+        with pytest.raises(ValueError, match="Output variable index"):
+            convert_linear_poly(constr, Var("Y_5"), y_dim=2, x_dim=0)
+
+    def test_convert_linear_poly_x_oob(self, backend):
+        """Polynomial path also guards X-index on the extended slot range."""
+        constr = backend.zeros((5,), dtype="float64")  # bias + 2y + 2x
+        with pytest.raises(ValueError, match="Input variable index"):
+            convert_linear_poly(constr, Var("X_99"), y_dim=2, x_dim=2)

@@ -8,16 +8,28 @@ __docformat__ = "restructuredtext"
 __all__ = ["Backend", "NumpyBackend", "TensorLike", "TorchBackend", "get_backend"]
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, TypeAlias, cast
 
 import numpy as np
 
 try:
     import torch
 
-    TORCH_AVAILABLE = True
+    _TORCH_AVAILABLE = True
 except ImportError:
-    TORCH_AVAILABLE = False
+    _TORCH_AVAILABLE = False
+
+TORCH_AVAILABLE: Final[bool] = _TORCH_AVAILABLE
+
+# Shared once across all TorchBackend allocators; rebuilds were burning microseconds.
+if TORCH_AVAILABLE:
+    _TORCH_DTYPE_MAP: Final[dict[str, "torch.dtype"]] = {
+        "float64": torch.float64,
+        "float32": torch.float32,
+        "int64": torch.long,
+    }
+else:
+    _TORCH_DTYPE_MAP = {}  # type: ignore[misc]
 
 # TensorLike union type - supports both torch.Tensor and np.ndarray
 if TYPE_CHECKING:
@@ -132,12 +144,7 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: Zero-filled ``torch.Tensor``.
         """
-        dtype_map = {
-            "float64": torch.float64,
-            "float32": torch.float32,
-            "int64": torch.long,
-        }
-        return torch.zeros(shape, dtype=dtype_map.get(dtype, torch.float64))
+        return torch.zeros(shape, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
 
     def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         """Create a constant-filled tensor via ``torch.full``.
@@ -147,12 +154,7 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: Constant-filled ``torch.Tensor``.
         """
-        dtype_map = {
-            "float64": torch.float64,
-            "float32": torch.float32,
-            "int64": torch.long,
-        }
-        return torch.full(shape, fill_value, dtype=dtype_map.get(dtype, torch.float64))
+        return torch.full(shape, fill_value, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
 
     def tensor(self, data: list | Any, dtype: str = "float64") -> TensorLike:
         """Create a ``torch.Tensor`` from Python data.
@@ -161,12 +163,7 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: ``torch.Tensor`` constructed from *data*.
         """
-        dtype_map = {
-            "float64": torch.float64,
-            "float32": torch.float32,
-            "int64": torch.long,
-        }
-        return torch.tensor(data, dtype=dtype_map.get(dtype, torch.float64))
+        return torch.tensor(data, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
 
     def stack(self, arrays: list[TensorLike], axis: int = 0) -> TensorLike:
         """Stack tensors along *axis* via ``torch.stack``.
@@ -293,14 +290,13 @@ class NumpyBackend(Backend):
         return ".npz"
 
 
-def get_backend(backend_name: str = "torch") -> Backend:
+def get_backend(backend_name: Literal["torch", "numpy"] = "torch") -> Backend:
     """Get backend instance.
 
-    :param backend_name: Backend name ('torch' or 'numpy').
-
+    :param backend_name: ``"torch"`` or ``"numpy"``.
     :return: Backend instance.
-    :raises ImportError: If PyTorch is not installed and "torch" backend is requested.
-    :raises ValueError: If *backend_name* is not "torch" or "numpy".
+    :raises ImportError: If PyTorch is not installed and ``"torch"`` is requested.
+    :raises ValueError: If ``backend_name`` is not one of the accepted values.
     """
     if backend_name == "torch":
         if not TORCH_AVAILABLE:

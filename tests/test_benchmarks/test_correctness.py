@@ -37,7 +37,12 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 from torchvnnlib import TorchVNNLIB
-from torchvnnlib.tests.utils import find_all_vnnlib_files, find_benchmarks_folders
+
+# Ensure test utilities are importable (torchvnnlib is installed from src/)
+_tests_dir = str(Path(__file__).resolve().parent.parent)
+if _tests_dir not in sys.path:
+    sys.path.insert(0, _tests_dir)
+from utils import find_all_vnnlib_files, find_benchmarks_folders  # noqa: E402
 
 
 def load_data(file_path: str, backend: str):

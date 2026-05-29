@@ -157,17 +157,17 @@ class TestVarVariableComprehensive:
 
     def test_var_invalid_name_no_underscore(self):
         """Test that variable without underscore raises ValueError."""
-        with pytest.raises(ValueError, match="Variable name must start with"):
+        with pytest.raises(ValueError, match=r"Variable name must match 'X_<idx>' or 'Y_<idx>'"):
             Var("X0")
 
     def test_var_invalid_name_wrong_prefix(self):
         """Test that variable with wrong prefix raises ValueError."""
-        with pytest.raises(ValueError, match="Variable name must start with"):
+        with pytest.raises(ValueError, match=r"Variable name must match 'X_<idx>' or 'Y_<idx>'"):
             Var("Z_0")
 
     def test_var_invalid_name_no_digits(self):
         """Test that variable without digits after underscore raises ValueError."""
-        with pytest.raises(ValueError, match="Variable name must start with"):
+        with pytest.raises(ValueError, match=r"Variable name must match 'X_<idx>' or 'Y_<idx>'"):
             Var("X_A")
 
     def test_var_index_extraction(self):

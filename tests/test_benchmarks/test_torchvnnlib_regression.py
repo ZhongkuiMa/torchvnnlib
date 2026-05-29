@@ -23,7 +23,11 @@ from pathlib import Path
 
 import pytest
 
-from torchvnnlib.tests.utils import compare_output_folders, find_benchmarks_folders
+# Ensure test utilities are importable (torchvnnlib is installed from src/)
+_tests_dir = str(Path(__file__).resolve().parent.parent)
+if _tests_dir not in sys.path:
+    sys.path.insert(0, _tests_dir)
+from utils import compare_output_folders, find_benchmarks_folders  # noqa: E402
 
 
 def get_all_benchmarks():

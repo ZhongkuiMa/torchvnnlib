@@ -12,12 +12,14 @@ from torchvnnlib.ast._expr import And, Cst, Eq, Expr, Geq, Leq, Or, Var
 def _check_input_bound_expr(expr: Expr):
     if not (isinstance(expr, Eq | Leq | Geq)):
         raise ValueError(f"Not an Eq, Leq or Geq expression for input bound: {expr}")
-    if not (isinstance(expr.left, Var) or isinstance(expr.right, Cst)):
+    if not isinstance(expr.left, Var) and not isinstance(expr.right, Cst):
         raise ValueError(f"Invalid binary expression for input bound: {expr}")
 
 
 def _check_bound_or_constr_expr(expr: Expr):
-    if not expr.has_output_vars:
+    if not isinstance(expr, Eq | Leq | Geq):
+        return
+    if not expr.has_output_vars and isinstance(expr.left, Var) and isinstance(expr.right, Cst):
         _check_input_bound_expr(expr)
 
 

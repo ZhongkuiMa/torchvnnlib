@@ -7,6 +7,8 @@ import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._logging import _enable_verbose
+from torchvnnlib.fast_type._fast_type_detect import ParsedPatterns, parse_simple_patterns
 from torchvnnlib.fast_type._utils import convert_simple_input_bounds, parse_output_or_block
 
 _logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ def process_type2(
     n_outputs: int,
     backend: Backend,
     verbose: bool = False,
-    parsed_data: dict | None = None,
+    parsed_data: ParsedPatterns | None = None,
 ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Fast processor for Type2 VNN-LIB files.
 
@@ -39,13 +41,9 @@ def process_type2(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     if parsed_data is None:
-        from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
-
         t = time.perf_counter()
         parsed_data = parse_simple_patterns(lines, verbose=False)
         if verbose:
@@ -56,9 +54,7 @@ def process_type2(
 
     if verbose:
         _logger.info("  Type2 processing:")
-    if verbose:
         _logger.info(f"    Simple input bounds: {len(simple_input_bounds)}")
-    if verbose:
         _logger.info(f"    OR block lines: {len(or_block_lines)}")
 
     t = time.perf_counter()

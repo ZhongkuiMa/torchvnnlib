@@ -7,6 +7,7 @@ import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._logging import _enable_verbose
 from torchvnnlib.fast_type._utils import parse_dual_or_blocks
 
 _logger = logging.getLogger(__name__)
@@ -36,8 +37,6 @@ def process_type4(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     t = time.perf_counter()
@@ -46,11 +45,8 @@ def process_type4(
     )
     if verbose:
         _logger.info("  Type4 detection:")
-    if verbose:
         _logger.info(f"    Input OR groups: {len(input_bounds_list)}")
-    if verbose:
         _logger.info(f"    Output OR options: {len(output_constrs_list)}")
-    if verbose:
         _logger.info(f"    Parsing: {time.perf_counter() - t:.4f}s")
 
     or_properties = [(input_bounds, output_constrs_list) for input_bounds in input_bounds_list]

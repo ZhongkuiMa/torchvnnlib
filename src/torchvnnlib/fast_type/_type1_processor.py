@@ -7,6 +7,13 @@ import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._constraint_row import (
+    normalize_neg_zero,
+    write_compare_row,
+    write_value_bound_row,
+    write_value_bound_rows_eq,
+)
+from torchvnnlib._logging import _enable_verbose
 from torchvnnlib._to_tensor import convert_and_output_constrs
 from torchvnnlib.ast import And, Or, optimize, parse, tokenize
 from torchvnnlib.fast_type._utils import convert_simple_input_bounds
@@ -139,19 +146,12 @@ def process_type1(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
-
-    if verbose:
         _logger.info("  Type1 fast processing:")
-    if verbose:
         _logger.info(f"    Simple input bounds: {len(simple_input_bounds)}")
-    if verbose:
         _logger.info(f"    Simple output constraints: {len(simple_output_constrs)}")
-    if simple_output_bounds and verbose:
-        _logger.info(f"    Simple output bounds: {len(simple_output_bounds)}")
-    if verbose:
+        if simple_output_bounds:
+            _logger.info(f"    Simple output bounds: {len(simple_output_bounds)}")
         _logger.info(f"    Complex lines: {len(complex_lines)}")
 
     t = time.perf_counter()
@@ -220,15 +220,10 @@ def _convert_simple_output_constraints_batched(
     n_constrs = len(simple_output_constrs)
     constraints = backend.zeros((n_constrs, n_outputs + 1), dtype="float64")
 
-    for i, (op, _var_prefix1, idx1, _var_prefix2, idx2) in enumerate(simple_output_constrs):
-        if op == "<=":
-            constraints[i, idx1 + 1] = -1.0
-            constraints[i, idx2 + 1] = 1.0
-        elif op == ">=":
-            constraints[i, idx1 + 1] = 1.0
-            constraints[i, idx2 + 1] = -1.0
+    for i, (op, _vp1, idx1, _vp2, idx2) in enumerate(simple_output_constrs):
+        write_compare_row(constraints[i], idx1, idx2, op)
 
-    return constraints
+    return normalize_neg_zero(constraints)
 
 
 def _convert_simple_output_bounds_batched(
@@ -252,21 +247,12 @@ def _convert_simple_output_bounds_batched(
 
     row_idx = 0
     for op, _var_prefix, idx, value in simple_output_bounds:
-        if op == "<=":
-            constraints[row_idx, 0] = float(value)
-            constraints[row_idx, idx + 1] = -1.0
-            row_idx += 1
-        elif op == ">=":
-            constraints[row_idx, 0] = -float(value)
-            constraints[row_idx, idx + 1] = 1.0
-            row_idx += 1
-        elif op == "=":
-            constraints[row_idx, 0] = -float(value)
-            constraints[row_idx, idx + 1] = 1.0
+        value_f = float(value)
+        if op == "=":
+            write_value_bound_rows_eq(constraints[row_idx], constraints[row_idx + 1], idx, value_f)
+            row_idx += 2
+        else:
+            write_value_bound_row(constraints[row_idx], idx, op, value_f)
             row_idx += 1
 
-            constraints[row_idx, 0] = float(value)
-            constraints[row_idx, idx + 1] = -1.0
-            row_idx += 1
-
-    return constraints
+    return normalize_neg_zero(constraints)

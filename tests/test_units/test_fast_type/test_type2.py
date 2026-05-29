@@ -200,17 +200,17 @@ class TestType2ParsedData:
             "complex_lines": ["(assert (or (>= Y_0 Y_1)))"],
         }
 
-        result = process_type2(lines, n_inputs, n_outputs, backend, parsed_data=valid_parsed_data)
+        result = process_type2(lines, n_inputs, n_outputs, backend, parsed_data=valid_parsed_data)  # type: ignore[arg-type]
         assert len(result) == 1, "Should process with valid parsed_data"
 
         # Test with missing keys - should raise or handle gracefully
         invalid_parsed_data_1: dict[str, list] = {"simple_input_bounds": []}
         with pytest.raises((KeyError, TypeError, AttributeError)):
-            process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_1)
+            process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_1)  # type: ignore[arg-type]
 
         invalid_parsed_data_2: dict[str, list] = {"complex_lines": []}
         with pytest.raises((KeyError, TypeError, AttributeError)):
-            process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_2)
+            process_type2(lines, n_inputs, n_outputs, backend, parsed_data=invalid_parsed_data_2)  # type: ignore[arg-type]
 
 
 class TestType2OrBlockProcessing:

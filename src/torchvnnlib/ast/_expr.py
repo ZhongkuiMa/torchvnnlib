@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Literal
 
 __docformat__ = "restructuredtext"
 __all__ = [
@@ -29,10 +30,12 @@ class Expr(ABC):
 
     __slots__ = ("_has_input_vars", "_has_output_vars")
 
-    def __init__(self):
-        """Initialize cached flags for input/output variable presence."""
-        self._has_input_vars = None  # Cache for input variable presence
-        self._has_output_vars = None  # Cache for output variable presence
+    _has_input_vars: bool | None
+    _has_output_vars: bool | None
+
+    def __init__(self) -> None:
+        self._has_input_vars = None
+        self._has_output_vars = None
 
     @abstractmethod
     def __repr__(self) -> str:
@@ -42,9 +45,7 @@ class Expr(ABC):
     def __eq__(self, other: object) -> bool:
         """Check equality. Must be implemented in subclasses."""
 
-    def __hash__(self):
-        """Hash based on string representation."""
-        # Default implementation - subclasses should override
+    def __hash__(self) -> int:
         return hash(self.__repr__())
 
     @property
@@ -78,26 +79,19 @@ class Cst(Expr):
 
     __slots__ = ("value",)
 
-    def __init__(self, value: float):
-        """Store a constant numeric value.
-
-        :param value: The numeric constant.
-        """
+    def __init__(self, value: float) -> None:
         super().__init__()
         self.value = value
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"{self.value}"
 
     def __eq__(self, other: object) -> bool:
-        """Check equality by comparing value."""
         if not isinstance(other, Cst):
             return False
         return self.value == other.value
 
-    def __hash__(self):
-        """Hash based on value."""
+    def __hash__(self) -> int:
         return hash(self.value)
 
 
@@ -110,37 +104,42 @@ class Var(Expr):
 
     __slots__ = ("index", "name", "var_type")
 
-    def __init__(self, name: str):
+    name: str
+    var_type: Literal["X", "Y"]
+    index: int
+
+    def __init__(self, name: str) -> None:
         """Store variable name, type, and index.
 
         :param name: Variable name (e.g., ``X_0``, ``Y_3``).
-        :raises ValueError: If name does not match ``X_<idx>`` or ``Y_<idx>``.
+        :raises ValueError: If name does not match ``X_<idx>`` or ``Y_<idx>``,
+            or carries a leading-zero index (``X_007``) that would corrupt
+            round-trip equality.
         """
         super().__init__()
+        if len(name) < 3 or name[0] not in ("X", "Y") or name[1] != "_" or not name[2:].isdigit():
+            raise ValueError(f"Variable name must match 'X_<idx>' or 'Y_<idx>', got: {name!r}")
+        idx_str = name[2:]
+        if len(idx_str) > 1 and idx_str[0] == "0":
+            raise ValueError(
+                f"Variable index must not have leading zeros (got {name!r}); "
+                "ambiguous round-trip with int parsing."
+            )
         self.name = name
-        if not ((name.startswith(("X", "Y"))) and name[1] == "_" and name[2:].isdigit()):
-            raise ValueError(f"Variable name must start with 'X' or 'Y' but {name}.")
-
-        # Cache variable type and index for performance
-        self.var_type = name[0]  # 'X' or 'Y'
-        self.index = int(name[2:])  # Parse index once
-
-        # Set cached flags directly since we know the type
+        self.var_type = name[0]  # type: ignore[assignment]
+        self.index = int(idx_str)
         self._has_input_vars = self.var_type == "X"
         self._has_output_vars = self.var_type == "Y"
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"{self.name}"
 
     def __eq__(self, other: object) -> bool:
-        """Check equality by comparing name."""
         if not isinstance(other, Var):
             return False
         return self.name == other.name
 
-    def __hash__(self):
-        """Hash based on name."""
+    def __hash__(self) -> int:
         return hash(self.name)
 
     def _compute_has_input_vars(self) -> bool:
@@ -161,24 +160,17 @@ class BinaryOp(Expr):
 
     __slots__ = ("left", "right")
 
-    def __init__(self, left: Expr, right: Expr):
-        """Store left and right operand expressions.
-
-        :param left: Left operand.
-        :param right: Right operand.
-        """
+    def __init__(self, left: Expr, right: Expr) -> None:
         super().__init__()
         self.left = left
         self.right = right
 
     def __eq__(self, other: object) -> bool:
-        """Check equality by comparing left and right."""
         if not isinstance(other, BinaryOp):
             return False
         return self.left == other.left and self.right == other.right
 
-    def __hash__(self):
-        """Hash based on left and right."""
+    def __hash__(self) -> int:
         return hash((self.left, self.right))
 
     def _compute_has_input_vars(self) -> bool:
@@ -198,28 +190,21 @@ class NaryOp(Expr):
 
     __slots__ = ("args",)
 
-    def __init__(self, args: list[Expr]):
-        """Store the list of operand expressions.
-
-        :param args: List of operand expressions.
-        """
+    def __init__(self, args: list[Expr]) -> None:
         super().__init__()
         self.args = args
 
     def __eq__(self, other: object) -> bool:
-        """Check equality by comparing all args element-wise."""
         if not isinstance(other, NaryOp):
             return False
         if len(self.args) != len(other.args):
             return False
-        return all(self.args[i] == other.args[i] for i in range(len(self.args)))
+        return all(a == b for a, b in zip(self.args, other.args, strict=True))
 
-    def __hash__(self):
-        """Hash based on args tuple."""
+    def __hash__(self) -> int:
         return hash(tuple(self.args))
 
     def __iter__(self):
-        """Iterate over operand expressions."""
         return iter(self.args)
 
     def _compute_has_input_vars(self) -> bool:
@@ -231,109 +216,69 @@ class NaryOp(Expr):
         return any(arg.has_output_vars for arg in self.args)
 
 
+# Concrete operator subclasses do not redefine ``__eq__``, so Python keeps
+# inheriting ``__hash__`` from ``BinaryOp`` / ``NaryOp`` automatically. Each
+# class only owns its ``__repr__``.
+
+
 class Add(NaryOp):
     """N-ary addition node ``(+ a b ...)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(+ {' '.join(map(str, self.args))})"
-
-    def __hash__(self):
-        """Hash based on args tuple."""
-        return hash(tuple(self.args))
 
 
 class Sub(BinaryOp):
     """Binary subtraction node ``(- left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(- {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class Mul(BinaryOp):
     """Binary multiplication node ``(* left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(* {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class Div(BinaryOp):
     """Binary division node ``(/ left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(/ {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class Eq(BinaryOp):
     """Equality constraint node ``(= left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(= {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class Leq(BinaryOp):
     """Less-than-or-equal constraint ``(<= left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(<= {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class Geq(BinaryOp):
     """Greater-than-or-equal constraint ``(>= left right)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(>= {self.left} {self.right})"
-
-    def __hash__(self):
-        """Hash based on left and right."""
-        return hash((self.left, self.right))
 
 
 class And(NaryOp):
     """Logical conjunction node ``(and a b ...)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(and {' '.join(map(str, self.args))})"
-
-    def __hash__(self):
-        """Hash based on args tuple."""
-        return hash(tuple(self.args))
 
 
 class Or(NaryOp):
     """Logical disjunction node ``(or a b ...)`` in VNN-LIB S-expression form."""
 
-    def __repr__(self):
-        """Return string representation."""
+    def __repr__(self) -> str:
         return f"(or {' '.join(map(str, self.args))})"
-
-    def __hash__(self):
-        """Hash based on args tuple."""
-        return hash(tuple(self.args))

@@ -1,16 +1,15 @@
 """Unit tests for _fast_type_detect.py - VNN-LIB type detection and parsing.
 
-Tests type detection (TYPE1-TYPE5), simple pattern parsing, and combined detect+parse operations.
+Tests type detection (TYPE1-TYPE5) and simple pattern parsing.
 """
 
 import pytest
 
+from torchvnnlib.fast_type import VNNLIBType
 from torchvnnlib.fast_type._fast_type_detect import (
-    fast_detect_and_parse,
     fast_detect_type,
     parse_simple_patterns,
 )
-from torchvnnlib.fast_type._utils import VNNLIBType
 
 
 class TestFastDetectType:
@@ -284,120 +283,6 @@ class TestParseSimplePatterns:
         assert result["simple_output_bounds"][0][3] == -0.5, "Should parse negative output bound"
 
 
-class TestFastDetectAndParse:
-    """Test combined detection and parsing."""
-
-    def test_type1_detect_and_parse(self):
-        """Test TYPE1 detection and parsing together."""
-        lines = [
-            "(assert (>= X_0 0.0))",
-            "(assert (<= X_0 1.0))",
-            "(assert (>= Y_0 0.5))",
-        ]
-
-        vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
-        assert len(data["simple_input_bounds"]) == 2, "Should parse 2 input bounds"
-        assert len(data["simple_output_constrs"]) == 0, "Should have no output constraints"
-        assert len(data["complex_lines"]) == 1, "Should have 1 complex line (output bound)"
-
-    def test_type2_detect_and_parse(self):
-        """Test TYPE2 detection and parsing together."""
-        lines = [
-            "(assert (>= X_0 0.0))",
-            "(assert (<= X_0 1.0))",
-            "(assert (or (and (>= Y_0 0.5))))",
-        ]
-
-        vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE2, "Should detect TYPE2"
-        assert len(data["simple_input_bounds"]) == 2, "Should parse input bounds"
-
-    def test_type3_detect_and_parse(self):
-        """Test TYPE3 detection and parsing together."""
-        lines = [
-            "(assert (or (and (>= X_0 0.0))))",
-            "(assert (>= Y_0 0.5))",
-        ]
-
-        vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE3, "Should detect TYPE3"
-        assert len(data["complex_lines"]) >= 1, "Should have complex lines"
-
-    def test_type4_detect_and_parse(self):
-        """Test TYPE4 detection and parsing together."""
-        lines = [
-            "(assert (or (and (>= X_0 0.0))))",
-            "(assert (or (and (>= Y_0 0.5))))",
-        ]
-
-        vnnlib_type, _data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE4, "Should detect TYPE4"
-
-    def test_type5_detect_and_parse(self):
-        """Test TYPE5 detection and parsing together."""
-        lines = [
-            "(assert (or (and (>= X_0 0.0) (>= Y_0 0.5))))",
-        ]
-
-        vnnlib_type, _data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE5, "Should detect TYPE5"
-
-    def test_detect_and_parse_with_verbose(self, capsys):
-        """Test detect+parse with verbose output."""
-        lines = [
-            "(assert (>= X_0 0.0))",
-            "(assert (>= Y_0 0.5))",
-        ]
-
-        vnnlib_type, _data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=True)
-
-        captured = capsys.readouterr()
-        output = captured.err
-
-        assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
-        assert "Fast detect+parse" in output or len(output) > 0, "Should have verbose output"
-
-    def test_metadata_in_result(self):
-        """Test that metadata is included in result."""
-        lines = [
-            "(assert (>= X_0 0.0))",
-            "(assert (<= X_0 1.0))",
-            "(assert (>= Y_0 0.5))",
-        ]
-
-        _vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
-
-        assert "metadata" in data, "Should include metadata"
-        metadata = data["metadata"]
-        assert "n_lines" in metadata, "metadata should contain 'n_lines' key"
-        assert metadata["n_lines"] == 3, "Should count 3 lines"
-        assert metadata["has_simple_input"], "Should detect simple input"
-        assert metadata["has_simple_output"], "Should detect simple output"
-
-    def test_realistic_benchmark_pattern(self):
-        """Test with realistic VNN-COMP benchmark pattern."""
-        lines = [
-            "(assert (>= X_0 -1.0))",
-            "(assert (<= X_0 1.0))",
-            "(assert (>= X_1 0.0))",
-            "(assert (<= X_1 2.0))",
-            "(assert (>= Y_0 -0.5))",
-            "(assert (<= Y_0 0.5))",
-        ]
-
-        vnnlib_type, data = fast_detect_and_parse(lines, n_inputs=2, n_outputs=1, verbose=False)
-
-        assert vnnlib_type == VNNLIBType.TYPE1, "Should detect TYPE1"
-        assert "simple_input_bounds" in data, "Result should contain 'simple_input_bounds' key"
-        assert len(data["simple_input_bounds"]) == 4, "Should parse 4 input bounds"
-
-
 class TestVNNLIBTypeEnum:
     """Test VNNLIBType enum values."""
 
@@ -450,7 +335,7 @@ class TestEdgeCasesAndErrors:
             "(assert (or (and (>= X_0 1.0) (>= Y_0 1.5))))",
         ]
 
-        vnnlib_type, _data = fast_detect_and_parse(lines, n_inputs=1, n_outputs=1, verbose=False)
+        vnnlib_type = fast_detect_type(lines, verbose=False)
 
         # Should detect as TYPE5 or COMPLEX
         assert isinstance(vnnlib_type, VNNLIBType), "Should return a VNNLIBType"

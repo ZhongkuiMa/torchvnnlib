@@ -1,14 +1,15 @@
 """Main TorchVNNLIB class for loading and converting VNN-LIB files."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["TorchVNNLIB"]
+__all__ = ["ConversionStats", "TorchVNNLIB"]
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import cast
+from typing import Any, ClassVar, Literal, TypedDict, cast
 
 from torchvnnlib._backend import Backend, TensorLike, get_backend
 from torchvnnlib._logging import _enable_verbose
@@ -36,26 +37,40 @@ from torchvnnlib.fast_type import (
 _logger = logging.getLogger(__name__)
 
 
+class ConversionStats(TypedDict):
+    """Schema for per-file conversion statistics recorded by :class:`TorchVNNLIB`.
+
+    :param type: Detected VNN-LIB structural type.
+    :param used_fast: Whether the fast-type processor was used.
+    :param time: Total conversion time in seconds.
+    :param n_inputs: Number of input variables.
+    :param n_outputs: Number of output variables.
+    :param output_format: Backend format (``"torch"`` or ``"numpy"``).
+    :param fallback_reason: Reason for AST fallback, if any.
+    """
+
+    type: str
+    used_fast: bool
+    time: float
+    n_inputs: int
+    n_outputs: int
+    output_format: str
+    fallback_reason: str | None
+
+
 def _save_property_file(
     or_properties: list[tuple[TensorLike, list[TensorLike]]],
     or_folder_path: str,
     backend: Backend,
-    verbose: bool = False,
 ) -> None:
-    """Save OR properties to individual files.
+    """Save one OR group to per-property files inside ``or_folder_path``.
 
-    :param or_properties: List of (input_bounds, output_constraints) tuples.
-
-    :param or_folder_path: Directory path to save files.
-
-    :param backend: Backend instance for saving operations.
-
-    :param verbose: Print progress messages.
-
+    :param or_properties: Properties as ``(input_bounds, output_constraints)`` tuples.
+    :param or_folder_path: Destination directory.
+    :param backend: Backend used for serialization.
     """
     for j, and_property in enumerate(or_properties):
         _logger.info(f"Converting {j + 1}/{len(or_properties)} properties")
-
         input_bounds, output_constrs = and_property
         data = {"input": input_bounds, "output": output_constrs}
         file_name = f"sub_prop_{j}{backend.file_extension}"
@@ -68,20 +83,13 @@ def _write_property(
     target_folder_path: str | None,
     vnnlib_path: str,
     backend: Backend,
-    verbose: bool = False,
 ) -> None:
-    """Write all properties to organized folder structure.
+    """Write all OR groups to ``or_group_<i>/`` subfolders of the target.
 
-    :param and_properties: Nested list of properties.
-
-    :param target_folder_path: Output directory path.
-
-    :param vnnlib_path: Original VNN-LIB file path.
-
-    :param backend: Backend instance for saving operations.
-
-    :param verbose: Print progress messages.
-
+    :param and_properties: One inner list per OR group.
+    :param target_folder_path: Output directory; defaults to vnnlib stem.
+    :param vnnlib_path: Source VNN-LIB path (used to derive default target).
+    :param backend: Backend used for serialization.
     """
     if target_folder_path is None:
         target_folder_path = str(Path(vnnlib_path).with_suffix(""))
@@ -90,12 +98,12 @@ def _write_property(
     target_path.mkdir(parents=True, exist_ok=True)
 
     or_folder_paths = []
-    for i, _or_properties in enumerate(and_properties):
+    for i in range(len(and_properties)):
         or_folder_path = str(target_path / f"or_group_{i}")
         or_folder_paths.append(or_folder_path)
         Path(or_folder_path).mkdir(parents=True, exist_ok=True)
 
-    save = partial(_save_property_file, backend=backend, verbose=verbose)
+    save = partial(_save_property_file, backend=backend)
     with ThreadPoolExecutor() as executor:
         executor.map(save, and_properties, or_folder_paths)
 
@@ -127,8 +135,8 @@ class TorchVNNLIB:
         self.use_parallel = use_parallel
         self.detect_fast_type = detect_fast_type
         self.output_format = output_format
-        self.backend = get_backend(output_format)
-        self.conversion_stats: dict[str, dict] = {}
+        self.backend = get_backend(cast(Literal["torch", "numpy"], output_format))
+        self.conversion_stats: dict[str, ConversionStats] = {}
 
     def _process_type1(
         self, lines: list[str], n_inputs: int, n_outputs: int, t: float
@@ -150,18 +158,16 @@ class TorchVNNLIB:
 
     def _process_type234(
         self,
-        processor_func,
+        processor_func: Callable[..., list[list[tuple[TensorLike, list[TensorLike]]]]],
         lines: list[str],
         n_inputs: int,
         n_outputs: int,
-        type_name: str,
-        t: float,
-        use_parsed_data: bool = False,
+        use_parsed_data: bool,
     ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
-        """Process TYPE2, TYPE3, or TYPE4 VNNLIB."""
+        """Dispatch to a TYPE2/3/4/5 processor; caller logs elapsed time."""
         if use_parsed_data:
             parsed_data = parse_simple_patterns(lines, verbose=self.verbose)
-            and_properties = processor_func(
+            return processor_func(
                 lines,
                 n_inputs,
                 n_outputs,
@@ -169,12 +175,17 @@ class TorchVNNLIB:
                 verbose=self.verbose,
                 parsed_data=parsed_data,
             )
-        else:
-            and_properties = processor_func(
-                lines, n_inputs, n_outputs, self.backend, verbose=self.verbose
-            )
-        _logger.info(f"  {type_name} processing: {time.perf_counter() - t:.4f}s")
-        return and_properties  # type: ignore[no-any-return]
+        return processor_func(lines, n_inputs, n_outputs, self.backend, verbose=self.verbose)
+
+    # Dispatch table: VNNLIBType -> (processor, needs_parse_simple_patterns).
+    # ``TYPE1`` is special-cased (it owns its parse_simple_patterns call inside
+    # ``_process_type1``); the rest share the ``_process_type234`` scaffolding.
+    _TYPE234_DISPATCH: ClassVar[dict[VNNLIBType, tuple[Callable[..., Any], bool]]] = {
+        VNNLIBType.TYPE2: (process_type2, True),
+        VNNLIBType.TYPE3: (process_type3, True),
+        VNNLIBType.TYPE4: (process_type4, False),
+        VNNLIBType.TYPE5: (process_type5, False),
+    }
 
     def _process_by_type(
         self,
@@ -188,18 +199,15 @@ class TorchVNNLIB:
 
         if vnnlib_type == VNNLIBType.TYPE1:
             return self._process_type1(lines, n_inputs, n_outputs, t)
-        if vnnlib_type == VNNLIBType.TYPE2:
-            return self._process_type234(
-                process_type2, lines, n_inputs, n_outputs, "Type2", t, use_parsed_data=True
+
+        handler = self._TYPE234_DISPATCH.get(vnnlib_type)
+        if handler is not None:
+            processor_func, use_parsed_data = handler
+            result = self._process_type234(
+                processor_func, lines, n_inputs, n_outputs, use_parsed_data
             )
-        if vnnlib_type == VNNLIBType.TYPE3:
-            return self._process_type234(
-                process_type3, lines, n_inputs, n_outputs, "Type3", t, use_parsed_data=True
-            )
-        if vnnlib_type == VNNLIBType.TYPE4:
-            return self._process_type234(process_type4, lines, n_inputs, n_outputs, "Type4", t)
-        if vnnlib_type == VNNLIBType.TYPE5:
-            return self._process_type234(process_type5, lines, n_inputs, n_outputs, "Type5", t)
+            _logger.info(f"  {vnnlib_type.name} processing: {time.perf_counter() - t:.4f}s")
+            return result
 
         _logger.info("Complex structure detected, using AST processing")
         return None
@@ -214,9 +222,11 @@ class TorchVNNLIB:
 
         t = time.perf_counter()
         expr = parse(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
+        if not isinstance(expr, And | Or):
+            raise ValueError(f"Expected And or Or expression, got {type(expr).__name__}: {expr}")
         nary_expr = cast(And | Or, expr)
         _logger.info(
-            "  Parsing: %d expressions, %.4fs", len(nary_expr.args), time.perf_counter() - t
+            f"  Parsing: {len(nary_expr.args)} expressions, {time.perf_counter() - t:.4f}s"
         )
 
         t = time.perf_counter()
@@ -276,27 +286,27 @@ class TorchVNNLIB:
             try:
                 and_properties = self._process_by_type(vnnlib_type, lines, n_inputs, n_outputs)
                 use_type_processor = and_properties is not None
-            except (ValueError, RuntimeError) as e:
+            except Exception as e:  # noqa: BLE001
                 fallback_reason = str(e)[:100]
-                _logger.warning("  Type processor failed, fallback to AST: %s", fallback_reason)
+                _logger.warning(f"  Type processor failed, fallback to AST: {fallback_reason}")
                 use_type_processor = False
 
         if not use_type_processor:
             and_properties = self._process_ast(lines, n_inputs, n_outputs)
 
-        # Type narrowing: ensure and_properties is not None
-        assert and_properties is not None, (
-            "and_properties must be assigned by type processor or AST"
-        )
+        if and_properties is None:
+            raise RuntimeError(
+                f"Internal error: neither fast-path nor AST produced properties for {vnnlib_path}"
+            )
         t = time.perf_counter()
-        _write_property(and_properties, target_folder_path, vnnlib_path, self.backend, self.verbose)
+        _write_property(and_properties, target_folder_path, vnnlib_path, self.backend)
         _logger.info(f"  Writing to disk: {time.perf_counter() - t:.4f}s")
 
         total_time = time.perf_counter() - t_start
         _logger.info(f"  Total: {total_time:.4f}s")
 
         self.conversion_stats[vnnlib_path] = {
-            "type": detected_type,
+            "type": str(detected_type),
             "used_fast": use_type_processor,
             "time": total_time,
             "n_inputs": n_inputs,

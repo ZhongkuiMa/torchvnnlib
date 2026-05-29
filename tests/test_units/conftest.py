@@ -197,7 +197,6 @@ def type1_parsed_data_simple():
             ("<=", "Y_", 1, 0.5),
         ],
         "complex_lines": [],
-        "complex_indices": [],
     }
 
 
@@ -219,5 +218,4 @@ def type1_parsed_data_complex():
         "complex_lines": [
             "(assert (or (and (>= Y_0 0.5) (<= Y_1 0.3)) (and (>= Y_1 Y_0) (<= Y_0 0.2))))",
         ],
-        "complex_indices": [4],
     }

@@ -7,82 +7,53 @@ import logging
 import time
 
 from torchvnnlib._backend import Backend, TensorLike
+from torchvnnlib._constraint_row import (
+    normalize_neg_zero,
+    write_compare_row,
+    write_value_bound_row,
+    write_value_bound_rows_eq,
+)
+from torchvnnlib._logging import _enable_verbose
+from torchvnnlib.fast_type._fast_type_detect import ParsedPatterns, parse_simple_patterns
 from torchvnnlib.fast_type._utils import parse_input_or_block
 
 _logger = logging.getLogger(__name__)
 
 
 def _process_output_constraints_type3(
-    simple_output_constrs: list[tuple],
-    n_outputs: int,
-    backend: Backend,
+    simple_output_constrs: list[tuple], n_outputs: int, backend: Backend
 ) -> list[TensorLike]:
-    """Process simple output constraints into tensor list.
+    """Stack ``Y_i <op> Y_j`` constraint tuples into one constraint block."""
+    if not simple_output_constrs:
+        return []
 
-    :param simple_output_constrs: List of constraint tuples.
-
-    :param n_outputs: Number of output variables.
-
-    :param backend: Backend instance.
-
-    :return: List of constraint tensors
-    """
-    output_constrs_list = []
-
-    if simple_output_constrs:
-        output_constr = backend.zeros((len(simple_output_constrs), n_outputs + 1), dtype="float64")
-        for i, (op, _, idx1, _, idx2) in enumerate(simple_output_constrs):
-            if op == "<=":
-                output_constr[i, idx1 + 1] = -1.0
-                output_constr[i, idx2 + 1] = 1.0
-            elif op == ">=":
-                output_constr[i, idx1 + 1] = 1.0
-                output_constr[i, idx2 + 1] = -1.0
-        output_constrs_list.append(output_constr)
-
-    return output_constrs_list
+    output_constr = backend.zeros((len(simple_output_constrs), n_outputs + 1), dtype="float64")
+    for i, (op, _, idx1, _, idx2) in enumerate(simple_output_constrs):
+        write_compare_row(output_constr[i], idx1, idx2, op)
+    return [normalize_neg_zero(output_constr)]
 
 
 def _process_output_bounds_type3(
-    simple_output_bounds: list[tuple],
-    n_outputs: int,
-    backend: Backend,
+    simple_output_bounds: list[tuple], n_outputs: int, backend: Backend
 ) -> list[TensorLike]:
-    """Process simple output bounds into tensor list.
+    """Stack ``Y_i <op> value`` bound tuples into one constraint block."""
+    if not simple_output_bounds:
+        return []
 
-    :param simple_output_bounds: List of bound tuples.
-
-    :param n_outputs: Number of output variables.
-
-    :param backend: Backend instance.
-
-    :return: List of bound tensors
-    """
-    output_bounds_list = []
-
-    if simple_output_bounds:
-        n_bounds = sum(2 if op == "=" else 1 for op, _, _, _ in simple_output_bounds)
-        output_bounds = backend.zeros((n_bounds, n_outputs + 1), dtype="float64")
-        row_idx = 0
-        for op, _, idx, value in simple_output_bounds:
-            if op == "<=":
-                output_bounds[row_idx, 0] = float(value)
-                output_bounds[row_idx, idx + 1] = -1.0
-                row_idx += 1
-            elif op == ">=":
-                output_bounds[row_idx, 0] = -float(value)
-                output_bounds[row_idx, idx + 1] = 1.0
-                row_idx += 1
-            elif op == "=":
-                output_bounds[row_idx, 0] = -float(value)
-                output_bounds[row_idx, idx + 1] = 1.0
-                row_idx += 1
-                output_bounds[row_idx, 0] = float(value)
-                output_bounds[row_idx, idx + 1] = -1.0
-                row_idx += 1
-        output_bounds_list.append(output_bounds)
-
-    return output_bounds_list
+    n_bounds = sum(2 if op == "=" else 1 for op, _, _, _ in simple_output_bounds)
+    output_bounds = backend.zeros((n_bounds, n_outputs + 1), dtype="float64")
+    row_idx = 0
+    for op, _, idx, value in simple_output_bounds:
+        value_f = float(value)
+        if op == "=":
+            write_value_bound_rows_eq(
+                output_bounds[row_idx], output_bounds[row_idx + 1], idx, value_f
+            )
+            row_idx += 2
+        else:
+            write_value_bound_row(output_bounds[row_idx], idx, op, value_f)
+            row_idx += 1
+    return [normalize_neg_zero(output_bounds)]
 
 
 def process_type3(
@@ -91,7 +62,7 @@ def process_type3(
     n_outputs: int,
     backend: Backend,
     verbose: bool = False,
-    parsed_data: dict | None = None,
+    parsed_data: ParsedPatterns | None = None,
 ) -> list[list[tuple[TensorLike, list[TensorLike]]]]:
     """Fast processor for Type3 VNN-LIB files.
 
@@ -112,13 +83,9 @@ def process_type3(
     t_start = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     if parsed_data is None:
-        from torchvnnlib.fast_type._fast_type_detect import parse_simple_patterns
-
         t = time.perf_counter()
         parsed_data = parse_simple_patterns(lines, verbose=False)
         if verbose:
@@ -130,7 +97,6 @@ def process_type3(
 
     if verbose:
         _logger.info("  Type3 processing:")
-    if verbose:
         _logger.info(f"    OR block lines: {len(or_block_lines)}")
 
     t = time.perf_counter()

@@ -5,10 +5,17 @@ __all__ = ["tokenize"]
 
 import logging
 import re
+import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from typing import Final
+
+from torchvnnlib._logging import _enable_verbose
 
 _logger = logging.getLogger(__name__)
+
+# Lines below this threshold tokenize sequentially; spawning workers is pure overhead.
+_PARALLEL_THRESHOLD: Final[int] = 100
 
 # Pre-compile regex pattern at module level for performance
 # The ordering of the regex is important - match the longest possible token first
@@ -28,16 +35,16 @@ TOKEN_PATTERN = re.compile(
 )
 
 
-def _tokenize_line(args: tuple[int, str]) -> deque[str] | None:
-    """Tokenize a single line (helper function for parallel processing).
+def _tokenize_line(indexed_line: tuple[int, str]) -> deque[str] | None:
+    """Tokenize a single line (parallel-friendly worker).
 
-    :param args: Tuple of (line_index, line_string).
-
-    :return: Deque of tokens, or None if line is empty
+    :param indexed_line: Tuple of (line_index, line_string).
+    :return: Deque of tokens, or ``None`` if line is empty.
+    :raises ValueError: If a token does not match :data:`TOKEN_PATTERN`.
     """
-    i, line = args
+    i, line = indexed_line
     pos = 0
-    tokens = []
+    tokens: list[str] = []
 
     while pos < len(line):
         match = TOKEN_PATTERN.match(line, pos)
@@ -72,15 +79,11 @@ def tokenize(
     :param use_parallel: Use parallel processing for large files.
     :return: A list of tokens.
     """
-    import time
-
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     # Sequential processing for small files or when parallel is disabled
-    if len(lines) < 100 or not use_parallel:
+    if len(lines) < _PARALLEL_THRESHOLD or not use_parallel:
         t = time.perf_counter()
         tokens_list = []
         for i, line in enumerate(lines):

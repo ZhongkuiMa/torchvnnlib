@@ -27,7 +27,12 @@ from typing import TypedDict
 import pytest
 
 from torchvnnlib import TorchVNNLIB
-from torchvnnlib.tests.utils import (
+
+# Ensure test utilities are importable (torchvnnlib is installed from src/)
+_tests_dir = str(Path(__file__).resolve().parent.parent)
+if _tests_dir not in sys.path:
+    sys.path.insert(0, _tests_dir)
+from utils import (  # noqa: E402
     find_all_vnnlib_files,
     find_benchmarks_folders,
 )
@@ -116,9 +121,9 @@ def test_benchmark_conversion(benchmark_dir, test_dir, results_dir):
                 stats = converter.conversion_stats[vnnlib_path]
                 _benchmark_stats[benchmark_name]["success"] += 1
                 _benchmark_stats[benchmark_name]["total_time"] += stats["time"]
-                _benchmark_stats[benchmark_name]["type_counts"][stats["type"].name] += 1
+                _benchmark_stats[benchmark_name]["type_counts"][stats["type"]] += 1
                 if stats["used_fast"]:
-                    _benchmark_stats[benchmark_name]["fast_type_counts"][stats["type"].name] += 1
+                    _benchmark_stats[benchmark_name]["fast_type_counts"][stats["type"]] += 1
 
             elapsed = time.perf_counter() - file_start
             print(f"  [{i}/{len(vnnlib_files)}] OK ({elapsed:.2f}s) - {Path(vnnlib_path).name}")

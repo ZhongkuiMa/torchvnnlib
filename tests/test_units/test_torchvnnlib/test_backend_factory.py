@@ -48,17 +48,17 @@ class TestBackendSelection:
 
         # Uppercase 'TORCH' should raise ValueError
         with pytest.raises(ValueError, match="Unknown backend"):
-            get_backend("TORCH")
+            get_backend("TORCH")  # type: ignore[arg-type]
 
     def test_get_backend_invalid_raises(self):
         """Test that invalid backend name raises ValueError."""
         with pytest.raises(ValueError, match="Unknown backend"):
-            get_backend("invalid_backend")
+            get_backend("invalid_backend")  # type: ignore[arg-type]
 
     def test_get_backend_empty_string(self):
         """Test that empty string raises ValueError."""
         with pytest.raises(ValueError, match="Unknown backend"):
-            get_backend("")
+            get_backend("")  # type: ignore[arg-type]
 
     def test_get_backend_default_is_torch(self, torch_available):
         """Test that default backend is torch (if available)."""

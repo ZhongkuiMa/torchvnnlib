@@ -1,21 +1,18 @@
-"""Combined fast type detection and parsing.
-
-This module combines type detection with data extraction to avoid duplicate regex scanning.
-Instead of scanning all lines twice (once for detection, once for parsing), we do it in one pass.
-"""
+"""Fast type detection and simple-pattern parsing for VNN-LIB files."""
 
 __docformat__ = "restructuredtext"
 __all__ = [
+    "ParsedPatterns",
     "VNNLIBType",
-    "fast_detect_and_parse",
     "fast_detect_type",
     "parse_simple_patterns",
 ]
 
 import logging
-import re
 import time
+from typing import TypedDict
 
+from torchvnnlib._logging import _enable_verbose
 from torchvnnlib.fast_type._enums import VNNLIBType
 from torchvnnlib.fast_type._utils import (
     SIMPLE_INPUT_BOUND_PATTERN,
@@ -23,53 +20,52 @@ from torchvnnlib.fast_type._utils import (
     SIMPLE_OUTPUT_CONSTRAINT_PATTERN,
 )
 
+
+# Public structural type for :func:`parse_simple_patterns` results. Replaces
+# the prior bare ``dict[str, Any]`` so static type-checkers catch key typos.
+# The runtime value is still a plain ``dict`` -- existing callers that
+# subscript by string key keep working unchanged.
+class ParsedPatterns(TypedDict):
+    """Buckets returned by :func:`parse_simple_patterns`.
+
+    The three ``simple_*`` lists carry already-classified constraint tuples;
+    ``complex_lines`` carries the residual lines that did not match any simple
+    regex and must fall through to the AST path.
+    """
+
+    simple_input_bounds: list[tuple[str, str, int, float]]
+    simple_output_constrs: list[tuple[str, str, int, str, int]]
+    simple_output_bounds: list[tuple[str, str, int, float]]
+    complex_lines: list[str]
+
+
 _logger = logging.getLogger(__name__)
 
-# Top-level OR pattern
-TOP_LEVEL_OR_PATTERN = re.compile(r"^\s*\(\s*assert\s+\(\s*or\s+", re.IGNORECASE)
 
-
-def _check_or_and_pattern(
-    stripped: str,
-) -> tuple[bool, bool, bool, bool]:
-    """Check (assert (or (and pattern and return flags."""
+def _classify_var_presence(stripped: str) -> tuple[bool, bool, bool]:
+    """Check stripped line for X_ / Y_ and return ``(is_input, is_output, is_mixed)``."""
     has_x = "X_" in stripped
     has_y = "Y_" in stripped
-    is_mixed = has_x and has_y
-    is_input = has_x and not has_y
-    is_output = has_y and not has_x
-    return is_mixed, is_input, is_output, True
-
-
-def _check_simple_pattern(stripped: str) -> tuple[bool, bool]:
-    """Check simple (assert pattern and return (is_input, is_output) flags."""
-    has_x = "X_" in stripped
-    has_y = "Y_" in stripped
-    is_input = has_x and not has_y
-    is_output = has_y and not has_x
-    return is_input, is_output
+    return has_x and not has_y, has_y and not has_x, has_x and has_y
 
 
 def _handle_or_and_pattern(
     stripped: str,
     pattern_flags: dict[str, bool],
 ) -> bool:
-    """Handle (assert (or (and pattern.
+    """Update flags for an ``(assert (or (and ...))`` line.
 
     :param stripped: Stripped line content.
-
-    :param pattern_flags: Dict of flags to update.
-
-    :return: True if should break from loop, False otherwise
+    :param pattern_flags: Flag dict updated in place.
+    :return: ``True`` only on mixed X+Y signal (caller may early-exit).
     """
-    is_mixed, is_input, is_output, _ = _check_or_and_pattern(stripped)
+    is_input, is_output, is_mixed = _classify_var_presence(stripped)
     if is_mixed:
         pattern_flags["has_or_and_mixed"] = True
         return True
     if is_input:
         pattern_flags["has_or_and_input"] = True
-        return pattern_flags["has_output_info"]
-    if is_output:
+    elif is_output:
         pattern_flags["has_or_and_output"] = True
         pattern_flags["has_output_info"] = True
     return False
@@ -79,19 +75,16 @@ def _handle_simple_pattern(
     stripped: str,
     pattern_flags: dict[str, bool],
 ) -> bool:
-    """Handle simple (assert pattern.
+    """Update flags for a flat ``(assert ...)`` line.
 
     :param stripped: Stripped line content.
-
-    :param pattern_flags: Dict of flags to update.
-
-    :return: True if should break from loop, False otherwise
+    :param pattern_flags: Flag dict updated in place.
+    :return: Always ``False`` (no early-exit signal from simple lines).
     """
-    is_input, is_output = _check_simple_pattern(stripped)
+    is_input, is_output, _is_mixed = _classify_var_presence(stripped)
     if is_input:
         pattern_flags["has_simple_input"] = True
-        return pattern_flags["has_output_info"]
-    if is_output:
+    elif is_output:
         pattern_flags["has_simple_output"] = True
         pattern_flags["has_output_info"] = True
     return False
@@ -119,15 +112,17 @@ def _update_type_patterns_from_line(
 
 
 def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
-    """Fast type detection without parsing - classify VNN-LIB structure."""
+    """Classify VNN-LIB structural shape without building an AST.
+
+    :param lines: Preprocessed assertion lines.
+    :param verbose: Emit timing logs.
+    :return: :class:`VNNLIBType` enum value.
+    """
     start_time = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
-    # Pattern counters
     pattern_flags = {
         "has_simple_input": False,
         "has_simple_output": False,
@@ -138,11 +133,14 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
     }
 
     # Full scan to avoid false negatives when inputs/outputs are interleaved.
+    # Early-exit on mixed OR/AND (signals TYPE5 / COMPLEX boundary already crossed).
     for line in lines:
-        stripped = line.strip()
-        _update_type_patterns_from_line(stripped, pattern_flags)
+        if (
+            _update_type_patterns_from_line(line.strip(), pattern_flags)
+            and pattern_flags["has_or_and_mixed"]
+        ):
+            break
 
-    # Classify type based on patterns
     vnnlib_type = _classify_type_by_patterns(
         pattern_flags["has_simple_input"],
         pattern_flags["has_simple_output"],
@@ -151,7 +149,7 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
         pattern_flags["has_or_and_mixed"],
     )
 
-    if verbose and start_time is not None:
+    if verbose:
         elapsed = time.perf_counter() - start_time
         _logger.info(f"  Fast type detection: {elapsed:.4f}s")
         _logger.info(f"    Detected: {vnnlib_type.name}")
@@ -166,43 +164,40 @@ def fast_detect_type(lines: list[str], verbose: bool = False) -> VNNLIBType:
     return vnnlib_type
 
 
-def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
-    """Parse simple input bounds and output constraints without type detection.
+def parse_simple_patterns(lines: list[str], verbose: bool = False) -> ParsedPatterns:
+    """Parse simple input/output bound patterns without building an AST.
 
-    This function only parses simple patterns (no OR/AND structures):
+    Recognises three flat regex shapes:
 
-    - Simple input bounds: ``(assert (<=/>=|= X_5 0.123))``
-    - Simple output constraints: ``(assert (<=/>= Y_0 Y_1))``
-    - Simple output bounds: ``(assert (<=/>=|= Y_5 0.123))``
+    - Simple input bound: ``(assert (<=/>=|= X_5 0.123))``
+    - Simple output constraint: ``(assert (<=/>= Y_0 Y_1))``
+    - Simple output bound: ``(assert (<=/>=|= Y_5 0.123))``
 
-    Use this when you already know the type and only need to extract simple patterns.
-    For combined detection and parsing, use :func:`fast_detect_and_parse` instead.
+    Anything else lands in ``complex_lines`` for the AST fallback. Call this
+    once the file's :class:`VNNLIBType` is known and you only need the simple
+    buckets.
 
     :param lines: Preprocessed assertion lines.
     :param verbose: Print timing information.
-    :return: Dictionary with keys ``simple_input_bounds``, ``simple_output_constrs``,
-        ``simple_output_bounds``, ``complex_lines``, and ``complex_indices``.
+    :return: :class:`ParsedPatterns` mapping bucket names to constraint
+        tuples (input/output bounds, output constraints) and residual lines.
     """
     start_time = time.perf_counter()
 
     if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
         _enable_verbose()
 
     simple_input_bounds = []
     simple_output_constrs = []
     simple_output_bounds = []
     complex_lines = []
-    complex_indices = []
 
-    for i, line in enumerate(lines):
+    for line in lines:
         stripped = line.strip()
 
         # Skip OR/AND structures - these are complex
         if stripped.startswith("(assert (or"):
             complex_lines.append(line)
-            complex_indices.append(i)
             continue
 
         # Try to parse simple assertions
@@ -218,7 +213,6 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
                     simple_input_bounds.append((op, var_prefix, int(idx), float(value)))
                 else:
                     complex_lines.append(line)
-                    complex_indices.append(i)
                 continue
 
             # Simple output patterns
@@ -240,22 +234,19 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
 
             # No match - complex
             complex_lines.append(line)
-            complex_indices.append(i)
             continue
 
         # Other lines - complex
         complex_lines.append(line)
-        complex_indices.append(i)
 
-    data = {
+    data: ParsedPatterns = {
         "simple_input_bounds": simple_input_bounds,
         "simple_output_constrs": simple_output_constrs,
         "simple_output_bounds": simple_output_bounds,
         "complex_lines": complex_lines,
-        "complex_indices": complex_indices,
     }
 
-    if verbose and start_time is not None:
+    if verbose:
         elapsed = time.perf_counter() - start_time
         _logger.info(f"  Parse simple patterns: {elapsed:.4f}s")
         _logger.info(f"    Input bounds: {len(simple_input_bounds)}")
@@ -264,211 +255,6 @@ def parse_simple_patterns(lines: list[str], verbose: bool = False) -> dict:
         _logger.info(f"    Complex lines: {len(complex_lines)}")
 
     return data
-
-
-def _process_or_and_line_in_parse(
-    stripped: str,
-    line: str,
-    i: int,
-    pattern_flags: dict[str, bool],
-    complex_lines: list[str],
-    complex_indices: list[int],
-) -> None:
-    """Process (assert (or (and pattern in fast_detect_and_parse.
-
-    :param stripped: Stripped line content.
-
-    :param line: Original line.
-
-    :param i: Line index.
-
-    :param pattern_flags: Dict of pattern flags to update.
-
-    :param complex_lines: List to append complex lines.
-
-    :param complex_indices: List to append complex indices.
-
-    """
-    has_x = "X_" in stripped
-    has_y = "Y_" in stripped
-
-    if has_x and has_y:
-        pattern_flags["has_or_and_mixed"] = True
-    elif has_x and not has_y:
-        pattern_flags["has_or_and_input"] = True
-    elif has_y and not has_x:
-        pattern_flags["has_or_and_output"] = True
-
-    complex_lines.append(line)
-    complex_indices.append(i)
-
-
-def _process_simple_assertion_in_parse(
-    stripped: str,
-    line: str,
-    i: int,
-    pattern_flags: dict[str, bool],
-    simple_input_bounds: list[tuple],
-    simple_output_constrs: list[tuple],
-    complex_lines: list[str],
-    complex_indices: list[int],
-) -> None:
-    """Process simple (assert pattern in fast_detect_and_parse.
-
-    :param stripped: Stripped line content.
-
-    :param line: Original line.
-
-    :param i: Line index.
-
-    :param pattern_flags: Dict of pattern flags to update.
-
-    :param simple_input_bounds: List to append input bounds.
-
-    :param simple_output_constrs: List to append output constraints.
-
-    :param complex_lines: List to append complex lines.
-
-    :param complex_indices: List to append complex indices.
-
-    """
-    has_x = "X_" in stripped
-    has_y = "Y_" in stripped
-
-    if has_x and not has_y:
-        pattern_flags["has_simple_input"] = True
-        match = SIMPLE_INPUT_BOUND_PATTERN.match(line)
-        if match:
-            op, var_prefix, idx, value = match.groups()
-            simple_input_bounds.append((op, var_prefix, int(idx), float(value)))
-        else:
-            complex_lines.append(line)
-            complex_indices.append(i)
-
-    elif has_y and not has_x:
-        pattern_flags["has_simple_output"] = True
-        match = SIMPLE_OUTPUT_CONSTRAINT_PATTERN.match(line)
-        if match:
-            op, var_prefix1, idx1, var_prefix2, idx2 = match.groups()
-            simple_output_constrs.append((op, var_prefix1, int(idx1), var_prefix2, int(idx2)))
-        else:
-            complex_lines.append(line)
-            complex_indices.append(i)
-
-
-def fast_detect_and_parse(
-    lines: list[str], n_inputs: int, n_outputs: int, verbose: bool = False
-) -> tuple[VNNLIBType, dict]:
-    """Detect VNNLib type and parse data in a single pass.
-
-    Type detection is based on checking characteristic patterns:
-
-    - (1) ``(assert X_`` -- simple input bound (only X, no Y)
-    - (2) ``(assert Y_`` -- simple output constraint (only Y, no X)
-    - (3) ``(assert (or (and X_`` -- OR of AND blocks for inputs (only X, no Y)
-    - (4) ``(assert (or (and Y_`` -- OR of AND blocks for outputs (only Y, no X)
-    - (5) ``(assert (or (and`` with both X and Y -- TYPE5 pattern
-
-    Type1: has only (1) and (2).
-    Type2: has only (3) and (2).
-    Type3: has only (1) and (4).
-    Type4: has only (3) and (4).
-    Type5: has only (5).
-
-    :param lines: Preprocessed assertion lines.
-    :param n_inputs: Number of input variables.
-    :param n_outputs: Number of output variables.
-    :param verbose: Print timing information.
-    :return: Tuple of (VNNLIBType enum value, dictionary with parsed data).
-    """
-    start_time = time.perf_counter()
-
-    if verbose:
-        from torchvnnlib._logging import _enable_verbose
-
-        _enable_verbose()
-
-    n_lines = len(lines)
-    simple_input_bounds: list[tuple] = []
-    simple_output_constrs: list[tuple] = []
-    complex_lines: list[str] = []
-    complex_indices: list[int] = []
-
-    # Pattern counters in a dict
-    pattern_flags = {
-        "has_simple_input": False,
-        "has_simple_output": False,
-        "has_or_and_input": False,
-        "has_or_and_output": False,
-        "has_or_and_mixed": False,
-    }
-
-    # Single pass through all lines
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-
-        # Check for (assert (or (and ...)) pattern
-        if stripped.startswith("(assert (or") and "(and" in stripped:
-            _process_or_and_line_in_parse(
-                stripped, line, i, pattern_flags, complex_lines, complex_indices
-            )
-            continue
-
-        # Check for simple assertions (no nested or/and)
-        if stripped.startswith("(assert") and not stripped.startswith("(assert (or"):
-            _process_simple_assertion_in_parse(
-                stripped,
-                line,
-                i,
-                pattern_flags,
-                simple_input_bounds,
-                simple_output_constrs,
-                complex_lines,
-                complex_indices,
-            )
-            continue
-
-        # Other complex patterns
-        complex_lines.append(line)
-        complex_indices.append(i)
-
-    # Classify type based on patterns
-    vnnlib_type = _classify_type_by_patterns(
-        pattern_flags["has_simple_input"],
-        pattern_flags["has_simple_output"],
-        pattern_flags["has_or_and_input"],
-        pattern_flags["has_or_and_output"],
-        pattern_flags["has_or_and_mixed"],
-    )
-
-    metadata = {
-        "n_lines": n_lines,
-        **pattern_flags,
-    }
-
-    # Note: For pure type detection without parsing, use fast_detect_type_only() instead.
-    # This function includes optional parsing for TYPE1 simple patterns to avoid re-scanning.
-    data = {
-        "simple_input_bounds": simple_input_bounds,
-        "simple_output_constrs": simple_output_constrs,
-        "complex_lines": complex_lines,
-        "complex_indices": complex_indices,
-        "metadata": metadata,
-    }
-
-    if verbose and start_time is not None:
-        elapsed = time.perf_counter() - start_time
-        _logger.info(f"  Fast detect+parse: {elapsed:.4f}s")
-        _logger.info(f"    Detected: {vnnlib_type.name}")
-        _logger.info(
-            f"    Patterns: simple_in={pattern_flags['has_simple_input']}, "
-            f"simple_out={pattern_flags['has_simple_output']}, "
-            f"or_in={pattern_flags['has_or_and_input']}, "
-            f"or_out={pattern_flags['has_or_and_output']}, "
-            f"or_mixed={pattern_flags['has_or_and_mixed']}"
-        )
-
-    return vnnlib_type, data
 
 
 def _classify_type_by_patterns(
