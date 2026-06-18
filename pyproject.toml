@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchvnnlib"
-version = "2026.5.4"
+version = "2026.6.0"
 description = "VNN-specific utilities and abstractions for PyTorch"
 readme = "README.md"
 requires-python = ">=3.11"

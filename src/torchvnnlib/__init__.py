@@ -2,10 +2,12 @@
 
 Provides conversion from VNN-LIB specification format to PyTorch tensor
 or NumPy array representations for neural network verification.
+
+.. seealso:: ``torchvnnlib/CONVENTIONS.md`` for code conventions.
 """
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.5.4"
+__version__ = "2026.6.0"
 __all__ = ["TorchVNNLIB", "__version__"]
 
 import logging

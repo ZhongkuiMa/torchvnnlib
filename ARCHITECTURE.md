@@ -1,3 +1,10 @@
+---
+type: DESCRIPTION
+note: "Descriptive. Mirrors current code; update to follow code changes. < functional code."
+---
+
+> **This file IS**: the package tree, module responsibilities, and data flow of torchvnnlib. **It is NOT**: a user guide or API reference — see README.md.
+
 # TorchVNNLIB Architecture
 
 VNN-LIB to tensor converter with two processing paths: fast type-specific regex processors (Types 1-5) and a general AST pipeline.

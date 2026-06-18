@@ -109,7 +109,26 @@ def _write_property(
 
 
 class TorchVNNLIB:
-    """VNN-LIB to tensor converter supporting PyTorch and NumPy backends."""
+    """VNN-LIB to tensor converter supporting PyTorch and NumPy backends.
+
+    Pipeline: classify the VNNLIB file by property type (TYPE1-5 or
+    unknown), then either dispatch to a fast type-specific processor
+    or fall back to the full AST pipeline (tokenize -> parse -> optimize
+    -> flatten -> convert).  The converted properties are written as
+    ``.pth`` (torch) or ``.npz`` (numpy) files.
+
+    Fast-path condition: when ``detect_fast_type=True`` (default), the
+    file is first classified by structural pattern; TYPE1-5 files use
+    specialised processors that skip the full parser. Unknown types
+    fall back to ``_process_ast``. Set ``detect_fast_type=False`` to
+    force the AST pipeline unconditionally.
+
+    :param verbose: Print detailed timing information.
+    :param use_parallel: Use parallel processing where possible.
+    :param detect_fast_type: Use optimized type-specific processors.
+    :param output_format: Output format (``"torch"`` for .pth or
+        ``"numpy"`` for .npz).
+    """
 
     def __init__(
         self,

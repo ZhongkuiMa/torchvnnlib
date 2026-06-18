@@ -1,3 +1,10 @@
+---
+type: DESCRIPTION
+note: "Descriptive. Mirrors current code; update to follow code changes. < functional code."
+---
+
+> **This file IS**: the contributor setup and workflow guide specific to torchvnnlib. **It is NOT**: project-wide conventions — see root CONTRIBUTING.md.
+
 # Contributing to TorchVNNLIB
 
 Shared conventions (imports, formatting, docstrings) are in the root [CONTRIBUTING.md](../CONTRIBUTING.md). This file covers torchvnnlib-specific workflow.
