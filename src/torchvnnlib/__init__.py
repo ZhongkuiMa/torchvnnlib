@@ -7,7 +7,7 @@ or NumPy array representations for neural network verification.
 """
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.6.0"
+__version__ = "2026.6.1"
 __all__ = ["TorchVNNLIB", "__version__"]
 
 import logging
