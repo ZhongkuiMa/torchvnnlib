@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchvnnlib"
-version = "2026.7.0"
+version = "2026.7.1"
 description = "VNN-specific utilities and abstractions for PyTorch"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -60,7 +60,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Comprehensive rule set (matches propdag standard)
+# Comprehensive rule set
 select = [
     "A",     # flake8-builtins
     "B",     # flake8-bugbear
