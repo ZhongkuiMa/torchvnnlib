@@ -93,4 +93,4 @@ src/torchvnnlib/
 
 - [README.md](README.md) — usage, API, output format
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development workflow
-- Root [ARCHITECTURE.md](../ARCHITECTURE.md) — rover system architecture
+- Root [ARCHITECTURE.md](../ARCHITECTURE.md) — project system architecture
