@@ -270,23 +270,32 @@ class TorchVNNLIB:
         _logger.info(f"  Tensor conversion: {num_props} AND properties, {elapsed:.4f}s")
         return and_properties
 
-    def convert(self, vnnlib_path: str, target_folder_path: str | None = None) -> None:
+    def convert(
+        self,
+        vnnlib_path: str = "",
+        target_folder_path: str | None = None,
+        *,
+        lines: list[str] | None = None,
+    ) -> None:
         """Convert VNN-LIB file to tensor data.
 
-        :param vnnlib_path: Path to .vnnlib file.
+        :param vnnlib_path: Path to .vnnlib file (ignored when *lines* is provided).
 
         :param target_folder_path: Output directory path.
 
+        :param lines: In-memory VNNLIB lines (skip file read).
         """
-        _logger.info(f"TorchVNNLIB: converting {vnnlib_path}")
+        if lines is None:
+            _logger.info(f"TorchVNNLIB: converting {vnnlib_path}")
+            t = time.perf_counter()
+            vnnlib_file = Path(vnnlib_path)
+            with vnnlib_file.open() as f:
+                lines = f.readlines()
+            _logger.info(f"  Read file: {time.perf_counter() - t:.4f}s")
+        else:
+            _logger.info("TorchVNNLIB: converting in-memory lines")
         _logger.info(f"  Output format: {self.output_format}")
         t_start = time.perf_counter()
-
-        t = time.perf_counter()
-        vnnlib_file = Path(vnnlib_path)
-        with vnnlib_file.open() as f:
-            lines = f.readlines()
-        _logger.info(f"  Read file: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
         lines, n_inputs, n_outputs = preprocess_vnnlib(lines)
