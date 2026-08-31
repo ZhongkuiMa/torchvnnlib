@@ -241,9 +241,9 @@ saving, and stacking operations used by the conversion pipeline.
 | # | Rule | Pass/Fail |
 |---|------|-----------|
 | 11.1 | Constructor takes `verbose: bool = False, use_parallel: bool = True` | ☐ |
-| 11.2 | Main entry point: `convert(vnnlib_path: str, ...)` — takes a file path, reads the file internally, then runs the pipeline | ☐ |
+| 11.2 | Canonical entry point: `parse(vnnlib_path: str, ...)` returns immutable ordered tensor properties in memory; `convert(...)` delegates to it and optionally writes artifacts | ☐ |
 | 11.3 | `conversion_stats: dict` attribute tracks per-stage timing and resource metrics | ☐ |
-| 11.4 | Conversion flow: preprocess → type-detect → [fast-path or tokenize → parse → optimize → flatten → convert_to_tensor]. Type detection happens BEFORE parsing (not after), enabling fast-path skip for simple constraint types | ☐ |
+| 11.4 | Parse flow: preprocess → type-detect → [fast-path or tokenize → AST parse → optimize → flatten → convert_to_tensor]. Type detection happens BEFORE AST parsing, enabling fast-path skip for simple constraint types | ☐ |
 | 11.5 | Each conversion stage has a corresponding method or delegate module | ☐ |
 | 11.6 | ThreadPoolExecutor used for parallel processing when `use_parallel=True`; each stage timed with `time.perf_counter()` when `verbose=True` | ☐ |
 

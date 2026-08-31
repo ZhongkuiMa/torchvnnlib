@@ -148,6 +148,25 @@ class TestPreprocessWhitespace:
         assert n_outputs == 1
 
 
+def test_preprocess_accepts_wide_shallow_top_level_or():
+    """Expression breadth is valid and must not be mistaken for missing parens."""
+    clauses = [f"(and (= X_0 {idx}) (>= Y_0 0.0))" for idx in range(2_000)]
+    lines = [
+        "(declare-const X_0 Real)",
+        "(declare-const Y_0 Real)",
+        "(assert (or",
+        *clauses,
+        "))",
+    ]
+
+    expressions, n_inputs, n_outputs = preprocess_vnnlib(lines)
+
+    assert n_inputs == 1
+    assert n_outputs == 1
+    assert len(expressions) == 1
+    assert expressions[0].count("(and ") == len(clauses)
+
+
 class TestPreprocessVariableDeclarations:
     """Test variable declaration handling."""
 

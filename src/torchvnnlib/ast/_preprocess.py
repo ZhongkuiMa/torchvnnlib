@@ -11,11 +11,12 @@ ASSERT_PATTERN = re.compile(r"^\(assert\s+.*\)$")
 DECL_INPUT_PATTERN = re.compile(r"declare-const\s+X_\d+")
 DECL_OUTPUT_PATTERN = re.compile(r"declare-const\s+Y_\d+")
 
-# Soft guard against pathological/adversarial input. A merged expression nested
-# deeper than this is almost certainly malformed; raising early prevents OOM
-# from unbounded paren accumulation in :func:`_merge_multi_line_expr`.
+# Structural guard against pathological/adversarial input. A merged expression
+# nested deeper than this is almost certainly malformed. Expression breadth is
+# deliberately unrestricted: official VNN-COMP properties contain shallow
+# top-level disjunctions larger than 50 MiB, and the source is already resident
+# in ``lines`` before this pass begins.
 _MAX_PAREN_DEPTH: Final[int] = 10_000
-_MAX_MERGED_CHARS: Final[int] = 50 * 1024 * 1024  # 50 MiB
 
 
 def _remove_comments(lines: list[str]) -> list[str]:
@@ -56,12 +57,11 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
 
     :param lines: Lines after declaration removal.
     :return: One complete S-expression per output line.
-    :raises ValueError: On unbalanced parentheses or guard-rail violation
-        (depth > :data:`_MAX_PAREN_DEPTH`, accumulated buffer > 50 MiB).
+    :raises ValueError: On unbalanced parentheses or nesting deeper than
+        :data:`_MAX_PAREN_DEPTH`.
     """
     new_lines = []
     current_parts: list[str] = []
-    current_size = 0
     paren_count = 0
 
     for line in lines:
@@ -70,24 +70,17 @@ def _merge_multi_line_expr(lines: list[str]) -> list[str]:
             continue
 
         current_parts.append(stripped)
-        current_size += len(stripped) + 1
         paren_count += stripped.count("(")
         paren_count -= stripped.count(")")
 
         if paren_count > _MAX_PAREN_DEPTH:
             raise ValueError(f"Paren nesting exceeds {_MAX_PAREN_DEPTH}; input likely malformed.")
-        if current_size > _MAX_MERGED_CHARS:
-            raise ValueError(
-                f"Pending merged expression exceeds {_MAX_MERGED_CHARS} bytes; "
-                "input likely malformed (missing closing paren)."
-            )
         if paren_count < 0:
             raise ValueError("Unbalanced parentheses in VNN-LIB file (extra ')').")
 
         if paren_count == 0 and current_parts:
             new_lines.append(" ".join(current_parts))
             current_parts = []
-            current_size = 0
 
     if current_parts:
         raise ValueError("Unbalanced parentheses in VNN-LIB file (missing ')').")

@@ -7,12 +7,12 @@ or NumPy array representations for neural network verification.
 """
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.7.2"
-__all__ = ["TorchVNNLIB", "__version__"]
+__version__ = "2026.8.0"
+__all__ = ["TensorProperties", "TensorProperty", "TorchVNNLIB", "__version__"]
 
 import logging
 
-from torchvnnlib._torchvnnlib import TorchVNNLIB
+from torchvnnlib._torchvnnlib import TensorProperties, TensorProperty, TorchVNNLIB
 
 _logger = logging.getLogger(__name__)
 _logger.addHandler(logging.NullHandler())

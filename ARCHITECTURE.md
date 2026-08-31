@@ -58,7 +58,7 @@ src/torchvnnlib/
 | Mistake | Detection Signal | Fix |
 |---------|-----------------|-----|
 | Using `torch.tensor()` directly in a processor | `mypy` or fails with numpy backend | Use `backend.tensor()` |
-| Fast processor output shape differs from AST path | Benchmark tests fail on specific .vnnlib files | Match `list[list[tuple[TensorLike, list[TensorLike]]]]` structure |
+| Fast processor output shape differs from AST path | Benchmark tests fail on specific .vnnlib files | Match the canonical immutable `TensorProperties` structure at `parse()` |
 | Adding export to `__init__.py` without `__all__` entry | `ruff check` F401 (unused import in `__init__`) | Add to both import and `__all__` |
 
 ## Processing Flow
@@ -79,7 +79,8 @@ src/torchvnnlib/
                                                               ▼
                                                         and_properties
     │
-    └─► _write_property() → .pth/.npz files on disk
+    └─► parse() → immutable ordered tensor properties in memory
+                └─► convert() → optional .pth/.npz files on disk
 ```
 
 ## Conventions

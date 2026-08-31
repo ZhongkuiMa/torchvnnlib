@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import torch
 
 from torchvnnlib import TorchVNNLIB
 
@@ -239,6 +240,39 @@ class TestTorchVNNLIBConversion:
             assert "n_outputs" in stats
             assert "output_format" in stats
             assert stats["time"] > 0
+
+    @pytest.mark.parametrize(
+        "fixture_name",
+        [
+            "temp_vnnlib_simple",
+            "temp_vnnlib_type2",
+            "temp_vnnlib_type3_or",
+            "temp_vnnlib_type4_or",
+            "temp_vnnlib_type5",
+        ],
+    )
+    def test_parse_matches_convert_artifacts(self, fixture_name, request, tmp_path):
+        """Keep the canonical in-memory result equal to optional disk output."""
+        vnnlib_path = request.getfixturevalue(fixture_name)
+        converter = TorchVNNLIB()
+
+        properties = converter.parse(vnnlib_path)
+        output_path = tmp_path / "output"
+        converter.convert(vnnlib_path, str(output_path))
+
+        assert isinstance(properties, tuple)
+        for group_idx, group in enumerate(properties):
+            assert isinstance(group, tuple)
+            for prop_idx, (input_bounds, output_constrs) in enumerate(group):
+                data = torch.load(
+                    output_path / f"or_group_{group_idx}" / f"sub_prop_{prop_idx}.pth",
+                    weights_only=True,
+                )
+                torch.testing.assert_close(data["input"], input_bounds)
+                assert isinstance(output_constrs, tuple)
+                assert len(data["output"]) == len(output_constrs)
+                for actual, expected in zip(data["output"], output_constrs, strict=True):
+                    torch.testing.assert_close(actual, expected)
 
     def test_convert_verbose_output(self, temp_vnnlib_simple, capsys):
         """Test that verbose mode produces output."""

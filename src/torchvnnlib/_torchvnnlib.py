@@ -1,7 +1,7 @@
 """Main TorchVNNLIB class for loading and converting VNN-LIB files."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["ConversionStats", "TorchVNNLIB"]
+__all__ = ["ConversionStats", "TensorProperties", "TensorProperty", "TorchVNNLIB"]
 
 import logging
 import time
@@ -19,9 +19,11 @@ from torchvnnlib.ast import (
     Or,
     flatten,
     optimize,
-    parse,
     preprocess_vnnlib,
     tokenize,
+)
+from torchvnnlib.ast import (
+    parse as parse_ast,
 )
 from torchvnnlib.fast_type import (
     VNNLIBType,
@@ -35,6 +37,9 @@ from torchvnnlib.fast_type import (
 )
 
 _logger = logging.getLogger(__name__)
+
+TensorProperty = tuple[TensorLike, tuple[TensorLike, ...]]
+TensorProperties = tuple[tuple[TensorProperty, ...], ...]
 
 
 class ConversionStats(TypedDict):
@@ -59,7 +64,7 @@ class ConversionStats(TypedDict):
 
 
 def _save_property_file(
-    or_properties: list[tuple[TensorLike, list[TensorLike]]],
+    or_properties: tuple[TensorProperty, ...],
     or_folder_path: str,
     backend: Backend,
 ) -> None:
@@ -79,7 +84,7 @@ def _save_property_file(
 
 
 def _write_property(
-    and_properties: list[list[tuple[TensorLike, list[TensorLike]]]],
+    and_properties: TensorProperties,
     target_folder_path: str | None,
     vnnlib_path: str,
     backend: Backend,
@@ -240,7 +245,7 @@ class TorchVNNLIB:
         _logger.info(f"  Tokenization: {time.perf_counter() - t:.4f}s")
 
         t = time.perf_counter()
-        expr = parse(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
+        expr = parse_ast(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
         if not isinstance(expr, And | Or):
             raise ValueError(f"Expected And or Or expression, got {type(expr).__name__}: {expr}")
         nary_expr = cast(And | Or, expr)
@@ -270,20 +275,17 @@ class TorchVNNLIB:
         _logger.info(f"  Tensor conversion: {num_props} AND properties, {elapsed:.4f}s")
         return and_properties
 
-    def convert(
+    def parse(
         self,
         vnnlib_path: str = "",
-        target_folder_path: str | None = None,
         *,
         lines: list[str] | None = None,
-    ) -> None:
-        """Convert VNN-LIB file to tensor data.
+    ) -> TensorProperties:
+        """Parse VNN-LIB input into immutable tensor properties.
 
         :param vnnlib_path: Path to .vnnlib file (ignored when *lines* is provided).
-
-        :param target_folder_path: Output directory path.
-
         :param lines: In-memory VNNLIB lines (skip file read).
+        :return: OR groups containing ordered input and output tensor properties.
         """
         if lines is None:
             _logger.info(f"TorchVNNLIB: converting {vnnlib_path}")
@@ -326,10 +328,6 @@ class TorchVNNLIB:
             raise RuntimeError(
                 f"Internal error: neither fast-path nor AST produced properties for {vnnlib_path}"
             )
-        t = time.perf_counter()
-        _write_property(and_properties, target_folder_path, vnnlib_path, self.backend)
-        _logger.info(f"  Writing to disk: {time.perf_counter() - t:.4f}s")
-
         total_time = time.perf_counter() - t_start
         _logger.info(f"  Total: {total_time:.4f}s")
 
@@ -342,3 +340,27 @@ class TorchVNNLIB:
             "output_format": self.output_format,
             "fallback_reason": fallback_reason,
         }
+        return tuple(
+            tuple((input_bounds, tuple(output_constrs)) for input_bounds, output_constrs in group)
+            for group in and_properties
+        )
+
+    def convert(
+        self,
+        vnnlib_path: str = "",
+        target_folder_path: str | None = None,
+        *,
+        lines: list[str] | None = None,
+    ) -> None:
+        """Convert VNN-LIB input and write tensor properties to disk.
+
+        :param vnnlib_path: Path to .vnnlib file (ignored when *lines* is provided).
+        :param target_folder_path: Output directory path.
+        :param lines: In-memory VNNLIB lines (skip file read).
+        """
+        t_start = time.perf_counter()
+        properties = self.parse(vnnlib_path, lines=lines)
+        _write_property(properties, target_folder_path, vnnlib_path, self.backend)
+        elapsed = time.perf_counter() - t_start
+        self.conversion_stats[vnnlib_path]["time"] = elapsed
+        _logger.info(f"  Writing complete: {elapsed:.4f}s total")

@@ -7,7 +7,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-Convert VNN-LIB verification property files (`.vnnlib`) into PyTorch tensors (`.pth`) or NumPy arrays (`.npz`) for repeated loading in neural network verification pipelines.
+Parse VNN-LIB verification properties into ordered PyTorch tensors or NumPy arrays in memory, with optional `.pth` / `.npz` output for persistent artifacts.
 
 ## Installation
 
@@ -26,11 +26,10 @@ from torchvnnlib import TorchVNNLIB
 import torch
 
 converter = TorchVNNLIB(output_format="torch", detect_fast_type=True)
-converter.convert("property.vnnlib", target_folder_path="output")
-
-data = torch.load("output/or_group_0/sub_prop_0.pth")
-print(data["input"].shape)   # (n_inputs, 2) — per-variable [lower, upper] bounds
-print(len(data["output"]))   # list of (n_constraints, 1+n_vars) inequality tensors
+properties = converter.parse("property.vnnlib")
+input_bounds, output_constraints = properties[0][0]
+print(input_bounds.shape)          # (n_inputs, 2)
+print(len(output_constraints))     # inequality tensors
 ```
 
 For NumPy output, use `output_format="numpy"` and `numpy.load(..., allow_pickle=True)`.
@@ -50,6 +49,10 @@ converter.convert(
     target_folder_path=None,  # output directory (default: vnnlib stem)
 )
 ```
+
+`parse()` is the canonical API and preserves source order without filesystem
+round trips. `convert()` delegates to `parse()` and writes the same tensors
+when persistent artifacts are required.
 
 Each output file contains two keys:
 
