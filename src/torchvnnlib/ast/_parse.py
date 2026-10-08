@@ -59,8 +59,22 @@ def _parse_tokens_list(
     return exprs
 
 
-def _parse_tokens(tokens: deque[str], depth: int = 0) -> Expr:
-    """Parse one S-expression token stream.
+def _pop_token(tokens: deque[str], context: str) -> str:
+    """Pop one token or raise a grammar error with local context."""
+    if not tokens:
+        raise ValueError(f"Unexpected end of VNN-LIB expression while parsing {context}.")
+    return tokens.popleft()
+
+
+def _pop_closing_paren(tokens: deque[str], context: str) -> None:
+    """Consume the closing parenthesis for ``context`` or fail closed."""
+    token = _pop_token(tokens, context)
+    if token != ")":
+        raise ValueError(f"Expected ')' after {context}, got {token!r}.")
+
+
+def _parse_expr(tokens: deque[str], depth: int) -> Expr:
+    """Parse one expression from ``tokens``.
 
     Uses ``deque.popleft`` (O(1)) for token consumption -- list-based pop is
     thousands of times slower at this scale.
@@ -76,14 +90,14 @@ def _parse_tokens(tokens: deque[str], depth: int = 0) -> Expr:
             "input is likely malformed or adversarial."
         )
 
-    tok = tokens.popleft()
+    tok = _pop_token(tokens, "expression")
 
     if tok == "(":
-        op = tokens.popleft()
+        op = _pop_token(tokens, "operator")
 
         if op == "assert":
-            expr = _parse_tokens(tokens, depth + 1)
-            tokens.popleft()  # Expecting ')'
+            expr = _parse_expr(tokens, depth + 1)
+            _pop_closing_paren(tokens, "assert expression")
             return expr
 
         op_info = OPS_MAP.get(op)
@@ -92,20 +106,20 @@ def _parse_tokens(tokens: deque[str], depth: int = 0) -> Expr:
 
             if is_nary:
                 args = []
-                while tokens[0] != ")":
-                    args.append(_parse_tokens(tokens, depth + 1))
-                tokens.popleft()  # Expecting ')'
+                while tokens and tokens[0] != ")":
+                    args.append(_parse_expr(tokens, depth + 1))
+                _pop_closing_paren(tokens, f"{op} expression")
                 return op_class(args)  # type: ignore[call-arg]
             # Binary operator. Optional extra parens around the operand pair.
-            if tokens[0] == "(":
+            if tokens and tokens[0] == "(":
                 tokens.popleft()
-                a = _parse_tokens(tokens, depth + 1)
-                b = _parse_tokens(tokens, depth + 1)
-                tokens.popleft()  # Expecting ')'
+                a = _parse_expr(tokens, depth + 1)
+                b = _parse_expr(tokens, depth + 1)
+                _pop_closing_paren(tokens, f"parenthesized {op} operands")
             else:
-                a = _parse_tokens(tokens, depth + 1)
-                b = _parse_tokens(tokens, depth + 1)
-            tokens.popleft()  # Expecting ')'
+                a = _parse_expr(tokens, depth + 1)
+                b = _parse_expr(tokens, depth + 1)
+            _pop_closing_paren(tokens, f"{op} expression")
             return op_class(a, b)  # type: ignore[call-arg]
         raise ValueError(f"Unknown operator: {op}")
 
@@ -114,6 +128,20 @@ def _parse_tokens(tokens: deque[str], depth: int = 0) -> Expr:
         return Cst(float(tok))
     except ValueError:
         return Var(tok)
+
+
+def _parse_tokens(tokens: deque[str], depth: int = 0) -> Expr:
+    """Parse exactly one complete S-expression token stream.
+
+    :param tokens: Tokens for one top-level S-expression.
+    :param depth: Initial recursion depth, retained for internal compatibility.
+    :return: Root ``Expr`` of the parsed expression.
+    :raises ValueError: On incomplete input or unconsumed trailing tokens.
+    """
+    expr = _parse_expr(tokens, depth)
+    if tokens:
+        raise ValueError(f"Unexpected trailing tokens after VNN-LIB expression: {list(tokens)!r}")
+    return expr
 
 
 def _merge_all_exprs_as_and(exprs_list: list[Expr]) -> Expr:

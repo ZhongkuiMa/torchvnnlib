@@ -72,18 +72,35 @@ def _check_row_ndim(row: TensorLike) -> None:
         )
 
 
-def _check_var_index(idx: int) -> None:
-    """Raise if ``idx`` is negative; negative idx would clobber the bias slot.
+def _check_var_index(idx: int, size: int) -> None:
+    """Raise if ``idx`` falls outside a variable axis of length ``size``.
 
     ``row[idx + 1] = ...`` with ``idx = -1`` rewrites ``row[0]`` and silently
-    corrupts the bias. Callers feed regex-parsed non-negative integers today,
-    but the helpers are in ``__all__`` so the invariant is enforced here.
+    corrupts the bias. An index at or beyond ``size`` either raises a backend-
+    specific exception or, in callers that pre-filter it, silently drops a
+    constraint. Keep both bounds in this shared emission boundary.
     """
     if idx < 0:
         raise ValueError(
             f"variable index must be non-negative; got {idx}. Negative indices "
             "would overwrite the bias slot via wrap-around."
         )
+    if idx >= size:
+        raise ValueError(f"variable index {idx} out of range [0, {size})")
+
+
+def _check_input_bounds_shape(input_bounds: TensorLike) -> int:
+    """Validate an input-bound matrix and return its variable-axis length."""
+    shape = input_bounds.shape
+    if len(shape) != 2 or shape[1] != 2:
+        raise ValueError(f"input bound writer requires shape (n_inputs, 2), got {tuple(shape)}")
+    return int(shape[0])
+
+
+def _check_row_var_index(row: TensorLike, idx: int) -> None:
+    """Validate a constraint row and one index into its variable columns."""
+    _check_row_ndim(row)
+    _check_var_index(idx, int(row.shape[0]) - 1)
 
 
 def apply_input_bound(input_bounds: TensorLike, idx: int, op: BoundOp, value: float) -> None:
@@ -96,9 +113,9 @@ def apply_input_bound(input_bounds: TensorLike, idx: int, op: BoundOp, value: fl
     :param idx: Variable index (0-based, non-negative).
     :param op: ``"<="`` (upper), ``">="`` (lower), or ``"="`` (both).
     :param value: Bound value.
-    :raises ValueError: If ``idx < 0``.
+    :raises ValueError: If the tensor shape is invalid or ``idx`` is out of range.
     """
-    _check_var_index(idx)
+    _check_var_index(idx, _check_input_bounds_shape(input_bounds))
     if op == "<=":
         input_bounds[idx, 1] = value
     elif op == ">=":
@@ -118,10 +135,9 @@ def write_value_bound_row(row: TensorLike, idx: int, op: Literal["<=", ">="], va
     :param idx: Output variable index (0-based, non-negative).
     :param op: ``"<="`` or ``">="``.
     :param value: Bound value.
-    :raises ValueError: If ``row`` is not 1-D or ``idx < 0``.
+    :raises ValueError: If ``row`` is not 1-D or ``idx`` is out of range.
     """
-    _check_row_ndim(row)
-    _check_var_index(idx)
+    _check_row_var_index(row, idx)
     if op == "<=":
         row[0] = value
         row[idx + 1] = -1.0
@@ -139,11 +155,10 @@ def write_value_bound_rows_eq(
     :param row_leq: Second row, writes the ``<= value`` half.
     :param idx: Output variable index (0-based, non-negative).
     :param value: Bound value.
-    :raises ValueError: If either row is not 1-D, or ``idx < 0``.
+    :raises ValueError: If either row is not 1-D, or ``idx`` is out of range.
     """
-    _check_row_ndim(row_geq)
-    _check_row_ndim(row_leq)
-    _check_var_index(idx)
+    _check_row_var_index(row_geq, idx)
+    _check_row_var_index(row_leq, idx)
     row_geq[0] = -value if value != 0.0 else 0.0
     row_geq[idx + 1] = 1.0
     row_leq[0] = value
@@ -160,11 +175,10 @@ def write_compare_row(row: TensorLike, idx1: int, idx2: int, op: Literal["<=", "
     :param idx1: First output variable index (non-negative).
     :param idx2: Second output variable index (non-negative).
     :param op: ``"<="`` or ``">="``.
-    :raises ValueError: If ``row`` is not 1-D or either index is negative.
+    :raises ValueError: If ``row`` is not 1-D or either index is out of range.
     """
-    _check_row_ndim(row)
-    _check_var_index(idx1)
-    _check_var_index(idx2)
+    _check_row_var_index(row, idx1)
+    _check_row_var_index(row, idx2)
     if op == "<=":
         row[idx1 + 1] = -1.0
         row[idx2 + 1] = 1.0

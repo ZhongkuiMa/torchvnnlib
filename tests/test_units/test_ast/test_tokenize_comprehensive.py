@@ -486,15 +486,9 @@ class TestTokenizeErrorHandling:
     """Test error handling in tokenization."""
 
     def test_tokenize_invalid_character(self):
-        """Test that invalid characters raise error.
-
-        Note: The current implementation hangs on invalid characters.
-        This is a known limitation of the regex-based tokenizer.
-        """
-        # [REVIEW] Tokenizer infinite-loops on invalid chars; unskip when fixed
-        pytest.skip("Invalid character causes infinite loop in tokenizer - known limitation")
+        """Test that invalid characters raise an error instead of stalling."""
         lines = ["(assert (<@ X_0 1.0))"]  # @ is invalid
-        with pytest.raises(ValueError, match="Invalid token"):
+        with pytest.raises(ValueError, match=r"Invalid token at line 1, position 10"):
             tokenize(lines)
 
     def test_tokenize_unclosed_paren(self):

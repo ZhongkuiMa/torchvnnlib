@@ -7,7 +7,7 @@ or NumPy array representations for neural network verification.
 """
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.8.0"
+__version__ = "2026.10.0"
 __all__ = ["TensorProperties", "TensorProperty", "TorchVNNLIB", "__version__"]
 
 import logging

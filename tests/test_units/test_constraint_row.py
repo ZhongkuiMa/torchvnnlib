@@ -161,3 +161,33 @@ class TestNegativeIndexGuard:
             write_compare_row(row, idx1=-1, idx2=2, op="<=")
         with pytest.raises(ValueError, match="non-negative"):
             write_compare_row(row, idx1=0, idx2=-2, op="<=")
+
+
+class TestUpperIndexGuard:
+    """Regression: row writers reject indices outside the allocated variable axis."""
+
+    def test_apply_input_bound_rejects_upper_index(self):
+        bounds = np.full((3, 2), float("nan"))
+        with pytest.raises(ValueError, match=r"out of range \[0, 3\)"):
+            apply_input_bound(bounds, idx=3, op="<=", value=1.0)
+
+    def test_write_value_bound_row_rejects_upper_index(self):
+        row = np.zeros((4,))
+        with pytest.raises(ValueError, match=r"out of range \[0, 3\)"):
+            write_value_bound_row(row, idx=3, op="<=", value=2.0)
+
+    def test_write_value_bound_rows_eq_rejects_upper_index(self):
+        rg = np.zeros((4,))
+        rl = np.zeros((4,))
+        with pytest.raises(ValueError, match=r"out of range \[0, 3\)"):
+            write_value_bound_rows_eq(rg, rl, idx=3, value=0.5)
+
+    def test_write_compare_row_rejects_upper_index(self):
+        row = np.zeros((5,))
+        with pytest.raises(ValueError, match=r"out of range \[0, 4\)"):
+            write_compare_row(row, idx1=0, idx2=4, op="<=")
+
+    def test_apply_input_bound_rejects_invalid_shape(self):
+        bounds = np.full((3,), float("nan"))
+        with pytest.raises(ValueError, match=r"shape \(n_inputs, 2\)"):
+            apply_input_bound(bounds, idx=0, op="<=", value=1.0)

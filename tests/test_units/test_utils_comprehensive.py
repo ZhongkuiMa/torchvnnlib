@@ -167,13 +167,11 @@ class TestParseInputBoundsBlock:
         assert result_np[0, 0] == pytest.approx(1e-5)
         assert result_np[0, 1] == pytest.approx(1e-3)
 
-    def test_out_of_range_index_skipped(self, backend):
-        """Test that out-of-range indices are skipped."""
+    def test_out_of_range_index_rejected(self, backend):
+        """Out-of-range input indices must not silently drop a bound."""
         block = "(<=  X_5  1.0) (<=  X_0  2.0)"
-        result = parse_input_bounds_block(block, n_inputs=2, backend=backend)
-        # Only X_0 should be set
-        result_np = backend.to_numpy(result) if hasattr(backend, "to_numpy") else result
-        assert result_np[0, 1] == pytest.approx(2.0)
+        with pytest.raises(ValueError, match="out of range"):
+            parse_input_bounds_block(block, n_inputs=2, backend=backend)
 
     def test_float_parsing(self, backend):
         """Test various float formats."""
@@ -218,12 +216,11 @@ class TestParseOutputAndBlock:
     # test_output_bound_eq, test_multiple_constraints.
     # STR2: merged 4 MED_DUP.
 
-    def test_out_of_range_index_skipped(self, backend):
-        """Test that out-of-range indices are skipped."""
-        block = "(<=  Y_0  0.5)"
-        result = parse_output_and_block(block, n_outputs=2, backend=backend)
-        # Only Y_0 bound should be processed
-        assert result.shape[0] >= 1
+    def test_out_of_range_index_rejected(self, backend):
+        """Out-of-range output indices must not silently drop a constraint."""
+        block = "(<=  Y_2  0.5)"
+        with pytest.raises(ValueError, match="out of range"):
+            parse_output_and_block(block, n_outputs=2, backend=backend)
 
     def test_empty_block(self, backend):
         """Test parsing empty block."""

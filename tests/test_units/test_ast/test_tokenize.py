@@ -46,18 +46,14 @@ class TestTokenizeBasic:
         assert all(tokens for tokens in result)
 
     def test_tokenize_empty_lines_filtered(self):
-        """Test that purely empty lines are filtered, whitespace lines produce empty tokens."""
+        """Test that empty and whitespace-only lines are filtered."""
         lines = ["(+ 1 2)", "", "(- 3 1)", "   ", "\t"]
         result = tokenize(lines)
-        # Purely empty strings are filtered, but whitespace-only strings produce empty deques
-        assert len(result) == 4
+        assert len(result) == 2
         # First line is valid expression
         assert list(result[0]) == ["(", "+", "1", "2", ")"]
         # Third line is valid expression
         assert list(result[1]) == ["(", "-", "3", "1", ")"]
-        # Whitespace lines produce empty token deques
-        assert list(result[2]) == [""]
-        assert list(result[3]) == [""]
 
     def test_tokenize_returns_deques(self):
         """Test that tokenize returns list of deques."""

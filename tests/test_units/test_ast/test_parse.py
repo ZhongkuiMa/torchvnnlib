@@ -364,4 +364,31 @@ class TestParseErrorHandling:
         with pytest.raises(ValueError, match="Unknown operator"):
             _parse_tokens(tokens)
 
+    @pytest.mark.parametrize(
+        "tokens",
+        [
+            deque(["(", "<=", "X_0"]),
+            deque(["(", "<=", "X_0", "1.0"]),
+            deque(["(", "and", "(", "<=", "X_0", "1.0", ")"]),
+        ],
+    )
+    def test_parse_rejects_incomplete_expression(self, tokens):
+        """Incomplete grammar raises ``ValueError`` instead of deque errors."""
+        with pytest.raises(ValueError, match="Unexpected end"):
+            _parse_tokens(tokens)
+
+    def test_parse_rejects_token_in_place_of_closing_paren(self):
+        """An assertion cannot hide an extra term where its close belongs."""
+        tokens = deque(["(", "assert", "(", "<=", "X_0", "1.0", ")", "X_1", ")"])
+
+        with pytest.raises(ValueError, match=r"Expected '\)' after assert expression"):
+            _parse_tokens(tokens)
+
+    def test_parse_rejects_trailing_tokens(self):
+        """A top-level expression must consume its complete token stream."""
+        tokens = deque(["(", "<=", "X_0", "1.0", ")", "X_1"])
+
+        with pytest.raises(ValueError, match="Unexpected trailing tokens"):
+            _parse_tokens(tokens)
+
     # [REVIEW] Deleted: test_parse_assert_statement (merged into test_parse_binary_operators_basic)

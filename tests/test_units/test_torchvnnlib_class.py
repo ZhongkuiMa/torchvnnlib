@@ -597,6 +597,18 @@ class TestTorchVNNLIBExceptionHandling:
             converter.convert(temp_vnnlib_simple, output_path)
             assert Path(output_path).exists()
 
+    def test_out_of_range_fast_path_constraint_fails_closed(self):
+        """A malformed TYPE5 index must survive neither fast-path nor AST fallback."""
+        lines = [
+            "(declare-const X_0 Real)",
+            "(declare-const Y_0 Real)",
+            "(assert (or (and (>= X_0 0.0) (<= X_0 1.0) (<= Y_1 0.5))))",
+        ]
+        converter = TorchVNNLIB(detect_fast_type=True, use_parallel=False)
+
+        with pytest.raises(ValueError, match="out of range"):
+            converter.parse(lines=lines)
+
 
 class TestTorchVNNLIBType3Processing:
     """Test TYPE3 VNN-LIB processing (OR inputs + simple outputs)."""

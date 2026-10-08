@@ -174,8 +174,6 @@ def parse_and_block(
     output_constraints: list[TensorLike] = []
     for op, _var_prefix, idx_str, value_str in OUTPUT_BOUND_INNER_PATTERN.findall(block):
         idx = int(idx_str)
-        if idx >= n_outputs:
-            continue
         value = float(value_str)
 
         if op == "=":
@@ -215,8 +213,6 @@ def parse_input_bounds_block(block: str, n_inputs: int, backend: Backend) -> Ten
     for match in matches:
         op, _var_prefix, idx_str, value_str = match
         idx = int(idx_str)
-        if idx >= n_inputs:
-            continue
         apply_input_bound(input_bounds, idx, op, float(value_str))
 
     return input_bounds

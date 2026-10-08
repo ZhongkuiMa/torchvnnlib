@@ -28,7 +28,7 @@ TOKEN_PATTERN = re.compile(
             [a-zA-Z_][a-zA-Z0-9_-]*                 |  # identifier
             [()]                                    |  # parentheses
             <=|>=|==|!=|=|<|>                       |  # comparison operators
-            [-+*/]                                  |  # arithmetic operators
+            [-+*/]                                     # arithmetic operators
         )
         """,
     re.VERBOSE,
@@ -47,6 +47,8 @@ def _tokenize_line(indexed_line: tuple[int, str]) -> deque[str] | None:
     tokens: list[str] = []
 
     while pos < len(line):
+        if line[pos:].isspace():
+            break
         match = TOKEN_PATTERN.match(line, pos)
         if not match:
             raise ValueError(
@@ -72,7 +74,7 @@ def tokenize(
     - Identifiers: a word including "declare-const", "Real", "assert", "and", "or".
     - Numbers: a sequence of digits, optionally containing a decimal point
     - Operators: `+`, `-`, `*`, `/`, `<=`, `>=`, `=`, `<`, `>`, etc.
-    For other tokens, it will be ignored.
+    Invalid tokens raise :class:`ValueError` with their line and position.
 
     :param lines: The input string to tokenize.
     :param verbose: Print timing information.
