@@ -13,7 +13,9 @@ from typing import Any, ClassVar, Literal, TypedDict, cast
 
 from torchvnnlib._backend import Backend, TensorLike, get_backend
 from torchvnnlib._logging import _enable_verbose
+from torchvnnlib._query import VNNLibQuery, VNNLibVersion
 from torchvnnlib._to_tensor import convert_to_tensor
+from torchvnnlib._v2 import detect_version, parse_query
 from torchvnnlib.ast import (
     And,
     Or,
@@ -211,6 +213,20 @@ class TorchVNNLIB:
         VNNLIBType.TYPE5: (process_type5, False),
     }
 
+    @staticmethod
+    def detect_version(
+        vnnlib_path: str = "", *, lines: list[str] | tuple[str, ...] | None = None
+    ) -> VNNLibVersion:
+        """Detect a VNN-LIB input's declared language version."""
+        return detect_version(vnnlib_path, lines=lines)
+
+    @staticmethod
+    def parse_query(
+        vnnlib_path: str = "", *, lines: list[str] | tuple[str, ...] | None = None
+    ) -> VNNLibQuery:
+        """Parse VNN-LIB 2.0 into the immutable query representation."""
+        return parse_query(vnnlib_path, lines=lines)
+
     def _process_by_type(
         self,
         vnnlib_type: VNNLIBType,
@@ -287,6 +303,12 @@ class TorchVNNLIB:
         :param lines: In-memory VNNLIB lines (skip file read).
         :return: OR groups containing ordered input and output tensor properties.
         """
+        version = detect_version(vnnlib_path, lines=lines)
+        if version.major >= 2:
+            raise ValueError(
+                "parse() only returns legacy VNN-LIB 1.0 tensor properties; "
+                "use parse_query() for VNN-LIB 2.0"
+            )
         if lines is None:
             _logger.info(f"TorchVNNLIB: converting {vnnlib_path}")
             t = time.perf_counter()

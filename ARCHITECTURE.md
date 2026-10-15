@@ -7,13 +7,19 @@ note: "Descriptive. Mirrors current code; update to follow code changes. < funct
 
 # TorchVNNLIB Architecture
 
-VNN-LIB to tensor converter with two processing paths: fast type-specific regex processors (Types 1-5) and a general AST pipeline.
+VNN-LIB package with a legacy tensor converter and a separate 2.0 query adapter.
+The legacy path has fast type-specific regex processors (Types 1-5) plus a
+general AST pipeline. The 2.0 path delegates syntax and type checking to the
+official parser, then immediately converts its AST into frozen package-owned
+values.
 
 ## Package Tree
 
 ```
 src/torchvnnlib/
 ├── _torchvnnlib.py    # TorchVNNLIB class — entry point, dispatches to fast or AST path
+├── _query.py          # Owned immutable VNN-LIB 2.0 query representation
+├── _v2.py             # Official-parser adapter, version and gzip ingestion
 ├── _backend.py        # Backend ABC — abstracts torch/numpy ops (modify when: adding backend)
 ├── _to_tensor.py      # AST-to-tensor conversion (modify when: changing output format)
 ├── ast/               # General parser — tokenize, parse, optimize, flatten
@@ -43,6 +49,7 @@ src/torchvnnlib/
 | Add output backend | `_backend.py` | `_torchvnnlib.py` (get_backend routing) | `ast/`, `fast_type/` | Must implement `Backend` ABC (enforced) | `mypy` type errors |
 | Change output structure | `_to_tensor.py` | `fast_type/_type*_processor.py` (must produce same structure) | `ast/` | Both paths must produce identical output (observed) | Tests comparing fast vs AST fail |
 | Fix parsing bug | `ast/_parse.py` or `ast/_tokenize.py` | None | `fast_type/` (separate code path) | — | `pytest tests/` fails |
+| Change 2.0 query semantics | `_query.py`, `_v2.py` | public exports and adapter tests | legacy `ast/`, `fast_type/` | Upstream AST stays private | V2 query tests fail |
 
 ## Dependency Rules
 
@@ -81,6 +88,9 @@ src/torchvnnlib/
     │
     └─► parse() → immutable ordered tensor properties in memory
                 └─► convert() → optional .pth/.npz files on disk
+
+.vnnlib 2.x / .vnnlib.gz
+    └─► official parser → `_v2.py` adapter → immutable `VNNLibQuery`
 ```
 
 ## Conventions
@@ -89,6 +99,8 @@ src/torchvnnlib/
 - Private modules prefixed with `_` (public API only through `__init__.py`)
 - Expression nodes in `ast/_expr.py` are frozen dataclasses
 - `TensorLike` type alias used everywhere (resolves to `torch.Tensor | np.ndarray`)
+- The official parser is a boundary dependency; its objects never leave `_v2.py`
+- `parse()` rejects 2.x and `parse_query()` rejects legacy input
 
 ## Related Documents
 

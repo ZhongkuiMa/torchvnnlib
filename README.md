@@ -1,13 +1,10 @@
 # TorchVNNLIB
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://github.com/ZhongkuiMa/torchvnnlib/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/ZhongkuiMa/torchvnnlib/actions/workflows/unit-tests.yml)
-[![codecov](https://codecov.io/gh/ZhongkuiMa/torchvnnlib/branch/main/graph/badge.svg)](https://codecov.io/gh/ZhongkuiMa/torchvnnlib)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-Parse VNN-LIB verification properties into ordered PyTorch tensors or NumPy arrays in memory, with optional `.pth` / `.npz` output for persistent artifacts.
+Parse VNN-LIB verification properties into package-owned values. The legacy
+VNN-LIB 1.0 API produces ordered PyTorch tensors or NumPy arrays; the 2.0 API
+produces an immutable typed query representation backed by the official parser.
 
 ## Installation
 
@@ -31,6 +28,21 @@ input_bounds, output_constraints = properties[0][0]
 print(input_bounds.shape)          # (n_inputs, 2)
 print(len(output_constraints))     # inequality tensors
 ```
+
+VNN-LIB 2.0 uses a separate API because named networks, shaped tensors, and
+general query expressions cannot be represented by the legacy tensor tuple:
+
+```python
+version = TorchVNNLIB.detect_version("query.vnnlib.gz")
+query = TorchVNNLIB.parse_query("query.vnnlib.gz")
+print(version, query.networks, query.branches, query.capabilities)
+```
+
+`parse_query()` accepts plain or gzip-compressed input and returns only frozen
+TorchVNNLIB dataclasses; objects from the upstream `vnnlib` parser are not
+exposed. A version declaration must be the first non-comment statement;
+malformed or late declarations are rejected. Query execution and network
+binding belong to the consuming verifier.
 
 For NumPy output, use `output_format="numpy"` and `numpy.load(..., allow_pickle=True)`.
 
@@ -61,53 +73,28 @@ Each output file contains two keys:
 | `"input"` | `(n_inputs, 2)` | Per-variable `[lower, upper]` bounds |
 | `"output"` | list of `(n_constraints, 1+n_vars)` | Linear inequalities: `b + Ax >= 0` |
 
-OR-disjunctions produce one subdirectory per group:
-
-```
-output/
-├── or_group_0/
-│   ├── sub_prop_0.pth
-│   └── sub_prop_1.pth
-└── or_group_1/
-    └── sub_prop_0.pth
-```
+OR-disjunctions produce one subdirectory per group.
 
 ## Type Detection
 
-With `detect_fast_type=True`, the converter identifies common VNN-LIB patterns and selects optimized processors:
-
-| Type | Pattern |
-|------|---------|
-| 1 | Simple input bounds + simple output constraints |
-| 2 | Simple input bounds + OR-grouped output constraints |
-| 3 | OR-grouped input bounds + simple output constraints |
-| 4 | OR-grouped input bounds + OR-grouped output constraints |
-| 5 | Top-level OR wrapping complete properties |
-| Other | Non-standard — falls back to AST-based parsing |
-
-Set `detect_fast_type=False` to force AST-based parsing for all files.
+With `detect_fast_type=True`, legacy input selects optimized processors for the
+five common bound/disjunction shapes and falls back to the AST otherwise. Set
+it to `False` to force AST parsing.
 
 ## Limitations
+
+The legacy `parse()` API has these restrictions:
 
 - Input variables must have both lower and upper bounds (closed intervals)
 - Only linear output constraints are supported
 - Variables must follow the `X_i` / `Y_i` naming convention
 - No if-then-else control flow
 
-## Project Structure
+`parse_query()` parses VNN-LIB 2.0 syntax but does not itself execute networks
+or claim that a downstream verifier supports every parsed capability.
 
-```
-src/torchvnnlib/
-├── _torchvnnlib.py      # TorchVNNLIB class (main entry point)
-├── _backend.py          # Backend abstraction (torch/numpy)
-├── _to_tensor.py        # AST-to-tensor conversion
-├── ast/                 # Parser pipeline: tokenize, parse, optimize, flatten
-└── fast_type/           # Type-specific optimized processors (Types 1-5)
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Implementation structure and contribution rules live in
+[ARCHITECTURE.md](ARCHITECTURE.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
