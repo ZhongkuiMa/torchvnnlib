@@ -8,34 +8,30 @@ __docformat__ = "restructuredtext"
 __all__ = ["Backend", "NumpyBackend", "TensorLike", "TorchBackend", "get_backend"]
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Final, Literal, TypeAlias, cast
+from functools import cache
+from importlib import import_module
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 import numpy as np
 
-try:
-    import torch
-
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
-
-TORCH_AVAILABLE: Final[bool] = _TORCH_AVAILABLE
-
-# Shared once across all TorchBackend allocators; rebuilds were burning microseconds.
-if TORCH_AVAILABLE:
-    _TORCH_DTYPE_MAP: Final[dict[str, "torch.dtype"]] = {
-        "float64": torch.float64,
-        "float32": torch.float32,
-        "int64": torch.long,
-    }
-else:
-    _TORCH_DTYPE_MAP = {}  # type: ignore[misc]
-
 # TensorLike union type - supports both torch.Tensor and np.ndarray
 if TYPE_CHECKING:
+    import torch
+
     TensorLike: TypeAlias = torch.Tensor | np.ndarray[Any, Any]
 else:
     TensorLike: TypeAlias = Any  # Runtime: use Any for compatibility
+
+
+@cache
+def _load_torch() -> Any:
+    """Import PyTorch only when the torch backend is explicitly requested."""
+    try:
+        return import_module("torch")
+    except ImportError as exc:
+        raise ImportError(
+            "PyTorch is not installed. Install it with 'pip install torch' or use backend='numpy'"
+        ) from exc
 
 
 class Backend(ABC):
@@ -135,6 +131,15 @@ class Backend(ABC):
 class TorchBackend(Backend):
     """PyTorch backend implementation using ``torch`` tensors."""
 
+    def __init__(self) -> None:
+        """Load PyTorch after the caller explicitly selects this backend."""
+        self._torch = _load_torch()
+        self._dtype_map = {
+            "float64": self._torch.float64,
+            "float32": self._torch.float32,
+            "int64": self._torch.long,
+        }
+
     def zeros(self, shape: tuple[int, ...], dtype: str = "float64") -> TensorLike:
         """Create a zero-filled tensor via ``torch.zeros``.
 
@@ -144,7 +149,10 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: Zero-filled ``torch.Tensor``.
         """
-        return torch.zeros(shape, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
+        return cast(
+            TensorLike,
+            self._torch.zeros(shape, dtype=self._dtype_map.get(dtype, self._torch.float64)),
+        )
 
     def full(self, shape: tuple[int, ...], fill_value: float, dtype: str = "float64") -> TensorLike:
         """Create a constant-filled tensor via ``torch.full``.
@@ -154,7 +162,12 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: Constant-filled ``torch.Tensor``.
         """
-        return torch.full(shape, fill_value, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
+        return cast(
+            TensorLike,
+            self._torch.full(
+                shape, fill_value, dtype=self._dtype_map.get(dtype, self._torch.float64)
+            ),
+        )
 
     def tensor(self, data: list | Any, dtype: str = "float64") -> TensorLike:
         """Create a ``torch.Tensor`` from Python data.
@@ -163,7 +176,10 @@ class TorchBackend(Backend):
         :param dtype: Data type string (``"float64"``, ``"float32"``, ``"int64"``).
         :return: ``torch.Tensor`` constructed from *data*.
         """
-        return torch.tensor(data, dtype=_TORCH_DTYPE_MAP.get(dtype, torch.float64))
+        return cast(
+            TensorLike,
+            self._torch.tensor(data, dtype=self._dtype_map.get(dtype, self._torch.float64)),
+        )
 
     def stack(self, arrays: list[TensorLike], axis: int = 0) -> TensorLike:
         """Stack tensors along *axis* via ``torch.stack``.
@@ -174,8 +190,12 @@ class TorchBackend(Backend):
         :param axis: Dimension to stack along.
         :return: Stacked ``torch.Tensor``.
         """
-        return torch.stack(
-            [a if isinstance(a, torch.Tensor) else torch.tensor(a) for a in arrays], dim=axis
+        return cast(
+            TensorLike,
+            self._torch.stack(
+                [a if isinstance(a, self._torch.Tensor) else self._torch.tensor(a) for a in arrays],
+                dim=axis,
+            ),
         )
 
     def isnan(self, arr: TensorLike) -> TensorLike:
@@ -184,8 +204,8 @@ class TorchBackend(Backend):
         :param arr: Input tensor or array-like.
         :return: Boolean ``torch.Tensor`` with ``True`` at NaN positions.
         """
-        tensor = arr if isinstance(arr, torch.Tensor) else torch.tensor(arr)
-        return torch.isnan(tensor)
+        tensor = arr if isinstance(arr, self._torch.Tensor) else self._torch.tensor(arr)
+        return cast(TensorLike, self._torch.isnan(tensor))
 
     def where(self, condition: TensorLike) -> tuple[TensorLike, ...]:
         """Return indices where *condition* is ``True`` via ``torch.where``.
@@ -193,8 +213,12 @@ class TorchBackend(Backend):
         :param condition: Boolean tensor or array-like.
         :return: Tuple of index tensors, one per dimension.
         """
-        tensor = condition if isinstance(condition, torch.Tensor) else torch.tensor(condition)
-        return cast(tuple[TensorLike, ...], torch.where(tensor))
+        tensor = (
+            condition
+            if isinstance(condition, self._torch.Tensor)
+            else self._torch.tensor(condition)
+        )
+        return cast(tuple[TensorLike, ...], self._torch.where(tensor))
 
     def save(self, data: dict[str, Any], file_path: str) -> None:
         """Serialize *data* to disk via ``torch.save``.
@@ -202,7 +226,7 @@ class TorchBackend(Backend):
         :param data: Dictionary mapping names to tensors/values.
         :param file_path: Destination path (typically ``*.pth``).
         """
-        torch.save(data, file_path)
+        self._torch.save(data, file_path)
 
     @property
     def name(self) -> str:
@@ -299,11 +323,6 @@ def get_backend(backend_name: Literal["torch", "numpy"] = "torch") -> Backend:
     :raises ValueError: If ``backend_name`` is not one of the accepted values.
     """
     if backend_name == "torch":
-        if not TORCH_AVAILABLE:
-            raise ImportError(
-                "PyTorch is not installed. Install it with "
-                "'pip install torch' or use backend='numpy'"
-            )
         return TorchBackend()
     if backend_name == "numpy":
         return NumpyBackend()

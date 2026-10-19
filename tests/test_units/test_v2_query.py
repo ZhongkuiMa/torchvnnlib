@@ -6,6 +6,7 @@ import pytest
 from torchvnnlib import (
     TorchVNNLIB,
     VNNLibComparator,
+    VNNLibInputDomain,
     VNNLibMultiply,
     VNNLibTensorKind,
     VNNLibVariable,
@@ -73,14 +74,94 @@ def test_parse_query_owns_immutable_dnf_and_metadata():
     assert len(query.networks) == 1
     assert query.networks[0].inputs[0].kind is VNNLibTensorKind.INPUT
     assert query.networks[0].inputs[0].shape == (1, 2)
+    assert len(query.global_input_domain) == 1
+    input_bound = query.global_input_domain.bound_at(0)
+    assert input_bound.tensor_name == "X"
+    assert input_bound.indices == (0, 0)
+    assert input_bound.comparator is VNNLibComparator.GE
+    assert input_bound.lexeme == "0.0"
     assert len(query.branches) == 2
-    assert query.branches[0][0].comparator is VNNLibComparator.GE
+    assert query.branches[0][0].comparator is VNNLibComparator.LT
     assert query.capabilities.has_strict_comparisons
     variable = query.branches[0][0].lhs
     assert isinstance(variable, VNNLibVariable)
-    assert variable.indices == (0, 0)
+    assert variable.indices == (0,)
     with pytest.raises(FrozenInstanceError):
         query.version = VNNLibVersion(1, 0)  # type: ignore[misc]
+
+
+def test_parse_query_packs_global_and_branch_local_input_bounds():
+    query = TorchVNNLIB.parse_query(
+        lines="""(vnnlib-version <2.0>)
+(declare-network f
+  (declare-input X float32 [2])
+  (declare-output Y float32 [1]))
+(assert (and (>= X[0] -0.1250) (< 1.500 X[1])))
+(assert (or (<= X[0] 0.0) (>= Y[0] 2.0)))
+""".splitlines(keepends=True)
+    )
+
+    assert [
+        (bound.tensor_name, bound.indices, bound.comparator, bound.lexeme)
+        for bound in query.global_input_domain
+    ] == [
+        ("X", (0,), VNNLibComparator.GE, "-0.1250"),
+        ("X", (1,), VNNLibComparator.GT, "1.500"),
+    ]
+    assert len(query.branches) == 2
+    assert len(query.branch_input_domains) == 2
+    assert [
+        (bound.tensor_name, bound.indices, bound.comparator, bound.lexeme)
+        for bound in query.branch_input_domains[0]
+    ] == [("X", (0,), VNNLibComparator.LE, "0.0")]
+    assert len(query.branch_input_domains[1]) == 0
+    assert query.branches[0] == ()
+    assert query.branches[1][0].comparator is VNNLibComparator.GE
+
+
+def test_parse_query_keeps_input_only_disjunction_as_packed_branches():
+    query = TorchVNNLIB.parse_query(
+        lines="""(vnnlib-version <2.0>)
+(declare-network f
+  (declare-input X float32 [1])
+  (declare-output Y float32 [1]))
+(assert (or (< X[0] 0.0) (> X[0] 1.0)))
+""".splitlines(keepends=True)
+    )
+
+    assert query.branches == ((), ())
+    assert [domain.bound_at(0).comparator for domain in query.branch_input_domains] == [
+        VNNLibComparator.LT,
+        VNNLibComparator.GT,
+    ]
+    assert query.capabilities.has_strict_comparisons
+
+
+def test_input_domain_rejects_corrupt_packed_records():
+    with pytest.raises(ValueError, match="truncated"):
+        VNNLibInputDomain(records=b"broken")
+
+
+def test_parse_query_deduplicates_packed_numeric_lexemes():
+    query = TorchVNNLIB.parse_query(
+        lines="""(vnnlib-version <2.0>)
+(declare-network f
+  (declare-input X float32 [2])
+  (declare-output Y float32 [1]))
+(assert (and (>= X[0] 0.0) (>= X[1] 0.0)))
+""".splitlines(keepends=True)
+    )
+
+    assert query.global_input_domain.lexemes == b"0.0"
+    assert [bound.lexeme for bound in query.global_input_domain] == ["0.0", "0.0"]
+
+
+def test_official_float_nodes_expose_exact_lexemes():
+    query = TorchVNNLIB.parse_query(
+        lines=SIMPLE_QUERY.replace("0.0", "0.1000", 1).splitlines(keepends=True)
+    )
+
+    assert query.global_input_domain.bound_at(0).lexeme == "0.1000"
 
 
 def test_parse_query_reads_gzip(tmp_path):

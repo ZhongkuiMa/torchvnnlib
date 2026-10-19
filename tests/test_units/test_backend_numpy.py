@@ -4,7 +4,10 @@ Tests the numpy-specific backend for array operations, file I/O, and dtype handl
 NumPy is always available, unlike PyTorch.
 """
 
+import subprocess
+import sys
 import tempfile
+import textwrap
 import time
 from pathlib import Path
 from typing import Any
@@ -38,6 +41,36 @@ class TestNumpyBackendBasics:
         """Test isinstance check on NumpyBackend."""
         backend = NumpyBackend()
         assert isinstance(backend, NumpyBackend)
+
+    def test_legacy_numpy_parse_does_not_import_torch(self):
+        """Keep the isolated NumPy parser independent of PyTorch runtime setup."""
+        code = textwrap.dedent(
+            """
+            import sys
+
+            from torchvnnlib import TorchVNNLIB
+
+            assert "torch" not in sys.modules
+            properties = TorchVNNLIB(output_format="numpy").parse(
+                lines=[
+                    "(declare-const X_0 Real)\\n",
+                    "(declare-const Y_0 Real)\\n",
+                    "(assert (>= X_0 0.0))\\n",
+                    "(assert (<= X_0 1.0))\\n",
+                    "(assert (<= Y_0 0.5))\\n",
+                ]
+            )
+            assert properties
+            assert "torch" not in sys.modules
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
 
 
 class TestNumpyArrayCreation:

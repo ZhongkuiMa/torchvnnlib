@@ -4,7 +4,8 @@
 
 Parse VNN-LIB verification properties into package-owned values. The legacy
 VNN-LIB 1.0 API produces ordered PyTorch tensors or NumPy arrays; the 2.0 API
-produces an immutable typed query representation backed by the official parser.
+produces an immutable typed query representation with the official parser as
+the general-language authority.
 
 ## Installation
 
@@ -36,6 +37,7 @@ general query expressions cannot be represented by the legacy tensor tuple:
 version = TorchVNNLIB.detect_version("query.vnnlib.gz")
 query = TorchVNNLIB.parse_query("query.vnnlib.gz")
 print(version, query.networks, query.branches, query.capabilities)
+print(query.parse_backend)  # official-ast or canonical-stream
 ```
 
 `parse_query()` accepts plain or gzip-compressed input and returns only frozen
@@ -43,6 +45,13 @@ TorchVNNLIB dataclasses; objects from the upstream `vnnlib` parser are not
 exposed. A version declaration must be the first non-comment statement;
 malformed or late declarations are rejected. Query execution and network
 binding belong to the consuming verifier.
+
+File-backed canonical queries with one network, one input/output tensor, and
+one OR-of-AND assertion of scalar tensor-to-number comparisons use a bounded
+streaming parser. That path packs branch-local input bounds without first
+building the generic upstream AST. Any syntax outside the exact grammar falls
+back to the official parser; in-memory `lines=` input always uses the official
+parser and is suitable for differential checks.
 
 For NumPy output, use `output_format="numpy"` and `numpy.load(..., allow_pickle=True)`.
 

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, TypedDict, cast
 
 from torchvnnlib._backend import Backend, TensorLike, get_backend
+from torchvnnlib._isolated import parse_query_isolated
 from torchvnnlib._logging import _enable_verbose
 from torchvnnlib._query import VNNLibQuery, VNNLibVersion
 from torchvnnlib._to_tensor import convert_to_tensor
@@ -227,6 +228,20 @@ class TorchVNNLIB:
         """Parse VNN-LIB 2.0 into the immutable query representation."""
         return parse_query(vnnlib_path, lines=lines)
 
+    @staticmethod
+    def parse_query_isolated(
+        vnnlib_path: str,
+        *,
+        cache_path: str | Path | None = None,
+        cache_dir: str | Path | None = None,
+    ) -> VNNLibQuery:
+        """Parse VNN-LIB 2.0 in a disposable process with an optional safe cache."""
+        return parse_query_isolated(
+            vnnlib_path,
+            cache_path=cache_path,
+            cache_dir=cache_dir,
+        )
+
     def _process_by_type(
         self,
         vnnlib_type: VNNLIBType,
@@ -264,7 +279,7 @@ class TorchVNNLIB:
         expr = parse_ast(tokens_list, verbose=self.verbose, use_parallel=self.use_parallel)
         if not isinstance(expr, And | Or):
             raise ValueError(f"Expected And or Or expression, got {type(expr).__name__}: {expr}")
-        nary_expr = cast(And | Or, expr)
+        nary_expr = expr
         _logger.info(
             f"  Parsing: {len(nary_expr.args)} expressions, {time.perf_counter() - t:.4f}s"
         )
