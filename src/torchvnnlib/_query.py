@@ -11,6 +11,7 @@ __all__ = [
     "VNNLibConstant",
     "VNNLibConstraint",
     "VNNLibExpression",
+    "VNNLibFlatInputBound",
     "VNNLibInputBound",
     "VNNLibInputDomain",
     "VNNLibMultiply",
@@ -176,6 +177,22 @@ class VNNLibInputBound:
 
 
 @dataclass(frozen=True, slots=True)
+class VNNLibFlatInputBound:
+    """One decoded input bound retaining its packed flat index.
+
+    :param tensor_name: Declared input tensor name.
+    :param flat_index: Row-major flat tensor element index.
+    :param comparator: Comparison normalized with the variable on the left.
+    :param lexeme: Exact source spelling of the numeric bound.
+    """
+
+    tensor_name: str
+    flat_index: int
+    comparator: VNNLibComparator
+    lexeme: str
+
+
+@dataclass(frozen=True, slots=True)
 class VNNLibInputDomain:
     """Packed conjunction of top-level scalar input bounds.
 
@@ -235,6 +252,40 @@ class VNNLibInputDomain:
         """Yield decoded bounds without retaining per-bound objects."""
         for index in range(len(self)):
             yield self.bound_at(index)
+
+    def iter_flat_bound_fields(
+        self,
+    ) -> Iterator[tuple[str, int, VNNLibComparator, str]]:
+        """Yield validated flat-bound fields without allocating view objects."""
+        comparators = tuple(VNNLibComparator)
+        tensor_sizes = tuple(prod(shape) for shape in self.tensor_shapes)
+        decoded_lexemes: dict[int, str] = {}
+        for record in _BOUND_RECORD.iter_unpack(self.records):
+            tensor_id, flat_index, lexeme_start, lexeme_length, comparator_code = record
+            try:
+                name = self.tensor_names[tensor_id]
+                tensor_size = tensor_sizes[tensor_id]
+                comparator = comparators[comparator_code]
+            except IndexError as error:
+                raise ValueError("Input-domain record references invalid metadata") from error
+            if flat_index >= tensor_size:
+                raise ValueError("Input-domain record references an invalid tensor index")
+            lexeme_end = lexeme_start + lexeme_length
+            if lexeme_end > len(self.lexemes):
+                raise ValueError("Input-domain record references an invalid lexeme")
+            # Both fields are uint32, so one integer is a collision-free key
+            # without allocating a two-element tuple for every packed record.
+            location = (lexeme_start << 32) | lexeme_length
+            lexeme = decoded_lexemes.get(location)
+            if lexeme is None:
+                lexeme = self.lexemes[lexeme_start:lexeme_end].decode("utf-8")
+                decoded_lexemes[location] = lexeme
+            yield name, flat_index, comparator, lexeme
+
+    def iter_flat_bounds(self) -> Iterator[VNNLibFlatInputBound]:
+        """Yield validated bounds without reconstructing tensor indices."""
+        for fields in self.iter_flat_bound_fields():
+            yield VNNLibFlatInputBound(*fields)
 
 
 def _unravel_index(flat_index: int, shape: tuple[int, ...]) -> tuple[int, ...]:

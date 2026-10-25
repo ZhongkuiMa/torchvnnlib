@@ -6,6 +6,7 @@ import pytest
 from torchvnnlib import (
     TorchVNNLIB,
     VNNLibComparator,
+    VNNLibFlatInputBound,
     VNNLibInputDomain,
     VNNLibMultiply,
     VNNLibTensorKind,
@@ -154,6 +155,31 @@ def test_parse_query_deduplicates_packed_numeric_lexemes():
 
     assert query.global_input_domain.lexemes == b"0.0"
     assert [bound.lexeme for bound in query.global_input_domain] == ["0.0", "0.0"]
+
+
+def test_input_domain_iterates_validated_flat_bounds():
+    query = TorchVNNLIB.parse_query(
+        lines="""(vnnlib-version <2.0>)
+(declare-network f
+  (declare-input X float32 [2,2])
+  (declare-output Y float32 [1]))
+(assert (and (>= X[0,1] 0.0) (<= X[1,1] 0.0)))
+""".splitlines(keepends=True)
+    )
+
+    bounds = list(query.global_input_domain.iter_flat_bounds())
+    fields = list(query.global_input_domain.iter_flat_bound_fields())
+
+    assert bounds == [
+        VNNLibFlatInputBound("X", 1, VNNLibComparator.GE, "0.0"),
+        VNNLibFlatInputBound("X", 3, VNNLibComparator.LE, "0.0"),
+    ]
+    assert bounds[0].lexeme is bounds[1].lexeme
+    assert fields == [
+        ("X", 1, VNNLibComparator.GE, "0.0"),
+        ("X", 3, VNNLibComparator.LE, "0.0"),
+    ]
+    assert fields[0][3] is fields[1][3]
 
 
 def test_official_float_nodes_expose_exact_lexemes():

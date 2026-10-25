@@ -7,7 +7,7 @@ or NumPy array representations for neural network verification.
 """
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.10.2"
+__version__ = "2026.10.3"
 __all__ = [
     "TensorProperties",
     "TensorProperty",
@@ -19,6 +19,7 @@ __all__ = [
     "VNNLibConstant",
     "VNNLibConstraint",
     "VNNLibExpression",
+    "VNNLibFlatInputBound",
     "VNNLibInputBound",
     "VNNLibInputDomain",
     "VNNLibMultiply",
@@ -48,6 +49,7 @@ from torchvnnlib._query import (
     VNNLibConstant,
     VNNLibConstraint,
     VNNLibExpression,
+    VNNLibFlatInputBound,
     VNNLibInputBound,
     VNNLibInputDomain,
     VNNLibMultiply,
